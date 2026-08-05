@@ -3,41 +3,44 @@
 --  Same data the app ships with in demo mode, so switching to Supabase does not
 --  change what you see on screen.
 --
---  Run after 0001_schema.sql and 0002_rls.sql, in the Supabase SQL editor or
---  with `supabase db reset`. Safe to run twice.
+--  Run after both migrations, in the Supabase SQL editor or with
+--  `supabase db reset`. Safe to run twice.
 -- ============================================================================
 
 -- ── Demo users ──────────────────────────────────────────────────────────────
--- On a hosted project you may prefer to create these three from the dashboard
--- and skip this block. The UUIDs below are what the rest of the seed expects.
+-- Everything below resolves users by email, so this block is optional. If you
+-- would rather create the three accounts from Authentication > Users in the
+-- dashboard, do that first with these exact addresses and skip this insert.
+-- The password here is a demo password. Change it before anyone real logs in.
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, created_at, updated_at,
-  raw_app_meta_data, raw_user_meta_data
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new, email_change
 )
 values
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-4000-8000-000000000001',
    'authenticated', 'authenticated', 'marta@cafekolektyw.pl',
    crypt('demo-password-123', gen_salt('bf')), now(), now(), now(),
-   '{"provider":"email","providers":["email"]}', '{"full_name":"Marta Zielinska"}'),
+   '{"provider":"email","providers":["email"]}', '{"full_name":"Marta Zielinska"}', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-4000-8000-000000000002',
    'authenticated', 'authenticated', 'jakub@cafekolektyw.pl',
    crypt('demo-password-123', gen_salt('bf')), now(), now(), now(),
-   '{"provider":"email","providers":["email"]}', '{"full_name":"Jakub Nowak"}'),
+   '{"provider":"email","providers":["email"]}', '{"full_name":"Jakub Nowak"}', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-0000-4000-8000-000000000003',
    'authenticated', 'authenticated', 'ops@reviewreply.app',
    crypt('demo-password-123', gen_salt('bf')), now(), now(), now(),
-   '{"provider":"email","providers":["email"]}', '{"full_name":"Nikola Krecisz"}')
+   '{"provider":"email","providers":["email"]}', '{"full_name":"Nikola Krecisz"}', '', '', '', '')
 on conflict (id) do nothing;
 
 -- ── Profiles, tenant, members ───────────────────────────────────────────────
 
 insert into profiles (id, user_id, full_name, email, avatar_initials)
 values
-  ('bbbbbbbb-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 'Marta Zielinska', 'marta@cafekolektyw.pl', 'MZ'),
-  ('bbbbbbbb-0000-4000-8000-000000000002', 'aaaaaaaa-0000-4000-8000-000000000002', 'Jakub Nowak', 'jakub@cafekolektyw.pl', 'JN'),
-  ('bbbbbbbb-0000-4000-8000-000000000003', 'aaaaaaaa-0000-4000-8000-000000000003', 'Nikola Krecisz', 'ops@reviewreply.app', 'NK')
+  ('bbbbbbbb-0000-4000-8000-000000000001', (select id from auth.users where email = 'marta@cafekolektyw.pl'), 'Marta Zielinska', 'marta@cafekolektyw.pl', 'MZ'),
+  ('bbbbbbbb-0000-4000-8000-000000000002', (select id from auth.users where email = 'jakub@cafekolektyw.pl'), 'Jakub Nowak', 'jakub@cafekolektyw.pl', 'JN'),
+  ('bbbbbbbb-0000-4000-8000-000000000003', (select id from auth.users where email = 'ops@reviewreply.app'), 'Nikola Krecisz', 'ops@reviewreply.app', 'NK')
 on conflict (user_id) do nothing;
 
 insert into tenants (id, name, slug, plan)
@@ -46,9 +49,9 @@ on conflict (id) do nothing;
 
 insert into tenant_members (tenant_id, user_id, role, job_title)
 values
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'tenant_admin', 'Owner'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000002', 'tenant_member', 'Floor manager'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000003', 'platform_admin', 'Platform operator')
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'marta@cafekolektyw.pl'), 'tenant_admin', 'Owner'),
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'jakub@cafekolektyw.pl'), 'tenant_member', 'Floor manager'),
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'ops@reviewreply.app'), 'platform_admin', 'Platform operator')
 on conflict (tenant_id, user_id) do nothing;
 
 -- ── Business profile ────────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ values
   ('33333333-0000-4000-8000-000000000004', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
    'google', 'ext-review-0004', 'Tomasz Bak', 3,
    'Kawa dobra, ciasto tez, ale muzyka byla tak glosna ze nie dalo sie rozmawiac. Przyszlismy na spokojne popoludnie we dwoje i wyszlismy po pol godziny.',
-   'pl', 'mixed', 34, 'pending_approval', true, 'aaaaaaaa-0000-4000-8000-000000000002', null, null, now() - interval '6 days'),
+   'pl', 'mixed', 34, 'pending_approval', true, (select id from auth.users where email = 'jakub@cafekolektyw.pl'), null, null, now() - interval '6 days'),
 
   ('33333333-0000-4000-8000-000000000005', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
    'google', 'ext-review-0005', 'Karolina Maj', 1,
@@ -190,7 +193,7 @@ values
   ('33333333-0000-4000-8000-000000000011', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
    'google', 'ext-review-0011', 'Marek Dudek', 1,
    'Zaplacilem za zestaw sniadaniowy, ktorego polowa nie dojechala do stolika. Odmowiono mi zwrotu. Zglaszam sprawe do sanepidu i rzecznika praw konsumenta.',
-   'pl', 'negative', 94, 'pending_approval', true, 'aaaaaaaa-0000-4000-8000-000000000001', null, null, now() - interval '1 day'),
+   'pl', 'negative', 94, 'pending_approval', true, (select id from auth.users where email = 'marta@cafekolektyw.pl'), null, null, now() - interval '1 day'),
 
   ('33333333-0000-4000-8000-000000000012', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
    'facebook', 'ext-review-0012', 'Nina Petrova', 5,
@@ -243,42 +246,42 @@ values
    'Thank you, Sophie. Glad the flat white held up over a whole month of remote work, and that the sockets did their job. Come back for a laptop friendly spot in Krakow whenever you need a desk with better coffee.',
    88, true, 'Echoes the remote work detail, one local phrase, soft return invitation.',
    array['detail_echo', 'keyword_single', 'length_ok'], 'a laptop friendly spot in Krakow',
-   'aaaaaaaa-0000-4000-8000-000000000002', now() - interval '8 days' + interval '2 hours'),
+   (select id from auth.users where email = 'jakub@cafekolektyw.pl'), now() - interval '8 days' + interval '2 hours'),
 
   ('55555555-0000-4000-8000-000000000002', '33333333-0000-4000-8000-000000000003',
    'mock-reply-v1', '2026.08.1',
    'Thanks Sophie, this made our morning. The flat white is the drink we obsess over most, and we like knowing the corner desk earned its keep. Come back any time you are in Kazimierz.',
    81, false, 'Warmer variant with no keyword, kept as a safer fallback.',
    array['detail_echo', 'length_ok'], null,
-   'aaaaaaaa-0000-4000-8000-000000000002', now() - interval '8 days' + interval '2 hours'),
+   (select id from auth.users where email = 'jakub@cafekolektyw.pl'), now() - interval '8 days' + interval '2 hours'),
 
   ('55555555-0000-4000-8000-000000000003', '33333333-0000-4000-8000-000000000004',
    'mock-reply-v1', '2026.08.1',
    'Dziekujemy za dobre slowo o kawie i ciescie. Glosna muzyka w sobotnie popoludnie to uwaga, ktora bierzemy na powaznie, sprawdzimy poziom w sali od podworza. Damy rade zrobic wam spokojniejsze popoludnie.',
    84, true, 'Gratitude, acknowledges the specific complaint, no excuse, soft invitation.',
    array['detail_echo', 'length_ok'], null,
-   'aaaaaaaa-0000-4000-8000-000000000002', now() - interval '6 days' + interval '2 hours'),
+   (select id from auth.users where email = 'jakub@cafekolektyw.pl'), now() - interval '6 days' + interval '2 hours'),
 
   ('55555555-0000-4000-8000-000000000004', '33333333-0000-4000-8000-000000000007',
    'mock-reply-v1', '2026.08.1',
    'Dziekujemy, Julio. Krotko i milo, a nam robi dzien. Kawiarnia przy Placu Nowym to nasz konik, wiec wpadaj na kawe.',
    71, false, 'Nothing specific to echo, so the reply stays short and adds one local anchor.',
    array['keyword_single', 'length_ok'], 'kawiarnia przy Placu Nowym',
-   'aaaaaaaa-0000-4000-8000-000000000002', now() - interval '2 days' + interval '2 hours'),
+   (select id from auth.users where email = 'jakub@cafekolektyw.pl'), now() - interval '2 days' + interval '2 hours'),
 
   ('55555555-0000-4000-8000-000000000005', '33333333-0000-4000-8000-000000000008',
    'mock-reply-v1', '2026.08.1',
    'Thank you, David. The poached eggs are the part we are most protective of, so that is good to hear. Sunday brunch does build a queue, and reserving ahead usually skips it. See you next time.',
    86, false, 'Echoes the eggs, answers the wait with a practical tip, no excuse.',
    array['detail_echo', 'length_ok'], null,
-   'aaaaaaaa-0000-4000-8000-000000000002', now() - interval '5 days' + interval '2 hours'),
+   (select id from auth.users where email = 'jakub@cafekolektyw.pl'), now() - interval '5 days' + interval '2 hours'),
 
   ('55555555-0000-4000-8000-000000000006', '33333333-0000-4000-8000-000000000011',
    'mock-reply-v1', '2026.08.1',
    'Panie Marku, przykro nam, ze zamowienie nie dotarlo w calosci. Chcemy to wyjasnic i uporzadkowac platnosc, prosze o kontakt na kontakt@cafekolektyw.pl albo 12 345 67 89. Odezwiemy sie tego samego dnia.',
    90, true, 'One apology, no admission of fault, no public refund talk, straight to a private channel.',
    array['no_public_refund', 'escalation_contact', 'single_apology'], null,
-   'aaaaaaaa-0000-4000-8000-000000000001', now() - interval '1 day' + interval '2 hours')
+   (select id from auth.users where email = 'marta@cafekolektyw.pl'), now() - interval '1 day' + interval '2 hours')
 on conflict (id) do nothing;
 
 -- ── Approvals ───────────────────────────────────────────────────────────────
@@ -286,7 +289,7 @@ on conflict (id) do nothing;
 insert into review_approvals (review_id, draft_id, decision, approved_by, notes, created_at)
 values
   ('33333333-0000-4000-8000-000000000003', '55555555-0000-4000-8000-000000000001',
-   'approved', 'aaaaaaaa-0000-4000-8000-000000000001',
+   'approved', (select id from auth.users where email = 'marta@cafekolektyw.pl'),
    'Good echo of the remote work detail. Nothing to change.', now() - interval '8 days' + interval '3 hours')
 on conflict do nothing;
 
@@ -295,8 +298,8 @@ on conflict do nothing;
 insert into activity_logs (tenant_id, actor_user_id, actor_name, entity_type, entity_id, action, metadata, created_at)
 values
   ('11111111-1111-4111-8111-111111111111', null, 'Review sync', 'review', '33333333-0000-4000-8000-000000000005', 'review.created', '{"source":"google","stars":1}', now() - interval '3 days'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000002', 'Jakub Nowak', 'review_draft', '33333333-0000-4000-8000-000000000004', 'draft.generated', '{"count":2,"model":"mock-reply-v1"}', now() - interval '6 days' + interval '2 hours'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'Marta Zielinska', 'review', '33333333-0000-4000-8000-000000000003', 'review.approved', '{"notes":"Good echo of the remote work detail."}', now() - interval '8 days' + interval '3 hours'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'Marta Zielinska', 'review', '33333333-0000-4000-8000-000000000001', 'review.published', '{"stars":5,"source":"google"}', now() - interval '12 days' + interval '3 hours'),
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-0000-4000-8000-000000000001', 'Marta Zielinska', 'business_profile', '22222222-2222-4222-8222-222222222222', 'business_profile.updated', '{"fields":["negativePolicy","bannedPhrases"]}', now() - interval '4 days')
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'jakub@cafekolektyw.pl'), 'Jakub Nowak', 'review_draft', '33333333-0000-4000-8000-000000000004', 'draft.generated', '{"count":2,"model":"mock-reply-v1"}', now() - interval '6 days' + interval '2 hours'),
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'marta@cafekolektyw.pl'), 'Marta Zielinska', 'review', '33333333-0000-4000-8000-000000000003', 'review.approved', '{"notes":"Good echo of the remote work detail."}', now() - interval '8 days' + interval '3 hours'),
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'marta@cafekolektyw.pl'), 'Marta Zielinska', 'review', '33333333-0000-4000-8000-000000000001', 'review.published', '{"stars":5,"source":"google"}', now() - interval '12 days' + interval '3 hours'),
+  ('11111111-1111-4111-8111-111111111111', (select id from auth.users where email = 'marta@cafekolektyw.pl'), 'Marta Zielinska', 'business_profile', '22222222-2222-4222-8222-222222222222', 'business_profile.updated', '{"fields":["negativePolicy","bannedPhrases"]}', now() - interval '4 days')
 on conflict do nothing;
