@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Session } from "@/lib/auth/session";
+import { checkRateLimit, generationRateLimit } from "@/lib/rate-limit";
 import { getRepository } from "@/lib/repositories";
 import { buildPrompt, type AssembledPrompt } from "@/prompts/builder";
 import { classifyReview, detectLanguage } from "@/services/classification";
@@ -227,6 +228,24 @@ export async function generateReplies(
   // The provider decides the output contract, so the stored prompt is exactly
   // what the engine received.
   const provider = getGenerationProvider();
+
+  // Only paid engines are worth limiting, and only against the caller's own
+  // session. A brake on runaway loops and impatient clicking, nothing more.
+  if (!provider.offline) {
+    const limit = generationRateLimit();
+    const verdict = checkRateLimit(
+      `generate:${session.tenantId}:${session.sessionId}`,
+      limit,
+      60 * 60 * 1000,
+    );
+    if (!verdict.allowed) {
+      throw new Error(
+        `Generation limit reached: ${limit} per hour on this workspace. Try again in ${Math.ceil(
+          verdict.retryAfterSeconds / 60,
+        )} minutes.`,
+      );
+    }
+  }
 
   const prompt = buildPrompt({
     review,

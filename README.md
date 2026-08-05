@@ -157,6 +157,21 @@ Vercel, zero configuration. The demo workspace runs in memory there, which is
 enough to show the product and honest about what it is. Add Supabase before
 anything a customer relies on.
 
+Two things to know before a public deployment:
+
+- **There is no real authentication yet.** The sign in screen hands out a role
+  to whoever asks. Until Supabase auth lands, keep the deployment behind Vercel
+  Deployment Protection.
+- **Do not put a paid API key on an unprotected deployment.** Leave
+  `GENERATION_PROVIDER` unset in production, which means the offline engine and
+  zero spend, and test the paid engine locally. When you do switch it on, the
+  key belongs in the Vercel environment, never in the repo. It is read in one
+  server only module and never reaches the browser.
+
+`GENERATION_RATE_LIMIT_PER_HOUR` caps generations per session for paid engines.
+It counts per warm instance, so treat it as a brake on runaway loops, not as a
+quota. The real ceiling is the budget limit on the provider account.
+
 ## Conventions
 
 - Interface copy is English and lives in `lib/labels.ts`. A second language is a
