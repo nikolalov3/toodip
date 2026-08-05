@@ -121,7 +121,7 @@ export default async function TeamPage() {
         <Panel className="overflow-hidden">
           <PanelHeader
             title="Permissions"
-            description="What each role can do. Enforced in the services layer today, and by row level security once the database is live."
+            description="What each role can do. Enforced in the services layer. The matching row level security policies take over once sign in moves to Supabase auth."
           />
           <table className="w-full min-w-[640px] text-sm">
             <thead>

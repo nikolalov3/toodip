@@ -48,7 +48,14 @@ export function AppShell({
         <div className="border-t border-sidebar-border px-3 py-3">
           <div className="rounded-md border border-border bg-card px-2.5 py-2">
             <p className="flex items-center gap-1.5 text-[11px] font-medium">
-              <span className="size-1.5 rounded-full bg-caution" aria-hidden />
+              <span
+                className={
+                  mode === "demo"
+                    ? "size-1.5 rounded-full bg-caution"
+                    : "size-1.5 rounded-full bg-positive"
+                }
+                aria-hidden
+              />
               {mode === "demo" ? "Demo data" : "Live data"}
             </p>
             <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
