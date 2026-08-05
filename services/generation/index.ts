@@ -32,4 +32,10 @@ export function listGenerationProviders(): GenerationProvider[] {
   return Object.values(PROVIDERS);
 }
 
+export function getGenerationProviderById(
+  id: string,
+): GenerationProvider | null {
+  return PROVIDERS[id] ?? null;
+}
+
 export * from "@/services/generation/types";

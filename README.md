@@ -133,6 +133,11 @@ Every route validates with Zod and answers `{ data }` or `{ error, details }`.
 | GET, PATCH | `/api/business-profile` | Brand settings |
 | GET, PATCH | `/api/keyword-bank` | Keyword bank, usage counts preserved |
 | GET | `/api/activity` | Audit log |
+| GET | `/api/dev/compare-engines` | Runs the same reviews through several engines and scores every draft with the same rules |
+
+`compare-engines` takes `?providers=mock,openai&limit=6`, one draft per engine,
+highest risk reviews first. It is off in production unless
+`ALLOW_ENGINE_COMPARE=1`, because a run against a paid engine costs tokens.
 
 ## Structure
 
