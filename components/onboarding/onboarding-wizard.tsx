@@ -14,9 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { categoryLabels, toneHints, toneLabels } from "@/lib/labels";
+import {
+  categoryLabels,
+  emojiPolicyHints,
+  emojiPolicyLabels,
+  toneHints,
+  toneLabels,
+} from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { BusinessCategory, BusinessProfile, ToneKey } from "@/types/domain";
+import type {
+  BusinessCategory,
+  BusinessProfile,
+  EmojiPolicy,
+  ToneKey,
+} from "@/types/domain";
 
 const STEPS = [
   {
@@ -207,6 +218,28 @@ export function OnboardingWizard({ profile }: { profile: BusinessProfile }) {
               </select>
               <p className="mt-1 text-xs text-muted-foreground">
                 {toneHints[profile.tone]}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="emojiPolicy" className="text-xs">
+                Emoji
+              </Label>
+              <select
+                id="emojiPolicy"
+                name="emojiPolicy"
+                defaultValue={profile.emojiPolicy}
+                className={cn(selectClass, "mt-1.5")}
+              >
+                {(Object.keys(emojiPolicyLabels) as EmojiPolicy[]).map(
+                  (policy) => (
+                    <option key={policy} value={policy}>
+                      {emojiPolicyLabels[policy]}
+                    </option>
+                  ),
+                )}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {emojiPolicyHints[profile.emojiPolicy]}
               </p>
             </div>
             <div>

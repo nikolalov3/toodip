@@ -2,6 +2,7 @@ import type {
   ActivityAction,
   BusinessCategory,
   BrandVoiceExampleType,
+  EmojiPolicy,
   KeywordType,
   MemberRole,
   ReviewSource,
@@ -118,6 +119,20 @@ export const toneHints: Record<ToneKey, string> = {
   friendly_casual:
     "Relaxed and personal. Fits neighbourhood venues with a young crowd.",
   formal: "Reserved and precise. Fits clinics, legal and premium services.",
+};
+
+export const emojiPolicyLabels: Record<EmojiPolicy, string> = {
+  never: "Never",
+  sparing: "Sparingly",
+  match_reviewer: "Only if the reviewer used one",
+};
+
+export const emojiPolicyHints: Record<EmojiPolicy, string> = {
+  never: "Cleanest option for clinics, legal and premium venues.",
+  sparing:
+    "At most one, and only in a genuinely warm reply. Never in a complaint.",
+  match_reviewer:
+    "Mirrors the reviewer. Sounds human without ever looking unserious.",
 };
 
 export const keywordTypeLabels: Record<KeywordType, string> = {

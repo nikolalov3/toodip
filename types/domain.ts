@@ -58,6 +58,13 @@ export type ToneKey =
 
 export type KeywordType = "local" | "service" | "product" | "brand";
 
+/**
+ * How much personality a reply is allowed to show in punctuation.
+ * "match_reviewer" only uses an emoji when the reviewer used one first, which
+ * is the safest way to sound human without sounding junior.
+ */
+export type EmojiPolicy = "never" | "sparing" | "match_reviewer";
+
 export type BrandVoiceExampleType =
   | "positive_reply"
   | "neutral_reply"
@@ -142,6 +149,7 @@ export interface BusinessProfile {
   description: string;
   tone: ToneKey;
   toneDescriptors: string[];
+  emojiPolicy: EmojiPolicy;
   signOff: string;
   /** Free text rules appended to the tenant prompt layer. */
   negativePolicy: string;

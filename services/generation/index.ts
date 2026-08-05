@@ -1,20 +1,20 @@
 import { mockGenerationProvider } from "@/services/generation/mock-provider";
+import { openAiGenerationProvider } from "@/services/generation/openai-provider";
 import type { GenerationProvider } from "@/services/generation/types";
 
 /**
- * Provider registry.
+ * Provider registry. GENERATION_PROVIDER picks the active one.
  *
- * Adding OpenAI is one file plus one entry here:
+ * mock    deterministic rule engine, no API call, no cost. The default.
+ * openai  the real thing, needs OPENAI_API_KEY.
  *
- *   import { openAiProvider } from "./openai-provider";
- *   const PROVIDERS = { mock: mockGenerationProvider, openai: openAiProvider };
- *
- * The route, the services and the UI already read whatever this returns, so
- * nothing else moves. Set GENERATION_PROVIDER to pick one.
+ * Routes, services and screens read whatever this returns, so switching engines
+ * changes nothing else in the codebase.
  */
 
 const PROVIDERS: Record<string, GenerationProvider> = {
   mock: mockGenerationProvider,
+  openai: openAiGenerationProvider,
 };
 
 export function getGenerationProvider(): GenerationProvider {

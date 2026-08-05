@@ -180,6 +180,32 @@ export function evaluateDraft({
     }
   }
 
+  // Emoji, per the brand policy.
+  const emojiCount = (text.match(/\p{Extended_Pictographic}/gu) ?? []).length;
+  const reviewerUsedEmoji = /\p{Extended_Pictographic}/u.test(
+    review.reviewText,
+  );
+  const sensitive = isNegative || review.riskFlags.length > 0;
+
+  if (emojiCount > 0) {
+    if (profile.emojiPolicy === "never") {
+      issues.push("Uses an emoji, and this brand never does.");
+      score -= 14;
+    } else if (sensitive) {
+      issues.push("Emoji in a reply to a complaint or a flagged review.");
+      safetyTags.push("emoji_on_sensitive");
+      score -= 18;
+    } else if (emojiCount > 1) {
+      issues.push(`${emojiCount} emoji in one reply. One is the ceiling.`);
+      score -= 8;
+    } else if (profile.emojiPolicy === "match_reviewer" && !reviewerUsedEmoji) {
+      issues.push("Adds an emoji the reviewer never used.");
+      score -= 10;
+    } else {
+      safetyTags.push("emoji_within_policy");
+    }
+  }
+
   // The business name should appear at most once.
   const nameHits = normalizedText.split(normalize(profile.name)).length - 1;
   if (nameHits > 1) {

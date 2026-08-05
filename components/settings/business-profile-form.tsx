@@ -12,8 +12,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { categoryLabels, toneHints, toneLabels } from "@/lib/labels";
-import type { BusinessCategory, BusinessProfile, ToneKey } from "@/types/domain";
+import {
+  categoryLabels,
+  emojiPolicyHints,
+  emojiPolicyLabels,
+  toneHints,
+  toneLabels,
+} from "@/lib/labels";
+import type {
+  BusinessCategory,
+  BusinessProfile,
+  EmojiPolicy,
+  ToneKey,
+} from "@/types/domain";
 
 function Row({
   label,
@@ -148,6 +159,26 @@ export function BusinessProfileForm({
                     {toneLabels[tone]}
                   </option>
                 ))}
+              </select>
+            </Row>
+            <Row
+              label="Emoji"
+              htmlFor="emojiPolicy"
+              hint={emojiPolicyHints[profile.emojiPolicy]}
+            >
+              <select
+                id="emojiPolicy"
+                name="emojiPolicy"
+                defaultValue={profile.emojiPolicy}
+                className={selectClass}
+              >
+                {(Object.keys(emojiPolicyLabels) as EmojiPolicy[]).map(
+                  (policy) => (
+                    <option key={policy} value={policy}>
+                      {emojiPolicyLabels[policy]}
+                    </option>
+                  ),
+                )}
               </select>
             </Row>
             <Row

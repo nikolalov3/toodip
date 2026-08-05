@@ -21,6 +21,14 @@ function bullets(items: string[]): string {
   return items.length ? items.map((item) => `- ${item}`).join("\n") : "- none";
 }
 
+const EMOJI_RULES: Record<BusinessProfile["emojiPolicy"], string> = {
+  never: "never use an emoji, in any reply.",
+  sparing:
+    "at most one emoji, only in a genuinely warm reply to a happy customer. Never in a reply to a complaint, a neutral review or anything carrying a risk flag.",
+  match_reviewer:
+    "use an emoji only if the reviewer used one first, and then at most one. Never in a reply to a complaint or a flagged review.",
+};
+
 export function buildTenantPrompt({
   profile,
   keywords,
@@ -53,6 +61,7 @@ About: ${profile.description}
 VOICE
 Tone: ${toneLabels[profile.tone]}
 Descriptors: ${[...profile.toneDescriptors, ...descriptors.map((d) => d.content)].join(", ") || "none"}
+Emoji: ${EMOJI_RULES[profile.emojiPolicy]}
 Sign off: ${profile.signOff || "none, end on the last sentence"}
 Reply language: ${profile.primaryLanguage} by default, mirror the reviewer when the review is in ${profile.languages.join(" or ")}.
 

@@ -1,4 +1,4 @@
-import type { DemoDataset } from "@/lib/demo/dataset";
+import { SEED_VERSION, type DemoDataset } from "@/lib/demo/dataset";
 import type {
   ActivityLog,
   BrandVoiceExample,
@@ -538,6 +538,7 @@ export function buildSeedDataset(now = Date.now()): DemoDataset {
         "Speciality coffee bar and bakery in a tenement courtyard on Jozefa. Own filter brews, baskijski cheesecake baked every morning, a garden at the back and desks that people actually work from.",
       tone: "warm_professional",
       toneDescriptors: ["warm", "specific", "unfussy", "never corporate"],
+      emojiPolicy: "match_reviewer",
       signOff: "Zespol Cafe Kolektyw",
       negativePolicy:
         "One apology, never two. Name the problem in the reviewer's own words. Move anything about money, staff or hygiene to email or phone within the first two sentences. Never blame a shift, a supplier or the customer.",
@@ -773,6 +774,7 @@ export function buildSeedDataset(now = Date.now()): DemoDataset {
   activity.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return {
+    version: SEED_VERSION,
     tenants,
     profiles,
     members,

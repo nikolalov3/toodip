@@ -1,0 +1,23 @@
+# Supabase CLI configuration.
+#
+# project_id links this folder to a hosted project. Fill in the reference from
+# the project URL (https://supabase.com/dashboard/project/<ref>), then:
+#
+#   supabase login          # you do this, the token stays in your keychain
+#   supabase link --project-ref <ref>
+#   supabase db push        # runs supabase/migrations in order
+#
+# The GitHub integration runs the same migrations on push, so either path works.
+# seed.sql is applied by `supabase db reset` locally. On a hosted project run it
+# once from the SQL editor.
+
+project_id = "REPLACE_WITH_PROJECT_REF"
+
+[db]
+major_version = 15
+
+[db.migrations]
+schema_paths = []
+
+[auth]
+enable_signup = true

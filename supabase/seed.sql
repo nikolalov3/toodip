@@ -55,7 +55,7 @@ on conflict (tenant_id, user_id) do nothing;
 
 insert into business_profiles (
   id, tenant_id, name, category, city, district, address, description,
-  tone, tone_descriptors, sign_off, negative_policy,
+  tone, tone_descriptors, emoji_policy, sign_off, negative_policy,
   escalation_email, escalation_phone,
   banned_phrases, preferred_words, do_not_mention,
   languages, primary_language, approval_settings
@@ -67,6 +67,7 @@ values (
   'Speciality coffee bar and bakery in a tenement courtyard on Jozefa. Own filter brews, baskijski cheesecake baked every morning, a garden at the back and desks that people actually work from.',
   'warm_professional',
   array['warm', 'specific', 'unfussy', 'never corporate'],
+  'match_reviewer',
   'Zespol Cafe Kolektyw',
   'One apology, never two. Name the problem in the reviewer''s own words. Move anything about money, staff or hygiene to email or phone within the first two sentences. Never blame a shift, a supplier or the customer.',
   'kontakt@cafekolektyw.pl', '+48 12 345 67 89',

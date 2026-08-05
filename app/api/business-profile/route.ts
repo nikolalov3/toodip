@@ -32,6 +32,7 @@ const patchSchema = z.object({
     ])
     .optional(),
   toneDescriptors: z.array(z.string().trim()).optional(),
+  emojiPolicy: z.enum(["never", "sparing", "match_reviewer"]).optional(),
   signOff: z.string().trim().max(120).optional(),
   negativePolicy: z.string().trim().min(10).optional(),
   escalationEmail: z.string().email().nullable().optional(),

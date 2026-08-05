@@ -36,6 +36,8 @@ create type tone_key as enum (
 
 create type keyword_type as enum ('local', 'service', 'product', 'brand');
 
+create type emoji_policy as enum ('never', 'sparing', 'match_reviewer');
+
 create type brand_voice_example_type as enum (
   'positive_reply', 'neutral_reply', 'negative_reply',
   'tone_descriptor', 'phrase_to_prefer', 'phrase_to_avoid'
@@ -102,6 +104,7 @@ create table business_profiles (
   description       text not null default '',
   tone              tone_key not null default 'warm_professional',
   tone_descriptors  text[] not null default '{}',
+  emoji_policy      emoji_policy not null default 'match_reviewer',
   sign_off          text not null default '',
   negative_policy   text not null default '',
   escalation_email  text,

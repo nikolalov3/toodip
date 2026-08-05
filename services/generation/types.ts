@@ -47,6 +47,11 @@ export interface GenerationProvider {
   label: string;
   /** True when the provider produces text without an external API call. */
   offline: boolean;
+  /**
+   * Ask the prompt builder for a JSON output contract. Models handle several
+   * drafts and a rationale far better that way; the rule engine does not care.
+   */
+  wantsJsonMode?: boolean;
   generate(
     prompt: AssembledPrompt,
     context: GenerationContext,

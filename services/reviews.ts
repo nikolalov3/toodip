@@ -173,6 +173,7 @@ export async function getReviewWorkspace(
     keywords,
     brandVoice,
     draftCount: profile.approvalSettings.draftsPerGeneration,
+    jsonMode: getGenerationProvider().wantsJsonMode ?? false,
   });
 
   return {
@@ -223,6 +224,10 @@ export async function generateReplies(
     ? review.drafts.map((draft) => draft.draftText)
     : [];
 
+  // The provider decides the output contract, so the stored prompt is exactly
+  // what the engine received.
+  const provider = getGenerationProvider();
+
   const prompt = buildPrompt({
     review,
     profile,
@@ -230,10 +235,9 @@ export async function generateReplies(
     brandVoice,
     draftCount,
     previousDrafts,
-    jsonMode: input.jsonMode,
+    jsonMode: input.jsonMode ?? provider.wantsJsonMode ?? false,
   });
 
-  const provider = getGenerationProvider();
   const result = await provider.generate(prompt, {
     review,
     profile,

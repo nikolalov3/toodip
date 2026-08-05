@@ -3,7 +3,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { DemoDataset } from "@/lib/demo/dataset";
+import { SEED_VERSION, type DemoDataset } from "@/lib/demo/dataset";
 import { buildSeedDataset } from "@/lib/demo/seed";
 
 /**
@@ -73,11 +73,11 @@ async function writeToDisk(
 
 export async function readDataset(sessionId: string): Promise<DemoDataset> {
   const cached = memoryStore.get(sessionId);
-  if (cached) return cached;
+  if (cached?.version === SEED_VERSION) return cached;
 
   if (demoStoreDriver === "file") {
     const fromDisk = await readFromDisk(sessionId);
-    if (fromDisk) {
+    if (fromDisk?.version === SEED_VERSION) {
       memoryStore.set(sessionId, fromDisk);
       return fromDisk;
     }

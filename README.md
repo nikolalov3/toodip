@@ -73,34 +73,49 @@ Reset it from the user menu.
 **Supabase (next step).** The schema is already written and mirrors
 `types/domain.ts` one to one:
 
-- `supabase/migrations/0001_schema.sql` tables, enums, foreign keys, indexes
-- `supabase/migrations/0002_rls.sql` tenant isolation, admin only settings,
-  append only audit log
+- `supabase/migrations/20260805090000_schema.sql` tables, enums, foreign keys,
+  indexes
+- `supabase/migrations/20260805090100_rls.sql` tenant isolation, admin only
+  settings, append only audit log
 - `supabase/seed.sql` the same demo workspace as SQL
+- `supabase/config.toml` project link for the CLI
 
-To switch over:
+Migrations use the CLI timestamp convention, so both paths work: the GitHub
+integration runs them on push, or run them yourself.
 
-1. Run the two migrations, then `seed.sql`.
-2. Put the project URL and keys in `.env.local`.
-3. Implement `lib/repositories/supabase.ts` against the `DataRepository`
-   interface and return it from `lib/repositories/index.ts`.
-
-Nothing else changes. Screens, routes and services only know the interface.
-
-## Adding real OpenAI generation
-
-`services/generation/index.ts` is a registry:
-
-```ts
-const PROVIDERS: Record<string, GenerationProvider> = {
-  mock: mockGenerationProvider,
-  openai: openAiProvider, // implement GenerationProvider, send prompt.messages
-};
+```bash
+supabase login
+supabase link --project-ref <ref>
+supabase db push
 ```
 
-Set `GENERATION_PROVIDER=openai` and `OPENAI_API_KEY`. The provider only has to
-return draft text and a rationale. Quality scoring, storage, status transitions
-and the audit trail already happen around it.
+Then put the project URL and keys in `.env.local`, implement
+`lib/repositories/supabase.ts` against the `DataRepository` interface, and
+return it from `lib/repositories/index.ts`. Nothing else changes: screens,
+routes and services only know the interface.
+
+`seed.sql` is applied by `supabase db reset` locally. On a hosted project run it
+once from the SQL editor.
+
+## Switching on OpenAI
+
+The provider is implemented (`services/generation/openai-provider.ts`) and
+registered. It is inert until you give it a key.
+
+```bash
+GENERATION_PROVIDER=openai
+OPENAI_API_KEY=...        # a key scoped to a dedicated OpenAI project
+OPENAI_MODEL=...          # whatever your account lists as current
+```
+
+It receives the same assembled prompt as the rule engine, asks for JSON so
+several drafts and their rationales come back cleanly, retries once on rate
+limits and timeouts, and reports token usage. Everything around it, quality
+scoring, storage, status transitions and the audit trail, is unchanged.
+
+The prompt itself stays in this repo rather than in the OpenAI dashboard,
+because the brand layer is built per tenant at request time. A dashboard prompt
+cannot hold one venue's banned phrases and another's keyword bank.
 
 ## API
 
