@@ -2,7 +2,10 @@ import "server-only";
 
 import { mutateDataset, readDataset, resetDataset } from "@/lib/demo/store";
 import { DEMO_TENANT_ID } from "@/lib/demo/seed";
-import { riskLevelFromScore } from "@/lib/risk";
+import {
+  matchesFilters,
+  sortReviews,
+} from "@/lib/repositories/review-query";
 import type {
   ActivityLog,
   BrandVoiceExample,
@@ -27,15 +30,6 @@ function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now()
     .toString(36)
     .slice(-4)}`;
-}
-
-function matchesSearch(review: Review, search: string): boolean {
-  const needle = search.trim().toLowerCase();
-  if (!needle) return true;
-  return (
-    review.reviewText.toLowerCase().includes(needle) ||
-    (review.reviewerName ?? "").toLowerCase().includes(needle)
-  );
 }
 
 /**
@@ -202,55 +196,10 @@ export function createDemoRepository(sessionId: string): DataRepository {
           hydrate(review, dataset.riskFlags, dataset.drafts, dataset.approvals),
         );
 
-      const filtered = hydrated.filter((review) => {
-        if (filters.search && !matchesSearch(review, filters.search))
-          return false;
-        if (filters.stars?.length && !filters.stars.includes(review.stars))
-          return false;
-        if (
-          filters.statuses?.length &&
-          !filters.statuses.includes(review.status)
-        )
-          return false;
-        if (
-          filters.sentiments?.length &&
-          (!review.sentiment || !filters.sentiments.includes(review.sentiment))
-        )
-          return false;
-        if (filters.sources?.length && !filters.sources.includes(review.source))
-          return false;
-        if (
-          filters.riskLevels?.length &&
-          !filters.riskLevels.includes(riskLevelFromScore(review.riskScore))
-        )
-          return false;
-        if (filters.hasDrafts === "yes" && review.drafts.length === 0)
-          return false;
-        if (filters.hasDrafts === "no" && review.drafts.length > 0) return false;
-        if (filters.approval === "required" && !review.requiresApproval)
-          return false;
-        if (filters.approval === "not_required" && review.requiresApproval)
-          return false;
-        if (filters.assignedTo && review.assignedTo !== filters.assignedTo)
-          return false;
-        return true;
-      });
-
-      const sort = filters.sort ?? "newest";
-      return filtered.sort((a, b) => {
-        switch (sort) {
-          case "oldest":
-            return a.reviewedAt.localeCompare(b.reviewedAt);
-          case "risk":
-            return b.riskScore - a.riskScore;
-          case "stars_asc":
-            return a.stars - b.stars || b.reviewedAt.localeCompare(a.reviewedAt);
-          case "stars_desc":
-            return b.stars - a.stars || b.reviewedAt.localeCompare(a.reviewedAt);
-          default:
-            return b.reviewedAt.localeCompare(a.reviewedAt);
-        }
-      });
+      return sortReviews(
+        hydrated.filter((review) => matchesFilters(review, filters)),
+        filters.sort,
+      );
     },
 
     async getReview(reviewId: string): Promise<ReviewWithContext | null> {

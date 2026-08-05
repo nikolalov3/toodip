@@ -70,8 +70,8 @@ to `.demo-data/`, so approvals survive a restart. On Vercel the filesystem is
 read only, so it lives in memory per instance and the sidebar says so out loud.
 Reset it from the user menu.
 
-**Supabase (next step).** The schema is already written and mirrors
-`types/domain.ts` one to one:
+**Supabase.** The adapter is implemented in `lib/repositories/supabase.ts` and
+the schema mirrors `types/domain.ts` one to one:
 
 - `supabase/migrations/20260805090000_schema.sql` tables, enums, foreign keys,
   indexes
@@ -89,13 +89,28 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-Then put the project URL and keys in `.env.local`, implement
-`lib/repositories/supabase.ts` against the `DataRepository` interface, and
-return it from `lib/repositories/index.ts`. Nothing else changes: screens,
-routes and services only know the interface.
-
 `seed.sql` is applied by `supabase db reset` locally. On a hosted project run it
 once from the SQL editor.
+
+Then put the project URL and keys in `.env.local` and set
+`DATA_SOURCE=supabase`. Credentials alone do not switch anything, on purpose:
+the Vercel integration adds Supabase variables to a project the moment one is
+linked, and that must not move a running deployment off demo data.
+
+Verify with `GET /api/dev/supabase-check`, which reads once through every part
+of the repository and names whatever failed. Nothing else changes: screens,
+routes and services only know the interface.
+
+Both adapters share `lib/repositories/review-query.ts` for filter and sort
+semantics, so the reviews list returns the same rows in the same order either
+way.
+
+The adapter uses the service role key, which bypasses row level security, so
+tenant scoping is enforced in every query rather than by the policies. That is
+deliberate: the data layer gets swapped and verified on its own, before
+authentication changes underneath it. When Supabase Auth lands, requests move to
+a per user client and the policies in the RLS migration take over the isolation
+they were written for.
 
 ## Switching on OpenAI
 

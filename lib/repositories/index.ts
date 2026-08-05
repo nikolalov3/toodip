@@ -1,47 +1,45 @@
 import "server-only";
 
-import { getSessionId } from "@/lib/auth/session";
+import { getSession, getSessionId } from "@/lib/auth/session";
 import { createDemoRepository } from "@/lib/repositories/demo";
+import { createSupabaseRepository } from "@/lib/repositories/supabase";
+import { supabaseConfigured } from "@/lib/supabase/server";
 import type { DataRepository } from "@/types/repository";
 
 export type RepositoryMode = "demo" | "supabase";
 
+/**
+ * Which adapter is live.
+ *
+ * Switching to the database is an explicit decision, never an accident. The
+ * Vercel integration drops Supabase credentials into a project the moment one is
+ * linked, and that alone must not move a running deployment off demo data.
+ * DATA_SOURCE is the only switch.
+ */
 export function repositoryMode(): RepositoryMode {
-  const hasSupabase =
-    Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  return hasSupabase && process.env.DATA_SOURCE !== "demo"
-    ? "supabase"
-    : "demo";
+  return process.env.DATA_SOURCE === "supabase" ? "supabase" : "demo";
 }
 
 /**
- * Single entry point for persistence.
- *
- * When the Supabase adapter is added it implements `DataRepository` in
- * `lib/repositories/supabase.ts` and gets returned here. Nothing else in the
- * codebase needs to change: services, routes and screens only know the
- * interface.
+ * Single entry point for persistence. Services, routes and screens only ever
+ * see the `DataRepository` interface, never the adapter behind it.
  */
-let warnedAboutMissingAdapter = false;
-
 export async function getRepository(): Promise<DataRepository> {
   if (repositoryMode() === "supabase") {
-    // Asking for Supabase on purpose and not getting it is a real failure.
-    if (process.env.DATA_SOURCE === "supabase") {
+    if (!supabaseConfigured()) {
       throw new Error(
-        "DATA_SOURCE=supabase but lib/repositories/supabase.ts does not exist yet. Implement DataRepository there, or drop DATA_SOURCE to fall back to demo.",
+        "DATA_SOURCE=supabase but NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.",
       );
     }
-    // Credentials appearing on their own, usually from the Vercel integration,
-    // must not take the whole app down. Fall back and say so once.
-    if (!warnedAboutMissingAdapter) {
-      warnedAboutMissingAdapter = true;
-      console.warn(
-        "[repositories] Supabase credentials found but no adapter is implemented. Running on demo data.",
+    const session = await getSession();
+    if (!session) {
+      throw new Error(
+        "Supabase mode needs a signed in user, because every query is scoped to their workspace.",
       );
     }
+    return createSupabaseRepository({ email: session.email });
   }
+
   const sessionId = await getSessionId();
   return createDemoRepository(sessionId);
 }
