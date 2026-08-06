@@ -6,6 +6,15 @@ import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { requireSession } from "@/lib/auth/session";
 import { getRepository } from "@/lib/repositories";
 
+/**
+ * Authenticated surfaces read cookies and must never be prerendered. Without
+ * this, a build in an environment that has no Supabase configuration tries to
+ * render them as static pages and fails, instead of deploying an app that
+ * reports the missing configuration at runtime.
+ */
+export const dynamic = "force-dynamic";
+
+
 export const metadata: Metadata = { title: "Setup" };
 
 export default async function OnboardingPage() {
