@@ -14,6 +14,18 @@ export interface WorkspaceSummary {
   slug: string;
 }
 
+/**
+ * Signed in, but not attached to any workspace. It happens to the very first
+ * account before bootstrap, and to a client account if workspace creation fails
+ * halfway. It is a state to explain, not a crash.
+ */
+export class NoWorkspaceError extends Error {
+  constructor(public readonly email: string) {
+    super(`${email} is not a member of any workspace.`);
+    this.name = "NoWorkspaceError";
+  }
+}
+
 export interface Session {
   userId: string;
   email: string;
@@ -68,9 +80,7 @@ export async function getSession(): Promise<Session | null> {
   );
 
   if (workspaces.length === 0) {
-    throw new Error(
-      `${user.email ?? "This account"} has no workspace. A platform admin has to add one before signing in.`,
-    );
+    throw new NoWorkspaceError(user.email ?? "This account");
   }
 
   const isPlatformAdmin = memberships.some(
@@ -113,7 +123,16 @@ export async function getSession(): Promise<Session | null> {
 }
 
 export async function requireSession(): Promise<Session> {
-  const session = await getSession();
+  let session: Session | null = null;
+  try {
+    session = await getSession();
+  } catch (error) {
+    // A signed in account with nowhere to go gets an explanation, not a stack
+    // trace. Sending it back to sign in would loop, since the proxy bounces
+    // signed in users away from that screen.
+    if (error instanceof NoWorkspaceError) redirect("/no-workspace");
+    throw error;
+  }
   if (!session) redirect("/sign-in");
   return session;
 }
