@@ -10,15 +10,22 @@ import { NextResponse, type NextRequest } from "next/server";
  * noticed halfway through rendering.
  */
 
+export const PATHNAME_HEADER = "x-toodip-pathname";
+
 const PUBLIC_PATHS = ["/sign-in"];
 
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const { pathname } = request.nextUrl;
+
+  // Layouts cannot see the current path. Passing it down lets the workspace
+  // layout decide which screens are reachable before setup is finished.
+  const headers = new Headers(request.headers);
+  headers.set(PATHNAME_HEADER, pathname);
+
+  let response = NextResponse.next({ request: { headers } });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
@@ -43,7 +50,7 @@ export async function proxy(request: NextRequest) {
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value);
         }
-        response = NextResponse.next({ request });
+        response = NextResponse.next({ request: { headers } });
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }

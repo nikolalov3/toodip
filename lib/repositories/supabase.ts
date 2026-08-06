@@ -99,7 +99,7 @@ export function createSupabaseRepository(
     }
     if (!result.data) {
       throw new Error(
-        "This workspace has no business profile. Run supabase/seed.sql or complete the setup wizard.",
+        "This workspace has no business profile. Complete the setup wizard, or add the client again from the Clients screen.",
       );
     }
     return result.data as BusinessProfileRow;
@@ -568,7 +568,7 @@ export function createSupabaseRepository(
 
     async reset(): Promise<void> {
       throw new Error(
-        "Reset only exists for the demo workspace. To restore this database, re-run supabase/seed.sql.",
+        "Reset is not available. This is a live database, not a demo workspace.",
       );
     },
   };
