@@ -24,6 +24,8 @@ export interface NavItem {
   description?: string;
   /** Hidden from clients. Only the platform team sees these. */
   platformOnly?: boolean;
+  /** About a venue, so pointless until the business profile exists. */
+  needsBusinessProfile?: boolean;
 }
 
 export interface NavGroup {
@@ -45,18 +47,21 @@ export const navGroups: NavGroup[] = [
         label: "Dashboard",
         icon: LayoutDashboard,
         status: "live",
+        needsBusinessProfile: true,
       },
       {
         href: "/reviews",
         label: "Reviews",
         icon: MessageSquareQuote,
         status: "live",
+        needsBusinessProfile: true,
       },
       {
         href: "/queue",
         label: "Approval queue",
         icon: Inbox,
         status: "live",
+        needsBusinessProfile: true,
       },
     ],
   },
@@ -68,12 +73,14 @@ export const navGroups: NavGroup[] = [
         label: "Brand settings",
         icon: Building2,
         status: "live",
+        needsBusinessProfile: true,
       },
       {
         href: "/prompt-studio",
         label: "Prompt studio",
         icon: Terminal,
         status: "live",
+        needsBusinessProfile: true,
       },
       { href: "/activity", label: "Activity", icon: Activity, status: "live" },
     ],
@@ -132,13 +139,24 @@ export const navGroups: NavGroup[] = [
   },
 ];
 
-/** Drops the platform only entries, and any group left empty by that. */
-export function navGroupsFor(isPlatformAdmin: boolean): NavGroup[] {
-  if (isPlatformAdmin) return navGroups;
+/**
+ * Drops what this account cannot use, and any group left empty by that.
+ *
+ * Offering a link that immediately bounces the user back is worse than not
+ * offering it, so venue screens disappear until a business profile exists.
+ */
+export function navGroupsFor(options: {
+  isPlatformAdmin: boolean;
+  hasBusinessProfile: boolean;
+}): NavGroup[] {
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.platformOnly),
+      items: group.items.filter((item) => {
+        if (item.platformOnly && !options.isPlatformAdmin) return false;
+        if (item.needsBusinessProfile && !options.hasBusinessProfile) return false;
+        return true;
+      }),
     }))
     .filter((group) => group.items.length > 0);
 }

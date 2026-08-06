@@ -16,6 +16,7 @@ import {
 } from "@/components/common/surfaces";
 import { PromptPreview } from "@/components/prompt/prompt-preview";
 import { requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { truncate } from "@/lib/format";
 import { PROMPT_VERSION } from "@/prompts/system";
 import { listGenerationProviders, getGenerationProvider } from "@/services/generation";
@@ -27,6 +28,8 @@ export default async function PromptStudioPage({
   searchParams,
 }: PageProps<"/prompt-studio">) {
   await requireSession();
+  // Venue screens need a business profile. The platform workspace has none.
+  await requireBusinessProfile();
   const params = await searchParams;
   const reviews = await listReviews({ sort: "risk" });
 

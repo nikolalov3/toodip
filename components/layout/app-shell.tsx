@@ -38,7 +38,10 @@ export function AppShell({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <SidebarNav isPlatformAdmin={session.isPlatformAdmin} />
+          <SidebarNav
+            isPlatformAdmin={session.isPlatformAdmin}
+            hasBusinessProfile={Boolean(profile)}
+          />
         </div>
 
         {session.isPlatformAdmin && session.workspaces.length > 1 && (
@@ -63,6 +66,7 @@ export function AppShell({
             <MobileNav
               workspaceName={session.tenantName}
               isPlatformAdmin={session.isPlatformAdmin}
+              hasBusinessProfile={Boolean(profile)}
             />
           </div>
 

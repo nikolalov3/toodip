@@ -27,6 +27,7 @@ import {
 } from "@/components/dashboard/distributions";
 import { AddReviewDialog } from "@/components/reviews/add-review-dialog";
 import { requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { formatHours, formatPercent, formatRelative, truncate } from "@/lib/format";
 import { activityLabels } from "@/lib/labels";
 import { navGroups } from "@/lib/nav";
@@ -36,6 +37,8 @@ export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const session = await requireSession();
+  // Venue screens need a business profile. The platform workspace has none.
+  await requireBusinessProfile();
   const { metrics, activity, profile, queue, highRisk, recentDrafts } =
     await getDashboardData();
 

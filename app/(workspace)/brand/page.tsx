@@ -7,12 +7,15 @@ import { BrandVoiceEditor } from "@/components/settings/brand-voice-editor";
 import { BusinessProfileForm } from "@/components/settings/business-profile-form";
 import { KeywordBankEditor } from "@/components/settings/keyword-bank-editor";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { getRepository } from "@/lib/repositories";
 
 export const metadata: Metadata = { title: "Brand settings" };
 
 export default async function BrandPage() {
   const session = await requireSession();
+  // Venue screens need a business profile. The platform workspace has none.
+  await requireBusinessProfile();
   const repo = await getRepository();
   const [profile, keywords, brandVoice] = await Promise.all([
     repo.getBusinessProfile(),

@@ -7,6 +7,7 @@ import { ReviewDetail } from "@/components/reviews/review-detail";
 import { ReviewDrawer } from "@/components/reviews/review-drawer";
 import { ReviewsTable } from "@/components/reviews/reviews-table";
 import { canApprove, requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import {
   parseReviewFilters,
   setHref,
@@ -21,6 +22,8 @@ export default async function ReviewsPage({
 }: PageProps<"/reviews">) {
   const params = (await searchParams) as RawSearchParams;
   const session = await requireSession();
+  // Venue screens need a business profile. The platform workspace has none.
+  await requireBusinessProfile();
 
   const filters = parseReviewFilters(params);
   const reviews = await listReviews(filters);

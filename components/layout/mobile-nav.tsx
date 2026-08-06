@@ -16,9 +16,11 @@ import {
 export function MobileNav({
   workspaceName,
   isPlatformAdmin,
+  hasBusinessProfile,
 }: {
   workspaceName: string;
   isPlatformAdmin: boolean;
+  hasBusinessProfile: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -38,6 +40,7 @@ export function MobileNav({
         <div className="overflow-y-auto">
           <SidebarNav
             isPlatformAdmin={isPlatformAdmin}
+            hasBusinessProfile={hasBusinessProfile}
             onNavigate={() => setOpen(false)}
           />
         </div>

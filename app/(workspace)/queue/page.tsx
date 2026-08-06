@@ -6,6 +6,7 @@ import { ReviewDetail } from "@/components/reviews/review-detail";
 import { ReviewDrawer } from "@/components/reviews/review-drawer";
 import { ReviewsTable } from "@/components/reviews/reviews-table";
 import { canApprove, requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { formatRelative } from "@/lib/format";
 import { setHref, type RawSearchParams } from "@/lib/review-filters";
 import { riskLevelFromScore } from "@/lib/risk";
@@ -16,6 +17,8 @@ export const metadata: Metadata = { title: "Approval queue" };
 export default async function QueuePage({ searchParams }: PageProps<"/queue">) {
   const params = (await searchParams) as RawSearchParams;
   const session = await requireSession();
+  // Venue screens need a business profile. The platform workspace has none.
+  await requireBusinessProfile();
 
   const all = await listReviews({ sort: "risk" });
   const queue = all.filter(

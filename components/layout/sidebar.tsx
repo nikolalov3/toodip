@@ -9,15 +9,17 @@ import { cn } from "@/lib/utils";
 
 export function SidebarNav({
   isPlatformAdmin,
+  hasBusinessProfile,
   onNavigate,
 }: {
   isPlatformAdmin: boolean;
+  hasBusinessProfile: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const groups = useMemo(
-    () => navGroupsFor(isPlatformAdmin),
-    [isPlatformAdmin],
+    () => navGroupsFor({ isPlatformAdmin, hasBusinessProfile }),
+    [isPlatformAdmin, hasBusinessProfile],
   );
 
   return (
