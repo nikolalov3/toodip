@@ -44,6 +44,23 @@ export function AppShell({
           />
         </div>
 
+        {!profile && (
+          <div className="border-t border-sidebar-border px-3 py-3">
+            <div className="rounded-md border border-border bg-card px-2.5 py-2">
+              <p className="text-[11px] font-medium">
+                {session.isPlatformAdmin
+                  ? "Operations console"
+                  : "Setup not finished"}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                {session.isPlatformAdmin
+                  ? "This workspace is not a venue, so the review screens are hidden. Open a client workspace to get them back."
+                  : "Finish the setup wizard and the review screens appear."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {session.isPlatformAdmin && session.workspaces.length > 1 && (
           <div className="border-t border-sidebar-border px-3 py-3">
             <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">
