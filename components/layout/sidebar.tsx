@@ -2,16 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 
-import { navGroups } from "@/lib/nav";
+import { navGroupsFor } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  isPlatformAdmin,
+  onNavigate,
+}: {
+  isPlatformAdmin: boolean;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
+  const groups = useMemo(
+    () => navGroupsFor(isPlatformAdmin),
+    [isPlatformAdmin],
+  );
 
   return (
     <nav className="flex flex-col gap-6 px-3 py-4" aria-label="Main">
-      {navGroups.map((group) => (
+      {groups.map((group) => (
         <div key={group.label}>
           <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
             {group.label}

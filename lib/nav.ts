@@ -11,6 +11,7 @@ import {
   Radar,
   Sparkles,
   Terminal,
+  UserCog,
   Users,
 } from "lucide-react";
 
@@ -21,6 +22,8 @@ export interface NavItem {
   /** Shipped modules only. Everything else renders as a planned surface. */
   status?: "live" | "planned";
   description?: string;
+  /** Hidden from clients. Only the platform team sees these. */
+  platformOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -116,10 +119,29 @@ export const navGroups: NavGroup[] = [
     label: "Workspace",
     items: [
       { href: "/team", label: "Team", icon: Users, status: "live" },
+      { href: "/account", label: "Account", icon: UserCog, status: "live" },
       { href: "/billing", label: "Billing", icon: CreditCard, status: "live" },
+      {
+        href: "/clients",
+        label: "Clients",
+        icon: Building2,
+        status: "live",
+        platformOnly: true,
+      },
     ],
   },
 ];
+
+/** Drops the platform only entries, and any group left empty by that. */
+export function navGroupsFor(isPlatformAdmin: boolean): NavGroup[] {
+  if (isPlatformAdmin) return navGroups;
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.platformOnly),
+    }))
+    .filter((group) => group.items.length > 0);
+}
 
 export function findNavItem(pathname: string): NavItem | null {
   for (const group of navGroups) {

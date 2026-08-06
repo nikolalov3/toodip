@@ -27,7 +27,8 @@ import {
   type ReviewRow,
   type TenantRow,
 } from "@/lib/repositories/supabase-mappers";
-import { assertOk, getServiceClient } from "@/lib/supabase/server";
+import { assertOk } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   ActivityLog,
   BrandVoiceExample,
@@ -51,66 +52,30 @@ import type {
 /**
  * Supabase persistence adapter.
  *
- * Runs on the service role key, so row level security is bypassed and tenant
- * scoping is enforced here, in every query, by tenant_id. That is a deliberate
- * first step: it lets the data layer be swapped and verified on its own, before
- * authentication changes underneath it. Once Supabase Auth is in, requests move
- * to a per user client and the policies in 0002_rls.sql take over the isolation
- * they were written for.
- *
- * The acting user is resolved by email rather than by a fixed id, so it does not
- * matter whether the demo accounts were created by seed.sql or by hand in the
- * dashboard.
+ * Every query runs on the signed in user's token, so row level security decides
+ * what comes back. Queries are still scoped by tenant_id on top of that: the
+ * policies are the guarantee, the explicit scoping is what keeps a platform
+ * admin, who may legitimately read every tenant, inside the workspace they
+ * actually chose.
  */
 
-interface ActorContext {
-  /** Email of the person acting. Resolved to a database user id on demand. */
-  email: string;
+export interface RepositoryContext {
+  client: SupabaseClient;
+  tenantId: string;
+  userId: string;
 }
 
-export function createSupabaseRepository(actor: ActorContext): DataRepository {
-  const client = getServiceClient();
-
-  let actorUserId: string | null = null;
-  let tenantId: string | null = null;
+export function createSupabaseRepository(
+  context: RepositoryContext,
+): DataRepository {
+  const { client, tenantId, userId } = context;
   let businessProfileId: string | null = null;
 
   async function requireActorUserId(): Promise<string> {
-    if (actorUserId) return actorUserId;
-    const result = await client
-      .from("profiles")
-      .select("user_id")
-      .eq("email", actor.email)
-      .maybeSingle();
-    if (result.error) {
-      throw new Error(`Resolving the acting user: ${result.error.message}`);
-    }
-    if (!result.data) {
-      throw new Error(
-        `No profile for ${actor.email}. Run supabase/seed.sql, or create the account and add a profiles row.`,
-      );
-    }
-    actorUserId = (result.data as { user_id: string }).user_id;
-    return actorUserId;
+    return userId;
   }
 
   async function requireTenantId(): Promise<string> {
-    if (tenantId) return tenantId;
-    const userId = await requireActorUserId();
-    const result = await client
-      .from("tenant_members")
-      .select("tenant_id")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (result.error) {
-      throw new Error(`Resolving the workspace: ${result.error.message}`);
-    }
-    if (!result.data) {
-      throw new Error(`${actor.email} is not a member of any workspace.`);
-    }
-    tenantId = (result.data as { tenant_id: string }).tenant_id;
     return tenantId;
   }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Logo } from "@/components/brand/logo";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { requireSession } from "@/lib/auth/session";
 import { getRepository } from "@/lib/repositories";
@@ -18,12 +19,7 @@ export default async function OnboardingPage() {
   return (
     <div className="mx-auto min-h-screen w-full max-w-3xl px-4 py-10 sm:px-6">
       <header className="mb-8">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
-            RR
-          </span>
-          <span className="text-sm font-semibold">Review Reply Assistant</span>
-        </div>
+        <Logo size={30} wordmarkClassName="text-base" />
         <h1 className="mt-6 text-xl font-semibold tracking-tight">
           Set up {tenant.name}
         </h1>

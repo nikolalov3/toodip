@@ -234,7 +234,7 @@ export async function generateReplies(
   if (!provider.offline) {
     const limit = generationRateLimit();
     const verdict = checkRateLimit(
-      `generate:${session.tenantId}:${session.sessionId}`,
+      `generate:${session.tenantId}:${session.userId}`,
       limit,
       60 * 60 * 1000,
     );

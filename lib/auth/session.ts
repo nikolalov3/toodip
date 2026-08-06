@@ -3,52 +3,112 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { DEMO_TENANT_ID, DEMO_USERS, type DemoUserKey } from "@/lib/demo/seed";
+import { getUserClient } from "@/lib/supabase/server";
 import type { MemberRole } from "@/types/domain";
 
-export const SESSION_COOKIE = "rra_session";
-export const USER_COOKIE = "rra_user";
+export const ACTIVE_TENANT_COOKIE = "rra_workspace";
+
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 export interface Session {
-  /** Identifies the demo dataset. Becomes the Supabase auth session later. */
-  sessionId: string;
-  tenantId: string;
   userId: string;
-  userKey: DemoUserKey;
-  fullName: string;
   email: string;
+  fullName: string;
   initials: string;
+  /** Role inside the active workspace. */
   role: MemberRole;
-  jobTitle: string;
+  isPlatformAdmin: boolean;
+  tenantId: string;
+  tenantName: string;
+  jobTitle: string | null;
+  /** Workspaces this account may operate in. One for a client, all for us. */
+  workspaces: WorkspaceSummary[];
 }
 
-function isDemoUserKey(value: string | undefined): value is DemoUserKey {
-  return value === "owner" || value === "manager" || value === "operator";
+interface MembershipRow {
+  tenant_id: string;
+  role: MemberRole;
+  job_title: string | null;
 }
 
-export async function getSessionId(): Promise<string> {
-  const store = await cookies();
-  // Middleware guarantees the cookie exists. The fallback keeps route handlers
-  // and tests working when they run outside the middleware path.
-  return store.get(SESSION_COOKIE)?.value ?? "anonymous-session";
-}
-
+/**
+ * Resolves who is signed in and which workspace they are operating in.
+ *
+ * Everything here runs through the user scoped client, so row level security is
+ * what decides which workspaces come back. A client sees exactly one. A platform
+ * admin sees all of them and can switch.
+ */
 export async function getSession(): Promise<Session | null> {
-  const store = await cookies();
-  const userKey = store.get(USER_COOKIE)?.value;
-  if (!isDemoUserKey(userKey)) return null;
+  const supabase = await getUserClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  const user = DEMO_USERS[userKey];
+  const [profileResult, membershipResult, tenantResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, email, avatar_initials")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("tenant_members")
+      .select("tenant_id, role, job_title")
+      .eq("user_id", user.id),
+    supabase.from("tenants").select("id, name, slug").order("name"),
+  ]);
+
+  const memberships = (membershipResult.data ?? []) as MembershipRow[];
+  const workspaces = ((tenantResult.data ?? []) as WorkspaceSummary[]).map(
+    (tenant) => ({ id: tenant.id, name: tenant.name, slug: tenant.slug }),
+  );
+
+  if (workspaces.length === 0) {
+    throw new Error(
+      `${user.email ?? "This account"} has no workspace. A platform admin has to add one before signing in.`,
+    );
+  }
+
+  const isPlatformAdmin = memberships.some(
+    (row) => row.role === "platform_admin",
+  );
+
+  const cookieStore = await cookies();
+  const requested = cookieStore.get(ACTIVE_TENANT_COOKIE)?.value;
+  const active =
+    workspaces.find((workspace) => workspace.id === requested) ??
+    workspaces.find((workspace) =>
+      memberships.some((row) => row.tenant_id === workspace.id),
+    ) ??
+    workspaces[0];
+
+  const membershipHere = memberships.find(
+    (row) => row.tenant_id === active.id,
+  );
+
+  const profile = profileResult.data as {
+    full_name: string;
+    email: string;
+    avatar_initials: string;
+  } | null;
+
+  const fullName = profile?.full_name ?? user.email ?? "Unknown user";
+
   return {
-    sessionId: store.get(SESSION_COOKIE)?.value ?? "anonymous-session",
-    tenantId: DEMO_TENANT_ID,
     userId: user.id,
-    userKey,
-    fullName: user.fullName,
-    email: user.email,
-    initials: user.initials,
-    role: user.role,
-    jobTitle: user.jobTitle,
+    email: profile?.email ?? user.email ?? "",
+    fullName,
+    initials: profile?.avatar_initials ?? initialsOf(fullName),
+    role: membershipHere?.role ?? (isPlatformAdmin ? "platform_admin" : "tenant_member"),
+    isPlatformAdmin,
+    tenantId: active.id,
+    tenantName: active.name,
+    jobTitle: membershipHere?.job_title ?? null,
+    workspaces,
   };
 }
 
@@ -58,20 +118,20 @@ export async function requireSession(): Promise<Session> {
   return session;
 }
 
-/** Callable only from a server action or a route handler. */
-export async function signInAs(userKey: DemoUserKey): Promise<void> {
-  const store = await cookies();
-  store.set(USER_COOKIE, userKey, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
+export async function requirePlatformAdmin(): Promise<Session> {
+  const session = await requireSession();
+  if (!session.isPlatformAdmin) redirect("/dashboard");
+  return session;
 }
 
-export async function signOut(): Promise<void> {
-  const store = await cookies();
-  store.delete(USER_COOKIE);
+function initialsOf(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "??"
+  );
 }
 
 export function canApprove(role: MemberRole): boolean {

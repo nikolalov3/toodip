@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Review Reply Assistant",
-    template: "%s | Review Reply Assistant",
+    default: "toodip",
+    template: "%s | toodip",
   },
   description:
     "Reputation operations for local business. Triage every review, draft a reply that sounds like the venue, approve it and publish.",

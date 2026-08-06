@@ -1,14 +1,11 @@
 "use client";
 
-import { ChevronsUpDown, LogOut, RotateCcw, UserCog } from "lucide-react";
+import { Building2, ChevronsUpDown, LogOut, UserCog } from "lucide-react";
+import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
-import {
-  resetDemoAction,
-  signOutAction,
-  switchUserAction,
-} from "@/app/actions/session";
+import { signOutAction, switchWorkspaceAction } from "@/app/actions/session";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,28 +14,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { WorkspaceSummary } from "@/lib/auth/session";
 import { roleLabels } from "@/lib/labels";
-import type { DemoUserKey } from "@/lib/demo/seed";
 import type { MemberRole } from "@/types/domain";
-
-const SWITCHABLE: Array<{ key: DemoUserKey; name: string; role: MemberRole }> = [
-  { key: "owner", name: "Marta Zielinska", role: "tenant_admin" },
-  { key: "manager", name: "Jakub Nowak", role: "tenant_member" },
-  { key: "operator", name: "Nikola Krecisz", role: "platform_admin" },
-];
 
 export function UserMenu({
   fullName,
   email,
   initials,
   role,
-  userKey,
+  workspaces,
+  activeWorkspaceId,
+  canSwitchWorkspace,
 }: {
   fullName: string;
   email: string;
   initials: string;
   role: MemberRole;
-  userKey: DemoUserKey;
+  workspaces: WorkspaceSummary[];
+  activeWorkspaceId: string;
+  canSwitchWorkspace: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -68,40 +63,37 @@ export function UserMenu({
           <span className="block text-xs text-muted-foreground">{email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-          <UserCog className="size-3" />
-          Switch demo role
-        </DropdownMenuLabel>
-        {SWITCHABLE.map((user) => (
-          <DropdownMenuItem
-            key={user.key}
-            disabled={user.key === userKey || pending}
-            onClick={() =>
-              startTransition(async () => {
-                await switchUserAction(user.key);
-                toast.success(`Now working as ${user.name}`);
-              })
-            }
-          >
-            <span className="flex-1">{user.name}</span>
-            <span className="text-[11px] text-muted-foreground">
-              {roleLabels[user.role]}
-            </span>
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              await resetDemoAction();
-              toast.success("Demo workspace restored");
-            })
-          }
-        >
-          <RotateCcw className="size-3.5" />
-          Reset demo data
+
+        <DropdownMenuItem render={<Link href="/account" />}>
+          <UserCog className="size-3.5" />
+          Account and password
         </DropdownMenuItem>
+
+        {canSwitchWorkspace && workspaces.length > 1 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <Building2 className="size-3" />
+              Workspace
+            </DropdownMenuLabel>
+            {workspaces.map((workspace) => (
+              <DropdownMenuItem
+                key={workspace.id}
+                disabled={workspace.id === activeWorkspaceId || pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    await switchWorkspaceAction(workspace.id);
+                    toast.success(`Now working in ${workspace.name}`);
+                  })
+                }
+              >
+                {workspace.name}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={pending}
           onClick={() => startTransition(() => void signOutAction())}

@@ -1,46 +1,81 @@
 import "server-only";
 
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 
 /**
- * Server side Supabase client.
+ * Two Supabase clients, with a deliberate split.
  *
- * This one holds the service role key, which bypasses row level security, so it
- * never leaves the server and never gets handed to a browser. Tenant scoping is
- * therefore the repository's job while this key is in use.
+ * getUserClient   carries the signed in user's token, so every query runs under
+ *                 row level security. This is what the repository uses, and it
+ *                 is why a bug in a query cannot leak another tenant's rows.
  *
- * When Supabase Auth lands, requests move to a per user client built from the
- * session token, RLS starts doing the isolation for real, and this client is
- * left only for jobs that legitimately need to cross tenants.
+ * getServiceClient bypasses row level security. Reserved for the few operations
+ *                 that legitimately cross tenants: creating a client workspace
+ *                 and the account behind it. Never used to serve a screen.
  */
 
-let cached: SupabaseClient | null = null;
+function requireEnv(): { url: string; anonKey: string } {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error(
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    );
+  }
+  return { url, anonKey };
+}
 
 export function supabaseConfigured(): boolean {
   return (
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+    Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 }
 
+/** Request scoped, reads and writes the auth cookies. */
+export async function getUserClient(): Promise<SupabaseClient> {
+  const { url, anonKey } = requireEnv();
+  const cookieStore = await cookies();
+
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Server components cannot set cookies. The proxy refreshes the
+          // session on every request, so this is safe to ignore here.
+        }
+      },
+    },
+  });
+}
+
+let serviceClient: SupabaseClient | null = null;
+
 export function getServiceClient(): SupabaseClient {
-  if (cached) return cached;
+  if (serviceClient) return serviceClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
   if (!url || !key) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.",
+      "Admin operations need SUPABASE_SERVICE_ROLE_KEY in the environment.",
     );
   }
 
-  cached = createClient(url, key, {
+  serviceClient = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { "x-application-name": "review-reply-assistant" } },
   });
-
-  return cached;
+  return serviceClient;
 }
 
 /** Turns a PostgREST error into something worth reading in a log. */

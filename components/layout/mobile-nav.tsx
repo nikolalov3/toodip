@@ -13,7 +13,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-export function MobileNav({ workspaceName }: { workspaceName: string }) {
+export function MobileNav({
+  workspaceName,
+  isPlatformAdmin,
+}: {
+  workspaceName: string;
+  isPlatformAdmin: boolean;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -30,7 +36,10 @@ export function MobileNav({ workspaceName }: { workspaceName: string }) {
           <SheetTitle className="text-sm">{workspaceName}</SheetTitle>
         </SheetHeader>
         <div className="overflow-y-auto">
-          <SidebarNav onNavigate={() => setOpen(false)} />
+          <SidebarNav
+            isPlatformAdmin={isPlatformAdmin}
+            onNavigate={() => setOpen(false)}
+          />
         </div>
       </SheetContent>
     </Sheet>
