@@ -18,9 +18,21 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Without configuration there is nothing to refresh and nothing to guard.
-  // The sign in screen explains what is missing.
-  if (!url || !anonKey) return response;
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
+
+  // A deployment missing its configuration fails closed. Letting requests
+  // through to blow up deeper in the stack is how an unguarded screen ends up
+  // in front of someone.
+  if (!url || !anonKey) {
+    if (isPublic) return response;
+    const target = request.nextUrl.clone();
+    target.pathname = "/sign-in";
+    target.search = "";
+    return NextResponse.redirect(target);
+  }
 
   const supabase = createServerClient(url, anonKey, {
     cookies: {
@@ -42,11 +54,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
 
   if (!user && !isPublic) {
     const target = request.nextUrl.clone();
