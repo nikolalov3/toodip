@@ -260,6 +260,20 @@ export function BusinessProfileForm({
                 required
               />
             </Row>
+            <Row
+              label="Link to the venue reviews on Google"
+              htmlFor="googleReviewUrl"
+              className="sm:col-span-2"
+              hint="Used by the publish step, so an approved reply is two clicks from being live. The Google connector will use the same link."
+            >
+              <Input
+                id="googleReviewUrl"
+                name="googleReviewUrl"
+                type="url"
+                placeholder="https://g.page/r/..."
+                defaultValue={profile.googleReviewUrl ?? ""}
+              />
+            </Row>
             <Row label="Escalation email" htmlFor="escalationEmail">
               <Input
                 id="escalationEmail"

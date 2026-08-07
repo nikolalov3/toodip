@@ -35,6 +35,7 @@ const patchSchema = z.object({
   emojiPolicy: z.enum(["never", "sparing", "match_reviewer"]).optional(),
   signOff: z.string().trim().max(120).optional(),
   negativePolicy: z.string().trim().min(10).optional(),
+  googleReviewUrl: z.string().url().nullable().optional(),
   escalationEmail: z.string().email().nullable().optional(),
   escalationPhone: z.string().trim().nullable().optional(),
   bannedPhrases: z.array(z.string().trim()).optional(),

@@ -153,6 +153,8 @@ export interface BusinessProfile {
   signOff: string;
   /** Free text rules appended to the tenant prompt layer. */
   negativePolicy: string;
+  /** Public link to the venue reviews, used for the manual publish hop. */
+  googleReviewUrl: string | null;
   escalationEmail: string | null;
   escalationPhone: string | null;
   bannedPhrases: string[];

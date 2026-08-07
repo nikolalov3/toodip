@@ -26,6 +26,7 @@ import {
   selectDraftAction,
   type ActionResult,
 } from "@/app/actions/reviews";
+import { CopyButton } from "@/components/common/copy-button";
 import {
   RiskBadge,
   RiskFlagChip,
@@ -319,10 +320,83 @@ export function ReviewDetail({
                 ? `Live since ${formatDateTime(review.publishedAt)}`
                 : undefined
             }
+            action={<CopyButton value={review.publishedReply} label="Copy" />}
           />
           <p className="whitespace-pre-line px-4 py-3 text-sm leading-relaxed">
             {review.publishedReply}
           </p>
+        </Panel>
+      )}
+
+      {!published && review.selectedDraft && (
+        <Panel>
+          <PanelHeader
+            title="Put it live"
+            description="Google connection is not approved yet, so the last hop is manual. Two clicks, no retyping."
+          />
+          <ol className="divide-y divide-border text-sm">
+            <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-[11px] text-muted-foreground">
+                1
+              </span>
+              <span className="flex-1">Copy the approved reply</span>
+              <CopyButton
+                value={review.selectedDraft.draftText}
+                label="Copy reply"
+              />
+            </li>
+            <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-[11px] text-muted-foreground">
+                2
+              </span>
+              <span className="flex-1">
+                Open the venue on Google and paste it under this review
+              </span>
+              {profile.googleReviewUrl ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  render={
+                    <a
+                      href={profile.googleReviewUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    />
+                  }
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open Google
+                </Button>
+              ) : (
+                <Link
+                  href="/brand"
+                  className="text-xs text-brand hover:underline"
+                >
+                  Add the link in brand settings
+                </Link>
+              )}
+            </li>
+            <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-[11px] text-muted-foreground">
+                3
+              </span>
+              <span className="flex-1">
+                Mark it published here, so the metrics and the audit trail match
+                reality
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending || review.status !== "approved"}
+                onClick={() => run(() => publishAction(review.id))}
+              >
+                <Send className="size-3.5" />
+                Mark as published
+              </Button>
+            </li>
+          </ol>
         </Panel>
       )}
 

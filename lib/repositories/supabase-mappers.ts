@@ -41,6 +41,7 @@ export interface BusinessProfileRow {
   emoji_policy: BusinessProfile["emojiPolicy"];
   sign_off: string;
   negative_policy: string;
+  google_review_url: string | null;
   escalation_email: string | null;
   escalation_phone: string | null;
   banned_phrases: string[];
@@ -171,6 +172,7 @@ export function toBusinessProfile(row: BusinessProfileRow): BusinessProfile {
     emojiPolicy: row.emoji_policy,
     signOff: row.sign_off,
     negativePolicy: row.negative_policy,
+    googleReviewUrl: row.google_review_url,
     escalationEmail: row.escalation_email,
     escalationPhone: row.escalation_phone,
     bannedPhrases: row.banned_phrases ?? [],
@@ -204,6 +206,7 @@ export function fromBusinessProfile(
   set("emoji_policy", patch.emojiPolicy);
   set("sign_off", patch.signOff);
   set("negative_policy", patch.negativePolicy);
+  set("google_review_url", patch.googleReviewUrl);
   set("escalation_email", patch.escalationEmail);
   set("escalation_phone", patch.escalationPhone);
   set("banned_phrases", patch.bannedPhrases);
