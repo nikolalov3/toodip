@@ -4,6 +4,35 @@ Instrukcja po polsku, treść wniosku po angielsku, bo Google czyta go po angiel
 
 ---
 
+## Czy wniosek jest gotowy do wysłania?
+
+Jeszcze nie. Brakuje dwóch rzeczy, obie po Twojej stronie, obie na jedno popołudnie.
+
+- [ ] **Jesteś menedżerem na zweryfikowanej wizytówce klienta, starszej niż 60 dni.** Filip albo Bruk. Instrukcja niżej.
+- [ ] **Masz projekt w Google Cloud Console i jego Project Number.** Formularz o niego pyta, bez tego nie ma czego wysłać.
+
+Reszta jest wypełniona. Poniżej gotowe odpowiedzi, uzupełniasz tylko numer projektu i liczbę lokali.
+
+---
+
+## Jak Filip ma Cię dodać jako menedżera
+
+Wysyłasz mu to, zajmie mu dwie minuty:
+
+1. Wchodzi na swoją wizytówkę Google, przez wyszukiwarkę po nazwie lokalu albo przez `business.google.com`
+2. Ustawienia wizytówki, sekcja **Użytkownicy** albo **Menedżerowie**
+3. **Dodaj użytkownika**, wpisuje `kontakt@notaslop.com`
+4. Wybiera rolę **Menedżer**, nie Właściciel
+5. Wysyła zaproszenie
+
+Ty dostajesz maila z zaproszeniem i je akceptujesz. Od tego momentu zarządzasz zweryfikowaną wizytówką i warunek jest spełniony.
+
+**Rola menedżera, nigdy właściciela.** Google wprost odradza partnerom zewnętrznym wchodzenie jako właściciel, a klient zachowuje kontrolę i może Cię odpiąć jednym kliknięciem. To jest argument, którego warto użyć przy proszeniu o dostęp.
+
+Wizytówka musi być **zweryfikowana i działająca od ponad 60 dni**. Nie chodzi o to, jak długo Ty nią zarządzasz, tylko jak długo istnieje. Lokal, który działa od roku, spełnia to z zapasem.
+
+---
+
 ## Zanim wyślesz: co Google naprawdę sprawdza
 
 Dostęp do tego API jest na listę dopuszczonych. Google nie pyta o wizytówkę dlatego, że API jej technicznie potrzebuje, tylko dlatego, że to jest ich sposób na sprawdzenie, czy po drugiej stronie stoi prawdziwa firma z prawdziwym powodem. Nic więcej.
