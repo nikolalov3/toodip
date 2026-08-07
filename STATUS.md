@@ -143,6 +143,45 @@ Wszystkie cztery to strony opisujące, co zrobią i z czego skorzystają. Zero m
 
 ---
 
+## Droga do samoobsługi
+
+Cel: klient wchodzi na stronę, kupuje jedną usługę za paywallem, podpina swoje konto Google w panelu, opinie same się zaciągają, on klika publikuj. Bez kontaktu z Tobą na żadnym etapie.
+
+To jest wykonalne i architektura już na to pracuje. Wymaga jednak **dwóch osobnych zgód od Google**, nie jednej.
+
+**Zgoda pierwsza, lista dopuszczonych.** Jednorazowa, dotyczy NotASlop jako dewelopera. To tutaj potrzebna jest rola menedżera na jednej wizytówce klienta, raz, żeby udowodnić, że firma jest prawdziwa. Po przyznaniu nikt już nikogo nigdzie nie dodaje.
+
+**Zgoda druga, weryfikacja ekranu zgody OAuth.** O tej łatwo zapomnieć, a bez niej nie da się otworzyć produktu publicznie. Niezweryfikowana aplikacja ma limit 100 użytkowników i pokazuje ostrzeżenie „Google nie zweryfikowało tej aplikacji", które za paywallem zabija konwersję. Do weryfikacji potrzeba polityki prywatności, regulaminu, potwierdzonej własności domeny, nagrania pokazującego przepływ i uzasadnienia zakresu. Trwa tygodniami.
+
+Zakres `business.manage` jest wrażliwy, a nie zastrzeżony, więc weryfikacja tak, ale bez corocznego płatnego audytu bezpieczeństwa u zewnętrznego audytora. **Potwierdź to w Google Cloud Console**, która przy dodawaniu zakresu sama pokazuje jego kategorię. Różnica między wrażliwym a zastrzeżonym to różnica kilkudziesięciu tysięcy złotych rocznie, więc sprawdź zanim zaplanujesz budżet.
+
+**Co już jest gotowe pod ten model**
+
+- Wielodostępność od pierwszej tabeli, każdy klient ma własne wszystko
+- Tabela `review_sources` czeka pusta, z polami `connected` i `last_synced_at`
+- Publikacja jest osobną akcją, więc podmiana ręcznego oznaczania na wysyłkę do Google to jedno miejsce w kodzie
+- Prompt składany per lokal działa
+
+**Czego brakuje**
+
+- Ekran łączenia konta Google, przechowywanie i odświeżanie tokenów
+- Zadanie importujące opinie cyklicznie
+- Publikacja przez API zamiast ręcznego skoku
+- Paywall i samodzielna rejestracja, dziś konta zakłada wyłącznie platforma
+- Polityka prywatności i regulamin, potrzebne i tak do weryfikacji OAuth
+
+**Kolejność, która nie marnuje czasu**
+
+1. Teraz: rola menedżera na wizytówce Bruka albo Filipa, wniosek o listę dopuszczonych
+2. W czasie oczekiwania: budowa łączenia konta, importu i publikacji
+3. Potem: polityka prywatności, regulamin, nagranie, weryfikacja OAuth
+4. Potem: paywall i samodzielna rejestracja
+5. Otwarcie
+
+Do 100 użytkowników można działać przed weryfikacją OAuth. Przy pierwszych kilku płacących klientach to zapas, którego nie wyczerpiesz. Weryfikację trzeba zacząć zanim zaczniesz skalować, a nie zanim zaczniesz sprzedawać.
+
+---
+
 ## Trzy rzeczy, które zmieniłyby najwięcej
 
 1. **Import opinii z Google.** Dopóki go nie ma, ktoś przepisuje opinie ręcznie i cała oszczędność czasu jest połowiczna.
