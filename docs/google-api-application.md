@@ -4,13 +4,21 @@ Instrukcja po polsku, treść wniosku po angielsku, bo Google czyta go po angiel
 
 ---
 
-## Zanim wyślesz: trzy twarde warunki
+## Zanim wyślesz: co Google naprawdę sprawdza
 
-Google odrzuca wnioski, które ich nie spełniają, i nie tłumaczy dlaczego. Sprawdź po kolei:
+Dostęp do tego API jest na listę dopuszczonych. Google nie pyta o wizytówkę dlatego, że API jej technicznie potrzebuje, tylko dlatego, że to jest ich sposób na sprawdzenie, czy po drugiej stronie stoi prawdziwa firma z prawdziwym powodem. Nic więcej.
 
-1. **Zweryfikowana wizytówka Google dla NotASlop, aktywna od co najmniej 60 dni.** Nie wizytówka klienta, tylko Twoja własna. Jeśli jej nie masz albo jest młodsza, załóż ją dzisiaj i wróć do wniosku za dwa miesiące. To jest jedyny warunek, którego nie da się obejść ani przyspieszyć.
-2. **Strona firmowa podpięta do tej wizytówki.** `notaslop.com` się nadaje.
-3. **Adres e-mail, z którego wysyłasz wniosek, musi być właścicielem albo menedżerem tej wizytówki.** Wniosek z przypadkowego adresu przepada.
+Jako agencja **nie musisz zakładać własnej wizytówki dla NotASlop**. Warunek mówi o **zarządzaniu** zweryfikowaną wizytówką działającą od co najmniej 60 dni, a nie o jej posiadaniu. Rola menedżera na wizytówce klienta to spełnia.
+
+Sprawdź więc:
+
+1. **Jesteś menedżerem na przynajmniej jednej zweryfikowanej wizytówce klienta, która istnieje od ponad 60 dni.** Bruk Cafe albo lokal Filipa. Klient dodaje Cię w swoim panelu Google, w sekcji Użytkownicy. To zajmuje mu minutę.
+2. **Adres e-mail w domenie firmowej**, czyli `kontakt@notaslop.com`, nie prywatny gmail.
+3. **Strona firmowa działa**, `notaslop.com` się nadaje.
+
+**Bierz rolę menedżera, nigdy właściciela.** Google wprost odradza partnerom zewnętrznym wchodzenie na wizytówkę klienta jako właściciel. Menedżer wystarcza do czytania opinii i publikowania odpowiedzi, a klient zachowuje pełną kontrolę i może Cię odpiąć jednym kliknięciem. To jest też argument sprzedażowy, nie tylko techniczny.
+
+**Załóż konto organizacji GBP jako agencja.** To struktura Google dla firm zarządzających cudzymi wizytówkami. Porządkuje dostępy i wygląda poważniej we wniosku niż pojedyncze konto.
 
 ---
 
@@ -55,11 +63,13 @@ https://notaslop.com
 
 ### Do you manage your own locations, or locations on behalf of other businesses?
 ```
-Both. NotASlop manages its own verified Business Profile, and manages profiles
-on behalf of client businesses under a written service agreement. Every client
-grants access explicitly through the Google OAuth consent screen from the
-account that owns their profile. We never request access to a profile we have
-not been engaged to manage.
+On behalf of other businesses. NotASlop is an agency working with independent
+local venues under a written service agreement. Each client adds us as a
+manager on their own Business Profile, never as an owner, so they keep full
+control and can remove our access at any time from their own account. Access is
+granted explicitly through the Google OAuth consent screen by the account that
+owns the profile. We never request access to a profile we have not been engaged
+to manage.
 ```
 
 ### Describe your business and how you intend to use the API
