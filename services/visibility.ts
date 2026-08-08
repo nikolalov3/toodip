@@ -14,6 +14,14 @@ import { getUserClient } from "@/lib/supabase/server";
 
 export type Platform = "chatgpt" | "google_aio" | "perplexity" | "other";
 
+export type SourceCategory =
+  | "Google"
+  | "Social"
+  | "Guides & blogs"
+  | "Travel aggregators"
+  | "Reddit"
+  | "Other & venue sites";
+
 export interface IntentSummary {
   name: string;
   language: string;
@@ -32,6 +40,44 @@ export interface PlatformSummary {
   topDomains: Array<{ domain: string; count: number }>;
 }
 
+export interface LeaderboardRow {
+  name: string;
+  isOwn: boolean;
+  runsMentioned: number;
+  share: number;
+}
+
+export interface DomainRow {
+  domain: string;
+  category: SourceCategory;
+  total: number;
+  byPlatform: Record<"chatgpt" | "google_aio" | "perplexity", number>;
+  /** How many of the runs citing this domain also mentioned the venue. */
+  runsWithOwnMention: number;
+}
+
+export interface PromptSummary {
+  text: string;
+  intent: string;
+  isBranded: boolean;
+  language: string;
+  runs: number;
+  ownMentions: number;
+  platforms: Platform[];
+}
+
+export interface RunPreview {
+  id: string;
+  platform: Platform;
+  executedOn: string;
+  prompt: string;
+  intent: string;
+  mentionedOwn: boolean;
+  mentions: string[];
+  citations: string[];
+  responseText: string | null;
+}
+
 export interface InterventionRow {
   id: string;
   kind: string;
@@ -45,11 +91,15 @@ export interface VisibilityOverview {
   sources: string[];
   dates: string[];
   totalRuns: number;
+  totalCitations: number;
   categoryRuns: number;
   categoryOwnMentions: number;
   intents: IntentSummary[];
   platforms: PlatformSummary[];
-  topDomains: Array<{ domain: string; count: number }>;
+  leaderboard: LeaderboardRow[];
+  domains: DomainRow[];
+  prompts: PromptSummary[];
+  recentRuns: RunPreview[];
   interventions: InterventionRow[];
 }
 
@@ -58,6 +108,7 @@ interface RunRow {
   platform: Platform;
   executed_on: string;
   source: string;
+  response_text: string | null;
   visibility_prompts: {
     text: string;
     language: string;
@@ -65,6 +116,20 @@ interface RunRow {
   } | null;
   visibility_mentions: Array<{ name: string; is_own: boolean }>;
   visibility_citations: Array<{ domain: string }>;
+}
+
+const SOCIAL = /instagram|facebook|youtube|tiktok|pinterest/;
+const TRAVEL = /tripadvisor|wanderlog|yelp|booking|airbnb/;
+const GUIDES =
+  /kukbuk|krakowfood|gojammin|polskapogodzinach|vogue|twojstyl|smartblonde|naszemiasto|krakow\.com|krakowcitybreaks|krakow-trip|bestofwarsaw|najlepszewwarszawie|warsawcity|kawa\.pl|foodie|magazyn|przewodnik/;
+
+export function classifyDomain(domain: string): SourceCategory {
+  if (/(^|\.)google\./.test(domain) || domain === "google.com") return "Google";
+  if (SOCIAL.test(domain)) return "Social";
+  if (/reddit/.test(domain)) return "Reddit";
+  if (TRAVEL.test(domain)) return "Travel aggregators";
+  if (GUIDES.test(domain)) return "Guides & blogs";
+  return "Other & venue sites";
 }
 
 function topCounts(
@@ -87,7 +152,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     supabase
       .from("visibility_runs")
       .select(
-        "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(domain)",
+        "id, platform, executed_on, source, response_text, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(domain)",
       )
       .eq("tenant_id", session.tenantId)
       .order("executed_on", { ascending: false })
@@ -115,11 +180,15 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       sources: [],
       dates: [],
       totalRuns: 0,
+      totalCitations: 0,
       categoryRuns: 0,
       categoryOwnMentions: 0,
       intents: [],
       platforms: [],
-      topDomains: [],
+      leaderboard: [],
+      domains: [],
+      prompts: [],
+      recentRuns: [],
       interventions,
     };
   }
@@ -128,7 +197,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     (run) => !run.visibility_prompts?.intents?.is_branded,
   );
 
-  // Per intent: ownership table and the venue's own status.
+  // ── Per intent: ownership table and the venue's own status ────────────────
   const byIntent = new Map<string, RunRow[]>();
   for (const run of runs) {
     const intent = run.visibility_prompts?.intents?.name ?? "unknown";
@@ -142,8 +211,6 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
         run.visibility_mentions.some((m) => m.is_own),
       ).length;
 
-      // Owners: how many runs of this intent mention each name. Case folding
-      // is the entity resolution Profound skips; ours is minimal but present.
       const ownerCounts = new Map<string, { display: string; count: number }>();
       for (const run of intentRuns) {
         const seen = new Set<string>();
@@ -182,9 +249,46 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     },
   );
 
-  intents.sort((a, b) => Number(a.isBranded) - Number(b.isBranded) || a.name.localeCompare(b.name));
+  intents.sort(
+    (a, b) => Number(a.isBranded) - Number(b.isBranded) || a.name.localeCompare(b.name),
+  );
 
-  // Per platform: own mention rate and citation diet.
+  // ── Share of voice across category runs ───────────────────────────────────
+  const brandCounts = new Map<string, { display: string; count: number; isOwn: boolean }>();
+  for (const run of categoryRuns) {
+    const seen = new Set<string>();
+    for (const mention of run.visibility_mentions) {
+      const key = mention.name.toLowerCase().trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const entry =
+        brandCounts.get(key) ?? { display: mention.name, count: 0, isOwn: mention.is_own };
+      entry.count += 1;
+      entry.isOwn = entry.isOwn || mention.is_own;
+      brandCounts.set(key, entry);
+    }
+  }
+  const leaderboard: LeaderboardRow[] = [...brandCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 15)
+    .map((entry) => ({
+      name: entry.display,
+      isOwn: entry.isOwn,
+      runsMentioned: entry.count,
+      share: entry.count / Math.max(categoryRuns.length, 1),
+    }));
+  // The venue always appears on its own leaderboard, even at zero.
+  if (!leaderboard.some((row) => row.isOwn)) {
+    const own = [...brandCounts.values()].find((entry) => entry.isOwn);
+    leaderboard.push({
+      name: own?.display ?? "This venue",
+      isOwn: true,
+      runsMentioned: own?.count ?? 0,
+      share: (own?.count ?? 0) / Math.max(categoryRuns.length, 1),
+    });
+  }
+
+  // ── Per platform: own mention rate and citation diet ──────────────────────
   const platforms: PlatformSummary[] = (
     ["chatgpt", "google_aio", "perplexity"] as Platform[]
   ).map((platform) => {
@@ -202,21 +306,97 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     };
   });
 
+  // ── Full source table: domain x platform, with own-mention correlation ────
+  const domainMap = new Map<string, DomainRow>();
+  for (const run of runs) {
+    const ownHere = run.visibility_mentions.some((m) => m.is_own);
+    const seen = new Set<string>();
+    for (const citation of run.visibility_citations) {
+      const row =
+        domainMap.get(citation.domain) ??
+        ({
+          domain: citation.domain,
+          category: classifyDomain(citation.domain),
+          total: 0,
+          byPlatform: { chatgpt: 0, google_aio: 0, perplexity: 0 },
+          runsWithOwnMention: 0,
+        } satisfies DomainRow);
+      row.total += 1;
+      if (run.platform !== "other") row.byPlatform[run.platform] += 1;
+      if (ownHere && !seen.has(citation.domain)) {
+        row.runsWithOwnMention += 1;
+        seen.add(citation.domain);
+      }
+      domainMap.set(citation.domain, row);
+    }
+  }
+  const domains = [...domainMap.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 25);
+
+  // ── Per prompt drill down ─────────────────────────────────────────────────
+  const promptMap = new Map<string, PromptSummary>();
+  for (const run of runs) {
+    const text = run.visibility_prompts?.text ?? "unknown";
+    const entry =
+      promptMap.get(text) ??
+      ({
+        text,
+        intent: run.visibility_prompts?.intents?.name ?? "unknown",
+        isBranded: run.visibility_prompts?.intents?.is_branded ?? false,
+        language: run.visibility_prompts?.language ?? "pl",
+        runs: 0,
+        ownMentions: 0,
+        platforms: [],
+      } satisfies PromptSummary);
+    entry.runs += 1;
+    if (run.visibility_mentions.some((m) => m.is_own)) entry.ownMentions += 1;
+    if (!entry.platforms.includes(run.platform)) entry.platforms.push(run.platform);
+    promptMap.set(text, entry);
+  }
+  const prompts = [...promptMap.values()].sort(
+    (a, b) =>
+      Number(a.isBranded) - Number(b.isBranded) ||
+      b.ownMentions - a.ownMentions ||
+      a.intent.localeCompare(b.intent),
+  );
+
+  // ── Raw responses, own mentions first so the interesting ones surface ─────
+  const recentRuns: RunPreview[] = [...runs]
+    .sort(
+      (a, b) =>
+        Number(b.visibility_mentions.some((m) => m.is_own)) -
+        Number(a.visibility_mentions.some((m) => m.is_own)),
+    )
+    .slice(0, 30)
+    .map((run) => ({
+      id: run.id,
+      platform: run.platform,
+      executedOn: run.executed_on,
+      prompt: run.visibility_prompts?.text ?? "unknown",
+      intent: run.visibility_prompts?.intents?.name ?? "unknown",
+      mentionedOwn: run.visibility_mentions.some((m) => m.is_own),
+      mentions: run.visibility_mentions.map((m) => m.name),
+      citations: [...new Set(run.visibility_citations.map((c) => c.domain))].slice(0, 8),
+      responseText: run.response_text,
+    }));
+
   return {
     hasData: true,
     sources: [...new Set(runs.map((run) => run.source))],
     dates: [...new Set(runs.map((run) => run.executed_on))].sort(),
     totalRuns: runs.length,
+    totalCitations: runs.reduce((sum, run) => sum + run.visibility_citations.length, 0),
     categoryRuns: categoryRuns.length,
     categoryOwnMentions: categoryRuns.filter((run) =>
       run.visibility_mentions.some((m) => m.is_own),
     ).length,
     intents,
     platforms,
-    topDomains: topCounts(
-      runs.flatMap((run) => run.visibility_citations.map((c) => c.domain)),
-      12,
-    ),
+    leaderboard,
+    domains,
+    prompts,
+    recentRuns,
     interventions,
   };
 }
