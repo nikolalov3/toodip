@@ -10,6 +10,7 @@ import {
   evaluateDraft,
   type QualityResult,
 } from "@/services/generation/quality";
+import { logIntervention } from "@/services/visibility";
 import type {
   Review,
   ReviewDraft,
@@ -512,6 +513,17 @@ export async function publishReview(
   if (draft.keywordUsed) {
     await repo.incrementKeywordUsage(draft.keywordUsed);
   }
+
+  // Every published reply is an intervention on the venue's highest authority
+  // surface. Recording it is what later ties movement to causes.
+  await logIntervention({
+    kind: "review_reply",
+    surface: "google",
+    description: `Published a reply to ${review.reviewerName ?? "an anonymous reviewer"} (${review.stars} stars)${
+      draft.keywordUsed ? `, phrase: ${draft.keywordUsed}` : ""
+    }.`,
+    metadata: { reviewId, draftId: draft.id, keyword: draft.keywordUsed },
+  });
 
   await repo.logActivity({
     actorUserId: session.userId,

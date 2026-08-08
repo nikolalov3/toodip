@@ -90,11 +90,12 @@ export const navGroups: NavGroup[] = [
     items: [
       {
         href: "/visibility",
-        label: "Visibility hub",
+        label: "Visibility",
         icon: Radar,
-        status: "planned",
+        status: "live",
+        needsBusinessProfile: true,
         description:
-          "Track how often assistants and search name this business for the prompts its customers actually use.",
+          "How often assistants name this venue for real customer questions, and which sources feed those answers.",
       },
       {
         href: "/social",
