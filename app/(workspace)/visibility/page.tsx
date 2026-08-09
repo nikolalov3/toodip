@@ -8,10 +8,19 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/common/surfaces";
-import { requireSession } from "@/lib/auth/session";
+import {
+  MeasurePanel,
+  type BatteryPrompt,
+} from "@/components/visibility/measure-panel";
+import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { formatDate } from "@/lib/format";
+import { getUserClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import {
+  measurementConfigured,
+  suggestPromptBattery,
+} from "@/services/measurement";
 import {
   getVisibilityOverview,
   type IntentSummary,
@@ -19,6 +28,9 @@ import {
 } from "@/services/visibility";
 
 export const metadata: Metadata = { title: "Visibility" };
+
+/** Measurement runs live inside server actions invoked from this route. */
+export const maxDuration = 60;
 
 const PLATFORM_LABELS: Record<Platform, string> = {
   chatgpt: "ChatGPT",
@@ -67,9 +79,43 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 export default async function VisibilityPage() {
-  await requireSession();
-  await requireBusinessProfile();
+  const session = await requireSession();
+  const profile = await requireBusinessProfile();
   const overview = await getVisibilityOverview();
+
+  // The measurement panel needs the saved battery, grouped by intent.
+  const isAdmin = canEditSettings(session.role);
+  let batteryPrompts: BatteryPrompt[] = [];
+  if (isAdmin) {
+    const supabase = await getUserClient();
+    const promptRows = await supabase
+      .from("visibility_prompts")
+      .select("id, text, active, intents(name, is_branded)")
+      .eq("tenant_id", session.tenantId)
+      .eq("active", true);
+    batteryPrompts = ((promptRows.data ?? []) as unknown as Array<{
+      id: string;
+      text: string;
+      intents: { name: string; is_branded: boolean } | null;
+    }>).map((row) => ({
+      id: row.id,
+      text: row.text,
+      intent: row.intents?.name ?? "unknown",
+      isBranded: row.intents?.is_branded ?? false,
+    }));
+  }
+
+  const measurePanel = isAdmin ? (
+    <MeasurePanel
+      prompts={batteryPrompts}
+      suggestions={suggestPromptBattery({
+        category: profile.category,
+        city: profile.city,
+        district: profile.district,
+      })}
+      hasKey={measurementConfigured()}
+    />
+  ) : null;
 
   if (!overview.hasData) {
     return (
@@ -78,13 +124,16 @@ export default async function VisibilityPage() {
           title="Visibility"
           description="How often AI assistants mention this venue for the questions its customers actually ask, and which sources feed those answers."
         />
-        <Panel>
-          <EmptyState
-            icon={Radar}
-            title="No measurements yet"
-            description="Import a baseline or run the prompt battery. Every run stores the full response, who was mentioned and which domains were cited, so movement is always traceable to evidence."
-          />
-        </Panel>
+        <div className="flex flex-col gap-4">
+          {measurePanel}
+          <Panel>
+            <EmptyState
+              icon={Radar}
+              title="No measurements yet"
+              description="Run the prompt battery above, or import a baseline. Every run stores the full response, who was mentioned and which domains were cited, so movement is always traceable to evidence."
+            />
+          </Panel>
+        </div>
       </>
     );
   }
@@ -108,6 +157,8 @@ export default async function VisibilityPage() {
             : `between ${formatDate(`${firstDate}T00:00:00.000Z`)} and ${formatDate(`${lastDate}T00:00:00.000Z`)}`
         }. Branded questions are counted separately and never inflate the category numbers. Trends light up once a second measurement date exists.`}
       />
+
+      {measurePanel && <div className="mb-4">{measurePanel}</div>}
 
       <div className="grid gap-3 sm:grid-cols-4">
         <MetricCard
