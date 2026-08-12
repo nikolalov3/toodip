@@ -115,6 +115,7 @@ export interface ReviewRow {
   external_id: string | null;
   reviewer_name: string | null;
   stars: number;
+  rating_inferred: boolean;
   review_text: string;
   language: string;
   sentiment: Review["sentiment"];
@@ -290,6 +291,7 @@ export function toReview(row: ReviewRow): Review {
     externalId: row.external_id,
     reviewerName: row.reviewer_name,
     stars: row.stars,
+    ratingInferred: row.rating_inferred,
     reviewText: row.review_text,
     language: row.language,
     sentiment: row.sentiment,
@@ -314,6 +316,7 @@ export function fromReview(patch: Partial<Review>): Record<string, unknown> {
   set("source", patch.source);
   set("reviewer_name", patch.reviewerName);
   set("stars", patch.stars);
+  set("rating_inferred", patch.ratingInferred);
   set("review_text", patch.reviewText);
   set("language", patch.language);
   set("sentiment", patch.sentiment);

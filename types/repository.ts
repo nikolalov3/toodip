@@ -51,7 +51,11 @@ export interface MemberWithProfile {
 export type NewReviewInput = Pick<
   Review,
   "source" | "reviewerName" | "stars" | "reviewText" | "language"
-> & { reviewedAt?: string; externalId?: string | null };
+> & {
+  reviewedAt?: string;
+  externalId?: string | null;
+  ratingInferred?: boolean;
+};
 
 export type NewDraftInput = Omit<ReviewDraft, "id" | "reviewId" | "createdAt">;
 

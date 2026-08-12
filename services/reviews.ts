@@ -52,6 +52,8 @@ export interface IngestReviewInput {
   reviewText: string;
   language?: string;
   reviewedAt?: string;
+  /** True when the rating came from the classifier, not the reviewer. */
+  ratingInferred?: boolean;
 }
 
 /** Adds a review and immediately triages it. */
@@ -69,6 +71,7 @@ export async function ingestReview(
     language: input.language ?? detectLanguage(input.reviewText),
     reviewedAt: input.reviewedAt,
     externalId: null,
+    ratingInferred: input.ratingInferred ?? false,
   });
 
   await repo.logActivity({
@@ -77,7 +80,11 @@ export async function ingestReview(
     entityType: "review",
     entityId: review.id,
     action: "review.created",
-    metadata: { source: input.source, stars: input.stars },
+    metadata: {
+      source: input.source,
+      stars: input.stars,
+      ratingInferred: input.ratingInferred ?? false,
+    },
   });
 
   return classifyExistingReview(review.id, session);

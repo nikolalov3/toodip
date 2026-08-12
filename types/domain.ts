@@ -232,6 +232,8 @@ export interface Review {
   externalId: string | null;
   reviewerName: string | null;
   stars: number;
+  /** True when the rating was inferred from the text instead of typed in. */
+  ratingInferred: boolean;
   reviewText: string;
   language: string;
   sentiment: Sentiment | null;

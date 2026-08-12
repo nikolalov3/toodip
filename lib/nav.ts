@@ -8,6 +8,7 @@ import {
   Inbox,
   LayoutDashboard,
   MessageSquareQuote,
+  MessagesSquare,
   Radar,
   Sparkles,
   Terminal,
@@ -48,6 +49,15 @@ export const navGroups: NavGroup[] = [
         icon: LayoutDashboard,
         status: "live",
         needsBusinessProfile: true,
+      },
+      {
+        href: "/reply",
+        label: "Reply",
+        icon: MessagesSquare,
+        status: "live",
+        needsBusinessProfile: true,
+        description:
+          "Paste a review, get a reply, copy it into Google. The fastest way through the day's reviews.",
       },
       {
         href: "/reviews",

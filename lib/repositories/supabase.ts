@@ -387,6 +387,7 @@ export function createSupabaseRepository(
           external_id: input.externalId ?? null,
           reviewer_name: input.reviewerName,
           stars: input.stars,
+          rating_inferred: input.ratingInferred ?? false,
           review_text: input.reviewText,
           language: input.language,
           status: "new",
