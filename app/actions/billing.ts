@@ -2,7 +2,7 @@
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import type { BillingPlan } from "@/lib/billing";
-import { appUrl, getStripe, priceIdFor, stripeConfigured } from "@/lib/stripe";
+import { appUrl, getStripe, resolvePriceId, stripeConfigured } from "@/lib/stripe";
 import { getUserClient } from "@/lib/supabase/server";
 
 export interface CheckoutResult {
@@ -25,9 +25,9 @@ export async function createCheckoutAction(
       message: "Payments are not connected yet. Stripe keys are missing on the server.",
     };
   }
-  const priceId = priceIdFor(plan);
+  const priceId = await resolvePriceId(plan);
   if (!priceId) {
-    return { ok: false, message: `The ${plan} plan has no Stripe price configured.` };
+    return { ok: false, message: `The ${plan} plan is not purchasable.` };
   }
 
   const stripe = getStripe();
@@ -59,7 +59,10 @@ export async function createCheckoutAction(
     mode: "subscription",
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl()}/billing?upgraded=1`,
+    // The session id in the return URL lets the billing page confirm the
+    // payment with Stripe directly, so the plan activates even before any
+    // webhook is configured.
+    success_url: `${appUrl()}/billing?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl()}/billing`,
     metadata: { tenant_id: session.tenantId, plan },
     subscription_data: { metadata: { tenant_id: session.tenantId, plan } },

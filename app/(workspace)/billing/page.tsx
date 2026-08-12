@@ -16,14 +16,26 @@ import { FAIR_USE_CAP, PLANS, formatPln } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
 import { stripeConfigured } from "@/lib/stripe";
 import { cn } from "@/lib/utils";
-import { getBillingSnapshot } from "@/services/billing";
+import { getBillingSnapshot, syncCheckoutSession } from "@/services/billing";
 
 export const metadata: Metadata = { title: "Billing" };
 
 const SELF_SERVE_PLANS = [PLANS.free, PLANS.starter, PLANS.pro];
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: PageProps<"/billing">) {
   const session = await requireSession();
+
+  // Back from Stripe Checkout: confirm the payment with Stripe and activate
+  // the plan before rendering, so the page the buyer lands on is already paid.
+  const params = await searchParams;
+  const checkoutSessionId =
+    typeof params.session_id === "string" ? params.session_id : null;
+  const justUpgraded = checkoutSessionId
+    ? await syncCheckoutSession(checkoutSessionId, session.tenantId)
+    : false;
+
   const snapshot = await getBillingSnapshot();
   const stripeReady = stripeConfigured();
   const isAdmin = canEditSettings(session.role);
@@ -44,6 +56,13 @@ export default async function BillingPage() {
             : "One subscription, cancel any time. The plan decides how many replies a month and which engine writes them."
         }
       />
+
+      {justUpgraded && (
+        <div className="mb-4 rounded-md border border-positive/30 bg-positive-soft px-3 py-2.5 text-xs text-positive">
+          Payment confirmed. The {PLANS[snapshot.plan].name} plan is active and
+          the AI engine is on.
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard

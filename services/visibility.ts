@@ -86,10 +86,22 @@ export interface InterventionRow {
   performedOn: string;
 }
 
+/** One measured day: category runs only, branded intents excluded. */
+export interface TrendPoint {
+  date: string;
+  runs: number;
+  ownMentions: number;
+  /** Share of category runs that day that mentioned the venue, 0..1. */
+  score: number;
+  /** Interventions logged that day, for markers on the chart. */
+  interventions: number;
+}
+
 export interface VisibilityOverview {
   hasData: boolean;
   sources: string[];
   dates: string[];
+  timeline: TrendPoint[];
   totalRuns: number;
   totalCitations: number;
   categoryRuns: number;
@@ -179,6 +191,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       hasData: false,
       sources: [],
       dates: [],
+      timeline: [],
       totalRuns: 0,
       totalCitations: 0,
       categoryRuns: 0,
@@ -381,10 +394,37 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       responseText: run.response_text,
     }));
 
+  // ── Score per day. Days with a thin battery are kept but flagged by their
+  // run count, so the chart can render them honestly instead of hiding them.
+  const byDate = new Map<string, { runs: number; own: number }>();
+  for (const run of categoryRuns) {
+    const entry = byDate.get(run.executed_on) ?? { runs: 0, own: 0 };
+    entry.runs += 1;
+    if (run.visibility_mentions.some((m) => m.is_own)) entry.own += 1;
+    byDate.set(run.executed_on, entry);
+  }
+  const interventionsByDate = new Map<string, number>();
+  for (const item of interventions) {
+    interventionsByDate.set(
+      item.performedOn,
+      (interventionsByDate.get(item.performedOn) ?? 0) + 1,
+    );
+  }
+  const timeline: TrendPoint[] = [...byDate.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, entry]) => ({
+      date,
+      runs: entry.runs,
+      ownMentions: entry.own,
+      score: entry.own / Math.max(entry.runs, 1),
+      interventions: interventionsByDate.get(date) ?? 0,
+    }));
+
   return {
     hasData: true,
     sources: [...new Set(runs.map((run) => run.source))],
     dates: [...new Set(runs.map((run) => run.executed_on))].sort(),
+    timeline,
     totalRuns: runs.length,
     totalCitations: runs.reduce((sum, run) => sum + run.visibility_citations.length, 0),
     categoryRuns: categoryRuns.length,

@@ -2,6 +2,7 @@ import "server-only";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { getUserClient } from "@/lib/supabase/server";
+import { getBillingSnapshot } from "@/services/billing";
 import { classifyDomain } from "@/services/visibility";
 
 /**
@@ -162,6 +163,20 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error: "OPENAI_API_KEY is not set." };
+  }
+
+  // Each run is a web_search call, the most expensive request in the app. Free
+  // workspaces see the screens; the API bill starts with a paid plan.
+  const billing = await getBillingSnapshot();
+  if (!billing.allowAi) {
+    return {
+      ok: false,
+      mentionedOwn: false,
+      mentions: [],
+      citations: 0,
+      usedSearch: false,
+      error: "Visibility measurements need a paid plan. Upgrade on the Billing page.",
+    };
   }
 
   const supabase = await getUserClient();

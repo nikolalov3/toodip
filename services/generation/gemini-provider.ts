@@ -138,7 +138,7 @@ export const geminiGenerationProvider: GenerationProvider = {
         systemInstruction: { parts: [{ text: systemText }] },
         contents: [{ role: "user", parts: [{ text: userText }] }],
         generationConfig: {
-          temperature: Number(process.env.OPENAI_TEMPERATURE) || 0.7,
+          temperature: Number(process.env.GEMINI_TEMPERATURE) || 0.7,
           maxOutputTokens: 1200,
           responseMimeType: "application/json",
         },

@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 
-import { getStripe, planForPriceId, stripeConfigured } from "@/lib/stripe";
+import { getStripe, planForPrice, stripeConfigured } from "@/lib/stripe";
 import { getServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -61,8 +61,7 @@ export async function POST(request: Request) {
     event.type === "customer.subscription.deleted"
   ) {
     const subscription = event.data.object as Stripe.Subscription;
-    const priceId = subscription.items.data[0]?.price?.id;
-    const plan = priceId ? planForPriceId(priceId) : null;
+    const plan = planForPrice(subscription.items.data[0]?.price);
     const periodEnd = subscription.items.data[0]?.current_period_end;
 
     const patch: Record<string, unknown> = {

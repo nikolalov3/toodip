@@ -19,3 +19,11 @@ alter table tenants
 -- agency managed and never hits self-serve limits. Only workspaces created
 -- through public sign-up start on the free plan.
 update tenants set billing_plan = 'agency', billing_status = 'active';
+
+-- The RLS update policy lets a tenant admin edit their own tenant row, which
+-- must never extend to granting themselves a paid plan through the Supabase
+-- API. Column privileges close that: signed-in users may rename the workspace
+-- and attach a Stripe customer, and nothing else. Plan and status are written
+-- only by the service role, after Stripe confirms the money.
+revoke update on table tenants from authenticated;
+grant update (name, stripe_customer_id) on table tenants to authenticated;

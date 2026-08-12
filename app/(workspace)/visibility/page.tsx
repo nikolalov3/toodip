@@ -12,6 +12,7 @@ import {
   MeasurePanel,
   type BatteryPrompt,
 } from "@/components/visibility/measure-panel";
+import { ScoreTrend } from "@/components/visibility/score-trend";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { formatDate } from "@/lib/format";
@@ -155,7 +156,7 @@ export default async function VisibilityPage() {
           firstDate === lastDate
             ? `on ${formatDate(`${firstDate}T00:00:00.000Z`)}`
             : `between ${formatDate(`${firstDate}T00:00:00.000Z`)} and ${formatDate(`${lastDate}T00:00:00.000Z`)}`
-        }. Branded questions are counted separately and never inflate the category numbers. Trends light up once a second measurement date exists.`}
+        }. Branded questions are counted separately and never inflate the category numbers.`}
       />
 
       {measurePanel && <div className="mb-4">{measurePanel}</div>}
@@ -182,6 +183,16 @@ export default async function VisibilityPage() {
           hint="Changes we can later tie to movement"
         />
       </div>
+
+      {overview.timeline.length > 1 && (
+        <Panel className="mt-4">
+          <PanelHeader
+            title="Score over time"
+            description="Category visibility per measurement day. This is the line the interventions are supposed to move."
+          />
+          <ScoreTrend timeline={overview.timeline} />
+        </Panel>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <Panel className="lg:col-span-2">

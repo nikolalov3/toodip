@@ -7,7 +7,8 @@ import {
   repliesLimitFor,
   type BillingPlan,
 } from "@/lib/billing";
-import { getUserClient } from "@/lib/supabase/server";
+import { getStripe, stripeConfigured } from "@/lib/stripe";
+import { getServiceClient, getUserClient } from "@/lib/supabase/server";
 
 /**
  * The billing questions the rest of the app is allowed to ask: what plan is
@@ -54,13 +55,12 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
       .eq("id", session.tenantId)
       .single(),
     // One review with a generated reply is one unit, however many drafts or
-    // regenerations it took. Distinct reviews in the activity log this month.
-    supabase
-      .from("activity_logs")
-      .select("entity_id")
-      .eq("tenant_id", session.tenantId)
-      .eq("action", "draft.generated")
-      .gte("created_at", monthStartIso()),
+    // regenerations it took. Counted in the database: fetching rows and
+    // deduping here would silently understate past PostgREST's 1000-row cap.
+    supabase.rpc("replies_used_since", {
+      p_tenant: session.tenantId,
+      p_since: monthStartIso(),
+    }),
   ]);
 
   const row = (tenantResult.data ?? {
@@ -70,9 +70,8 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
     plan_renews_at: null,
   }) as TenantBillingRow;
 
-  const usageThisMonth = new Set(
-    (usageResult.data ?? []).map((r) => r.entity_id as string),
-  ).size;
+  const usageThisMonth =
+    typeof usageResult.data === "number" ? usageResult.data : 0;
 
   // A paid plan without a live subscription behaves like free. Agency is
   // managed off-platform and never downgrades itself.
@@ -106,4 +105,51 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
     stripeCustomerId: row.stripe_customer_id,
     renewsAt: row.plan_renews_at,
   };
+}
+
+/**
+ * Confirms a finished checkout with Stripe and mirrors it onto the tenant.
+ *
+ * Runs when the billing page is opened with a session_id in the URL, which is
+ * where Stripe sends the buyer back. This is what activates the plan on a
+ * deployment with no webhook configured; with a webhook the write is the same
+ * and idempotent. Uses the service role because billing columns are locked to
+ * it — the buyer's word is never what flips the plan, Stripe's is.
+ */
+export async function syncCheckoutSession(
+  sessionId: string,
+  tenantId: string,
+): Promise<boolean> {
+  if (!stripeConfigured()) return false;
+  try {
+    const checkout = await getStripe().checkout.sessions.retrieve(sessionId, {
+      expand: ["subscription"],
+    });
+    if (checkout.metadata?.tenant_id !== tenantId) return false;
+    if (checkout.status !== "complete" || checkout.payment_status === "unpaid") {
+      return false;
+    }
+    const plan = checkout.metadata?.plan;
+    if (plan !== "starter" && plan !== "pro") return false;
+
+    const subscription =
+      typeof checkout.subscription === "object" ? checkout.subscription : null;
+    const periodEnd = subscription?.items.data[0]?.current_period_end;
+
+    const result = await getServiceClient()
+      .from("tenants")
+      .update({
+        billing_plan: plan,
+        billing_status: "active",
+        stripe_customer_id: String(checkout.customer ?? ""),
+        stripe_subscription_id: subscription?.id ?? null,
+        plan_renews_at: periodEnd
+          ? new Date(periodEnd * 1000).toISOString()
+          : null,
+      })
+      .eq("id", tenantId);
+    return !result.error;
+  } catch {
+    return false;
+  }
 }

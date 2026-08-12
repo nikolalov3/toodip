@@ -6,14 +6,21 @@ import type { BillingPlan } from "@/lib/billing";
 import { PLANS } from "@/lib/billing";
 
 /**
- * Stripe wiring, inert until the keys exist.
+ * Stripe wiring, inert until the secret key exists.
  *
- * Prices are created in the Stripe dashboard and referenced here by env var,
- * so a price change is a dashboard action plus one env edit, never a deploy
- * of new code.
+ * The secret key is the only required variable. Prices are looked up in Stripe
+ * by a stable lookup key and created on first use when missing, so connecting
+ * payments is one env var, not a dashboard session. A STRIPE_PRICE_* env var,
+ * when set, overrides the lookup and pins a hand-made price instead.
  */
 
 let cached: Stripe | null = null;
+
+/** Stable ids for the prices this app owns inside the Stripe account. */
+const LOOKUP_KEYS: Partial<Record<BillingPlan, string>> = {
+  starter: "toodip_starter",
+  pro: "toodip_pro",
+};
 
 export function stripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
@@ -23,24 +30,58 @@ export function getStripe(): Stripe {
   if (cached) return cached;
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) {
-    throw new Error(
-      "Stripe is not connected yet. Set STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET and the STRIPE_PRICE_* variables.",
-    );
+    throw new Error("Stripe is not connected yet. Set STRIPE_SECRET_KEY.");
   }
   cached = new Stripe(key);
   return cached;
 }
 
-export function priceIdFor(plan: BillingPlan): string | null {
-  const env = PLANS[plan].stripePriceEnv;
-  if (!env) return null;
-  return process.env[env]?.trim() || null;
+/**
+ * Returns the Stripe price id for a purchasable plan: the env override if set,
+ * an existing price found by lookup key otherwise, and failing both, a price
+ * created on the spot with the amount from lib/billing.ts.
+ */
+export async function resolvePriceId(plan: BillingPlan): Promise<string | null> {
+  const definition = PLANS[plan];
+  const lookupKey = LOOKUP_KEYS[plan];
+  if (!definition.stripePriceEnv || !lookupKey) return null;
+
+  const fromEnv = process.env[definition.stripePriceEnv]?.trim();
+  if (fromEnv) return fromEnv;
+
+  const stripe = getStripe();
+  const existing = await stripe.prices.list({
+    lookup_keys: [lookupKey],
+    active: true,
+    limit: 1,
+  });
+  if (existing.data[0]) return existing.data[0].id;
+
+  const created = await stripe.prices.create({
+    currency: "pln",
+    unit_amount: definition.priceGrosze,
+    recurring: { interval: "month" },
+    lookup_key: lookupKey,
+    product_data: { name: `toodip ${definition.name}` },
+    metadata: { plan },
+  });
+  return created.id;
 }
 
-export function planForPriceId(priceId: string): BillingPlan | null {
-  for (const plan of Object.values(PLANS)) {
-    if (plan.stripePriceEnv && process.env[plan.stripePriceEnv]?.trim() === priceId) {
-      return plan.id;
+/** Maps a price coming back from Stripe to a plan, by lookup key or env pin. */
+export function planForPrice(
+  price: Stripe.Price | null | undefined,
+): BillingPlan | null {
+  if (!price) return null;
+  for (const [plan, key] of Object.entries(LOOKUP_KEYS)) {
+    if (price.lookup_key === key) return plan as BillingPlan;
+  }
+  for (const definition of Object.values(PLANS)) {
+    if (
+      definition.stripePriceEnv &&
+      process.env[definition.stripePriceEnv]?.trim() === price.id
+    ) {
+      return definition.id;
     }
   }
   return null;
