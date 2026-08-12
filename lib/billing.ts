@@ -13,8 +13,8 @@ export type BillingPlan = "free" | "starter" | "pro" | "agency";
 export interface PlanDefinition {
   id: BillingPlan;
   name: string;
-  /** Monthly price in grosze. Zero renders as "Free". */
-  priceGrosze: number;
+  /** Monthly price in euro cents. Zero renders as free. */
+  priceCents: number;
   /** Reviews with generated replies per calendar month. null = fair use cap. */
   monthlyReplies: number | null;
   /** Whether generation uses the AI engine or the offline draft engine. */
@@ -23,6 +23,8 @@ export interface PlanDefinition {
   features: string[];
   /** Env var holding the Stripe price id. Absent for unpurchasable plans. */
   stripePriceEnv?: string;
+  /** Days of free trial at checkout. Card collected, first charge after. */
+  trialDays?: number;
 }
 
 /** Hard stop for "unlimited", so one runaway loop cannot eat the API budget. */
@@ -32,7 +34,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   free: {
     id: "free",
     name: "Free",
-    priceGrosze: 0,
+    priceCents: 0,
     monthlyReplies: 3,
     aiEngine: false,
     blurb: "Try the workflow on your own reviews.",
@@ -46,7 +48,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceGrosze: 1999,
+    priceCents: 499,
     monthlyReplies: 15,
     aiEngine: true,
     blurb: "For a venue answering a steady trickle of reviews.",
@@ -61,22 +63,23 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceGrosze: 7999,
+    priceCents: 1999,
     monthlyReplies: null,
     aiEngine: true,
     blurb: "For a busy venue or one that cares about every reply.",
     features: [
+      "First 7 days free",
       "Unlimited AI replies, fair use",
       "Visibility measurements from the panel",
-      "Priority support",
       "Everything in Starter",
     ],
     stripePriceEnv: "STRIPE_PRICE_PRO",
+    trialDays: 7,
   },
   agency: {
     id: "agency",
     name: "Agency managed",
-    priceGrosze: 0,
+    priceCents: 0,
     monthlyReplies: null,
     aiEngine: true,
     blurb: "Run by the NotASlop team under a service agreement.",
@@ -84,8 +87,8 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   },
 };
 
-export function formatPln(grosze: number): string {
-  return `${(grosze / 100).toFixed(2).replace(".", ",")} zł`;
+export function formatEur(cents: number): string {
+  return `${(cents / 100).toFixed(2).replace(".", ",")} €`;
 }
 
 export function repliesLimitFor(plan: BillingPlan): number {

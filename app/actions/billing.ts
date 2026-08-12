@@ -1,7 +1,7 @@
 "use server";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
-import type { BillingPlan } from "@/lib/billing";
+import { PLANS, type BillingPlan } from "@/lib/billing";
 import { appUrl, getStripe, resolvePriceId, stripeConfigured } from "@/lib/stripe";
 import { getUserClient } from "@/lib/supabase/server";
 
@@ -55,6 +55,7 @@ export async function createCheckoutAction(
     if (saved.error) return { ok: false, message: saved.error.message };
   }
 
+  const trialDays = PLANS[plan].trialDays;
   const checkout = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -65,7 +66,16 @@ export async function createCheckoutAction(
     success_url: `${appUrl()}/billing?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl()}/billing`,
     metadata: { tenant_id: session.tenantId, plan },
-    subscription_data: { metadata: { tenant_id: session.tenantId, plan } },
+    subscription_data: {
+      metadata: { tenant_id: session.tenantId, plan },
+      ...(trialDays ? { trial_period_days: trialDays } : {}),
+    },
+    // Invoice data: Stripe collects the billing address and an optional tax id
+    // (NIP) on the checkout form, stores both on the customer, and stamps them
+    // on every invoice, which the buyer downloads from the customer portal.
+    billing_address_collection: "required",
+    tax_id_collection: { enabled: true },
+    customer_update: { name: "auto", address: "auto" },
   });
 
   if (!checkout.url) return { ok: false, message: "Stripe did not return a checkout URL." };

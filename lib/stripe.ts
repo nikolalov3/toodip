@@ -18,8 +18,8 @@ let cached: Stripe | null = null;
 
 /** Stable ids for the prices this app owns inside the Stripe account. */
 const LOOKUP_KEYS: Partial<Record<BillingPlan, string>> = {
-  starter: "toodip_starter",
-  pro: "toodip_pro",
+  starter: "toodip_starter_eur",
+  pro: "toodip_pro_eur",
 };
 
 export function stripeConfigured(): boolean {
@@ -58,8 +58,8 @@ export async function resolvePriceId(plan: BillingPlan): Promise<string | null> 
   if (existing.data[0]) return existing.data[0].id;
 
   const created = await stripe.prices.create({
-    currency: "pln",
-    unit_amount: definition.priceGrosze,
+    currency: "eur",
+    unit_amount: definition.priceCents,
     recurring: { interval: "month" },
     lookup_key: lookupKey,
     product_data: { name: `toodip ${definition.name}` },

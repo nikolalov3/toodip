@@ -12,7 +12,7 @@ import {
   PanelHeader,
 } from "@/components/common/surfaces";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
-import { FAIR_USE_CAP, PLANS, formatPln } from "@/lib/billing";
+import { FAIR_USE_CAP, PLANS, formatEur } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
 import { stripeConfigured } from "@/lib/stripe";
 import { cn } from "@/lib/utils";
@@ -116,9 +116,9 @@ export default async function BillingPage({
                   <div className="flex items-baseline justify-between">
                     <h3 className="text-sm font-semibold">{plan.name}</h3>
                     <p className="text-numeric text-sm">
-                      {plan.priceGrosze === 0
-                        ? "0 zł"
-                        : `${formatPln(plan.priceGrosze)} / mies.`}
+                      {plan.priceCents === 0
+                        ? "0 €"
+                        : `${formatEur(plan.priceCents)} / mo`}
                     </p>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">{plan.blurb}</p>

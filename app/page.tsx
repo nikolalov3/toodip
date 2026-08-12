@@ -12,7 +12,7 @@ import { Logo } from "@/components/brand/logo";
 import { CONTACT_EMAIL, ContactForm } from "@/components/marketing/contact-form";
 import { buttonVariants } from "@/components/ui/button";
 import { getSession } from "@/lib/auth/session";
-import { PLANS, formatPln } from "@/lib/billing";
+import { PLANS, formatEur } from "@/lib/billing";
 import { cn } from "@/lib/utils";
 
 /**
@@ -146,9 +146,9 @@ export default async function LandingPage() {
                 <div className="flex items-baseline justify-between">
                   <h3 className="text-sm font-semibold">{plan.name}</h3>
                   <p className="text-numeric text-sm">
-                    {plan.priceGrosze === 0
-                      ? "0 zł"
-                      : `${formatPln(plan.priceGrosze)} / mies.`}
+                    {plan.priceCents === 0
+                      ? "0 €"
+                      : `${formatEur(plan.priceCents)} / mo`}
                   </p>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{plan.blurb}</p>
@@ -168,14 +168,14 @@ export default async function LandingPage() {
                     className: "mt-5",
                   })}
                 >
-                  {plan.priceGrosze === 0 ? "Start free" : "Start free, upgrade inside"}
+                  {plan.priceCents === 0 ? "Start free" : "Start free, upgrade inside"}
                 </Link>
               </div>
             ))}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
             Running more than one venue, or want it done for you? That is the
-            agency plan — write to us below.
+            agency plan. Write to us below.
           </p>
         </section>
 
