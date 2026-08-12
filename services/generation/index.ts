@@ -1,3 +1,4 @@
+import { geminiGenerationProvider } from "@/services/generation/gemini-provider";
 import { mockGenerationProvider } from "@/services/generation/mock-provider";
 import { openAiGenerationProvider } from "@/services/generation/openai-provider";
 import type { GenerationProvider } from "@/services/generation/types";
@@ -6,7 +7,8 @@ import type { GenerationProvider } from "@/services/generation/types";
  * Provider registry. GENERATION_PROVIDER picks the active one.
  *
  * mock    deterministic rule engine, no API call, no cost. The default.
- * openai  the real thing, needs OPENAI_API_KEY.
+ * openai  needs OPENAI_API_KEY.
+ * gemini  needs GEMINI_API_KEY.
  *
  * Routes, services and screens read whatever this returns, so switching engines
  * changes nothing else in the codebase.
@@ -15,6 +17,7 @@ import type { GenerationProvider } from "@/services/generation/types";
 const PROVIDERS: Record<string, GenerationProvider> = {
   mock: mockGenerationProvider,
   openai: openAiGenerationProvider,
+  gemini: geminiGenerationProvider,
 };
 
 export function getGenerationProvider(): GenerationProvider {

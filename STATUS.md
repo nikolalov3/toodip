@@ -109,10 +109,10 @@ Lista osób w workspace i tabela uprawnień per rola.
 
 **Co dalej:** zapraszanie ludzi i zmiana ról z panelu. Dziś dodanie drugiej osoby do lokalu to robota w SQL.
 
-### Billing ⬜
-Ekran z planami i licznikiem zużycia. Liczby są prawdziwe, płatności nie ma.
+### Billing 🟡
+Samoobsługa zbudowana: publiczna rejestracja (/sign-up) zakłada konto, workspace i profil, plany Free 0 zł / Starter 19,99 / Pro 79,99 z limitami egzekwowanymi przy generowaniu (Free jedzie na silniku offline, płatne na modelu AI), licznik zużycia liczy opinie z wygenerowaną odpowiedzią w miesiącu. Cała integracja Stripe gotowa (checkout, portal klienta, webhook), nieaktywna do wklejenia kluczy STRIPE_*. Workspace'y agencyjne poza limitami.
 
-**Co dalej:** podpiąć operatora płatności i powiązać plan z limitami. Do zrobienia dopiero, gdy będzie kilku płacących klientów.
+**Co dalej:** wkleić klucze Stripe i utworzyć dwa cenniki w dashboardzie, dodać SUPABASE_SERVICE_ROLE_KEY na Vercelu (wymagana przez rejestrację), skonfigurować webhook /api/stripe/webhook.
 
 ---
 

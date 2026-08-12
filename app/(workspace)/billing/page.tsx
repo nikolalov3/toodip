@@ -1,138 +1,148 @@
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
 
-import { MetricCard, PageHeader, Panel, PanelHeader } from "@/components/common/surfaces";
-import { requireSession } from "@/lib/auth/session";
-import { getRepository } from "@/lib/repositories";
-import { computeMetrics } from "@/services/metrics";
+import {
+  ManageBillingButton,
+  UpgradeButton,
+} from "@/components/billing/plan-actions";
+import {
+  MetricCard,
+  PageHeader,
+  Panel,
+  PanelHeader,
+} from "@/components/common/surfaces";
+import { canEditSettings, requireSession } from "@/lib/auth/session";
+import { FAIR_USE_CAP, PLANS, formatPln } from "@/lib/billing";
+import { formatDate } from "@/lib/format";
+import { stripeConfigured } from "@/lib/stripe";
 import { cn } from "@/lib/utils";
+import { getBillingSnapshot } from "@/services/billing";
 
 export const metadata: Metadata = { title: "Billing" };
 
-const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "one venue",
-    features: [
-      "One business profile",
-      "Unlimited manual review entry",
-      "Two drafts per generation",
-      "Approval queue and audit trail",
-    ],
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: "small chain",
-    features: [
-      "Up to five business profiles",
-      "Google Business Profile sync when it ships",
-      "Three drafts per generation",
-      "Brand voice training and keyword bank per venue",
-    ],
-  },
-  {
-    id: "agency",
-    name: "Agency",
-    price: "white label",
-    features: [
-      "Unlimited venues and client workspaces",
-      "Client ready reports",
-      "Role separation for account managers",
-      "Priority on new platform modules",
-    ],
-  },
-];
+const SELF_SERVE_PLANS = [PLANS.free, PLANS.starter, PLANS.pro];
 
 export default async function BillingPage() {
-  await requireSession();
-  const repo = await getRepository();
-  const [tenant, reviews] = await Promise.all([
-    repo.getTenant(),
-    repo.listReviews(),
-  ]);
-  const metrics = computeMetrics(reviews);
-  const draftsGenerated = reviews.reduce(
-    (sum, review) => sum + review.drafts.length,
-    0,
-  );
+  const session = await requireSession();
+  const snapshot = await getBillingSnapshot();
+  const stripeReady = stripeConfigured();
+  const isAdmin = canEditSettings(session.role);
+  const agencyManaged = snapshot.plan === "agency";
+
+  const limitLabel =
+    PLANS[snapshot.effectivePlan].monthlyReplies === null
+      ? `fair use, up to ${FAIR_USE_CAP}`
+      : String(snapshot.limit);
 
   return (
     <>
       <PageHeader
         title="Billing"
-        description="Usage is measured already. Payment is not connected yet, so nothing on this page charges anyone."
+        description={
+          agencyManaged
+            ? "This workspace is managed by the NotASlop team. Billing happens under the service agreement, not here."
+            : "One subscription, cancel any time. The plan decides how many replies a month and which engine writes them."
+        }
       />
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <MetricCard label="Current plan" value={tenant.plan} hint="Demo value" />
+      <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard
-          label="Reviews this workspace"
-          value={metrics.totalReviews}
-          hint="All time"
+          label="Plan"
+          value={PLANS[snapshot.plan].name}
+          hint={
+            snapshot.plan !== snapshot.effectivePlan
+              ? `Subscription ${snapshot.status}, running as ${PLANS[snapshot.effectivePlan].name}`
+              : snapshot.status === "active" && snapshot.renewsAt
+                ? `Renews ${formatDate(snapshot.renewsAt)}`
+                : "No active subscription"
+          }
         />
         <MetricCard
-          label="Drafts generated"
-          value={draftsGenerated}
-          hint="Counts every variant, including edits"
+          label="Replies this month"
+          value={`${snapshot.usageThisMonth} / ${limitLabel}`}
+          hint="One review with a generated reply is one unit, drafts and retries included"
         />
         <MetricCard
-          label="Replies published"
-          value={reviews.filter((review) => review.status === "published").length}
+          label="Engine"
+          value={snapshot.allowAi ? "AI model" : "Draft engine"}
+          hint={
+            snapshot.allowAi
+              ? "Replies written by the model"
+              : "Upgrade to switch the AI model on"
+          }
         />
       </div>
 
-      <Panel className="mt-4">
-        <PanelHeader
-          title="Plans"
-          description="Shaped around how many venues a customer runs, since that is what actually drives the work."
-        />
-        <div className="grid gap-px bg-border sm:grid-cols-3">
-          {PLANS.map((plan) => {
-            const current = plan.id === tenant.plan;
-            return (
-              <div
-                key={plan.id}
-                className={cn(
-                  "bg-card p-4",
-                  current && "ring-1 ring-inset ring-brand/40",
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">{plan.name}</h3>
-                  {current && (
-                    <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-xs font-medium text-brand">
-                      Current
-                    </span>
+      {!agencyManaged && (
+        <Panel className="mt-4">
+          <PanelHeader
+            title="Plans"
+            description={
+              stripeReady
+                ? "Payments run through Stripe. Change or cancel whenever you like."
+                : "Payments are not connected on this deployment yet, so the buttons are disabled."
+            }
+          />
+          <div className="grid gap-px bg-border sm:grid-cols-3">
+            {SELF_SERVE_PLANS.map((plan) => {
+              const current = snapshot.plan === plan.id;
+              return (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    "flex flex-col bg-card p-4",
+                    current && "ring-1 ring-inset ring-brand/40",
+                  )}
+                >
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-sm font-semibold">{plan.name}</h3>
+                    <p className="text-numeric text-sm">
+                      {plan.priceGrosze === 0
+                        ? "0 zł"
+                        : `${formatPln(plan.priceGrosze)} / mies.`}
+                    </p>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{plan.blurb}</p>
+                  <ul className="mt-3 flex flex-1 flex-col gap-1.5">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex gap-1.5 text-xs">
+                        <Check className="mt-0.5 size-3 shrink-0 text-positive" />
+                        <span className="text-muted-foreground">{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {isAdmin && plan.id !== "free" && (
+                    <div className="mt-4">
+                      <UpgradeButton
+                        plan={plan.id}
+                        current={current}
+                        stripeReady={stripeReady}
+                      />
+                    </div>
+                  )}
+                  {isAdmin && plan.id === "free" && current && (
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      Current plan
+                    </p>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {plan.price}
-                </p>
-                <ul className="mt-3 flex flex-col gap-1.5">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex gap-1.5 text-xs">
-                      <Check className="mt-0.5 size-3 shrink-0 text-positive" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      </Panel>
+              );
+            })}
+          </div>
+        </Panel>
+      )}
 
-      <Panel className="mt-4">
-        <PanelHeader
-          title="Invoices"
-          description="Nothing to show. This section fills in once a payment provider is connected."
-        />
-        <p className="px-4 py-8 text-center text-xs text-muted-foreground">
-          No invoices yet.
-        </p>
-      </Panel>
+      {!agencyManaged && isAdmin && (
+        <Panel className="mt-4">
+          <PanelHeader
+            title="Invoices and payment method"
+            description="Both live in the Stripe customer portal, along with cancelling."
+          />
+          <div className="p-4">
+            <ManageBillingButton stripeReady={stripeReady} />
+          </div>
+        </Panel>
+      )}
     </>
   );
 }

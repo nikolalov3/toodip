@@ -1,5 +1,6 @@
 import { ShieldCheck, Timer, Workflow } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { Logo } from "@/components/brand/logo";
@@ -67,7 +68,7 @@ export default async function SignInPage({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Accounts are created by the platform team. There is no public sign up.
+          Start free in two minutes, no card needed.
         </p>
       </section>
 
@@ -90,7 +91,13 @@ export default async function SignInPage({
             </p>
           )}
 
-          <p className="mt-6 text-xs text-muted-foreground">
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            New here?{" "}
+            <Link href="/sign-up" className="text-brand hover:underline">
+              Create your workspace, free
+            </Link>
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
             Lost your password? Ask the person who set the workspace up. They can
             issue a new one.
           </p>

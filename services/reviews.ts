@@ -5,11 +5,15 @@ import { checkRateLimit, generationRateLimit } from "@/lib/rate-limit";
 import { getRepository } from "@/lib/repositories";
 import { buildPrompt, type AssembledPrompt } from "@/prompts/builder";
 import { classifyReview, detectLanguage } from "@/services/classification";
-import { getGenerationProvider } from "@/services/generation";
+import {
+  getGenerationProvider,
+  getGenerationProviderById,
+} from "@/services/generation";
 import {
   evaluateDraft,
   type QualityResult,
 } from "@/services/generation/quality";
+import { getBillingSnapshot } from "@/services/billing";
 import { logIntervention } from "@/services/visibility";
 import type {
   Review,
@@ -226,9 +230,18 @@ export async function generateReplies(
     ? review.drafts.map((draft) => draft.draftText)
     : [];
 
+  // Plan limits gate generation, and the plan picks the engine: free runs the
+  // offline draft engine, paid plans get the AI model.
+  const billing = await getBillingSnapshot();
+  if (!billing.canGenerate) {
+    throw new Error(billing.blockedMessage ?? "Plan limit reached.");
+  }
+
   // The provider decides the output contract, so the stored prompt is exactly
   // what the engine received.
-  const provider = getGenerationProvider();
+  const provider = billing.allowAi
+    ? getGenerationProvider()
+    : getGenerationProviderById("mock")!;
 
   // Only paid engines are worth limiting, and only against the caller's own
   // session. A brake on runaway loops and impatient clicking, nothing more.
