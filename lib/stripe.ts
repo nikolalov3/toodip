@@ -57,13 +57,24 @@ export async function resolvePriceId(plan: BillingPlan): Promise<string | null> 
     active: true,
     limit: 1,
   });
-  if (existing.data[0]) return existing.data[0].id;
+  const found = existing.data[0];
+  // A price is immutable in Stripe. When the amount in code changes, a new
+  // price is created and inherits the lookup key, so a stale amount can never
+  // be charged. Existing subscriptions keep their old price until changed.
+  if (
+    found &&
+    found.currency === "eur" &&
+    found.unit_amount === definition.priceCents
+  ) {
+    return found.id;
+  }
 
   const created = await stripe.prices.create({
     currency: "eur",
     unit_amount: definition.priceCents,
     recurring: { interval: "month" },
     lookup_key: lookupKey,
+    transfer_lookup_key: true,
     product_data: { name: `toodip ${definition.name}` },
     metadata: { plan },
   });

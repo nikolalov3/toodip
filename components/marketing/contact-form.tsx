@@ -15,7 +15,25 @@ import { Textarea } from "@/components/ui/textarea";
 
 export const CONTACT_EMAIL = "kontakt@notaslop.com";
 
-export function ContactForm() {
+export interface ContactFormLabels {
+  formName: string;
+  formMessage: string;
+  submit: string;
+  direct: string;
+}
+
+const DEFAULT_LABELS: ContactFormLabels = {
+  formName: "Your name or venue",
+  formMessage: "What can we help with?",
+  submit: "Open in your mail app",
+  direct: "Or write directly:",
+};
+
+export function ContactForm({
+  labels = DEFAULT_LABELS,
+}: {
+  labels?: ContactFormLabels;
+}) {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
 
@@ -34,23 +52,23 @@ export function ContactForm() {
       <Input
         value={name}
         onChange={(event) => setName(event.target.value)}
-        placeholder="Your name or venue"
-        aria-label="Your name or venue"
+        placeholder={labels.formName}
+        aria-label={labels.formName}
       />
       <Textarea
         value={message}
         onChange={(event) => setMessage(event.target.value)}
-        placeholder="What can we help with?"
-        aria-label="Message"
+        placeholder={labels.formMessage}
+        aria-label={labels.formMessage}
         rows={4}
         required
       />
       <Button type="submit" size="sm" className="self-start">
         <Mail className="size-3.5" />
-        Open in your mail app
+        {labels.submit}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Or write directly:{" "}
+        {labels.direct}{" "}
         <a href={`mailto:${CONTACT_EMAIL}`} className="text-brand hover:underline">
           {CONTACT_EMAIL}
         </a>

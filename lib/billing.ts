@@ -90,7 +90,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   visibility: {
     id: "visibility",
     name: "Visibility",
-    priceCents: 4900,
+    priceCents: 9900,
     monthlyReplies: null,
     aiEngine: true,
     monthlyRuns: 150,
@@ -107,7 +107,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   unlimited: {
     id: "unlimited",
     name: "Unlimited",
-    priceCents: 14900,
+    priceCents: 29900,
     monthlyReplies: null,
     aiEngine: true,
     monthlyRuns: 1000,

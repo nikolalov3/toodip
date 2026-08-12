@@ -34,9 +34,11 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   // The root is the public landing page; the page itself sends signed-in
-  // visitors on to their dashboard.
+  // visitors on to their dashboard. Locale prefixes cover the translated
+  // marketing pages (/pl, /de/pricing, ...).
   const isPublic =
     pathname === "/" ||
+    /^\/(pl|de|uk|fr|it)(\/pricing)?$/.test(pathname) ||
     PUBLIC_PATHS.some(
       (path) => pathname === path || pathname.startsWith(`${path}/`),
     );
