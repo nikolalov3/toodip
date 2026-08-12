@@ -12,7 +12,14 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export const PATHNAME_HEADER = "x-toodip-pathname";
 
-const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/api/stripe"];
+const PUBLIC_PATHS = [
+  "/sign-in",
+  "/sign-up",
+  "/pricing",
+  "/api/stripe",
+  "/sitemap.xml",
+  "/robots.txt",
+];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
+import { PLANS } from "@/lib/billing";
 import { getUserClient } from "@/lib/supabase/server";
 import { getBillingSnapshot } from "@/services/billing";
 import { classifyDomain } from "@/services/visibility";
@@ -165,21 +166,42 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
     return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error: "OPENAI_API_KEY is not set." };
   }
 
-  // Each run is a web_search call, the most expensive request in the app. Free
-  // workspaces see the screens; the API bill starts with a paid plan.
+  // Each run is a web_search call, the most expensive request in the app.
+  // Runs are budgeted per plan and counted from the runs table itself, source
+  // "toodip" only, so imported baselines never eat the budget.
   const billing = await getBillingSnapshot();
-  if (!billing.allowAi) {
+  const runsLimit = PLANS[billing.effectivePlan].monthlyRuns;
+  if (runsLimit <= 0) {
     return {
       ok: false,
       mentionedOwn: false,
       mentions: [],
       citations: 0,
       usedSearch: false,
-      error: "Visibility measurements need a paid plan. Upgrade on the Billing page.",
+      error:
+        "Measurements are part of the Visibility and Unlimited plans. Upgrade on the Billing page.",
     };
   }
 
   const supabase = await getUserClient();
+
+  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+  const usedResult = await supabase
+    .from("visibility_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", session.tenantId)
+    .eq("source", "toodip")
+    .gte("executed_on", monthStart);
+  if ((usedResult.count ?? 0) >= runsLimit) {
+    return {
+      ok: false,
+      mentionedOwn: false,
+      mentions: [],
+      citations: 0,
+      usedSearch: false,
+      error: `The ${PLANS[billing.effectivePlan].name} plan includes ${runsLimit} measurements a month and this workspace has used them.`,
+    };
+  }
 
   const promptResult = await supabase
     .from("visibility_prompts")

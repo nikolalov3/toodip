@@ -43,7 +43,8 @@ export async function POST(request: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const tenantId = session.metadata?.tenant_id;
     const plan = session.metadata?.plan;
-    if (tenantId && (plan === "starter" || plan === "pro")) {
+    const purchasable = ["starter", "pro", "visibility", "unlimited"];
+    if (tenantId && plan && purchasable.includes(plan)) {
       await supabase
         .from("tenants")
         .update({

@@ -20,6 +20,8 @@ let cached: Stripe | null = null;
 const LOOKUP_KEYS: Partial<Record<BillingPlan, string>> = {
   starter: "toodip_starter_eur",
   pro: "toodip_pro_eur",
+  visibility: "toodip_visibility_eur",
+  unlimited: "toodip_unlimited_eur",
 };
 
 export function stripeConfigured(): boolean {

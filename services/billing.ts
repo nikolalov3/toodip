@@ -76,7 +76,8 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
   // A paid plan without a live subscription behaves like free. Agency is
   // managed off-platform and never downgrades itself.
   const paidButLapsed =
-    (row.billing_plan === "starter" || row.billing_plan === "pro") &&
+    row.billing_plan !== "free" &&
+    row.billing_plan !== "agency" &&
     row.billing_status !== "active" &&
     row.billing_status !== "past_due";
   const effectivePlan: BillingPlan = paidButLapsed ? "free" : row.billing_plan;
@@ -130,7 +131,8 @@ export async function syncCheckoutSession(
       return false;
     }
     const plan = checkout.metadata?.plan;
-    if (plan !== "starter" && plan !== "pro") return false;
+    const purchasable = ["starter", "pro", "visibility", "unlimited"];
+    if (!plan || !purchasable.includes(plan)) return false;
 
     const subscription =
       typeof checkout.subscription === "object" ? checkout.subscription : null;

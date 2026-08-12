@@ -1,5 +1,6 @@
-import { FlaskConical, Radar } from "lucide-react";
+import { FlaskConical, Lock, Radar } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import {
   EmptyState,
@@ -8,6 +9,7 @@ import {
   Panel,
   PanelHeader,
 } from "@/components/common/surfaces";
+import { buttonVariants } from "@/components/ui/button";
 import {
   MeasurePanel,
   type BatteryPrompt,
@@ -15,6 +17,7 @@ import {
 import { ScoreTrend } from "@/components/visibility/score-trend";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
+import { PLANS } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
 import { getUserClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -22,6 +25,7 @@ import {
   measurementConfigured,
   suggestPromptBattery,
 } from "@/services/measurement";
+import { getBillingSnapshot } from "@/services/billing";
 import {
   getVisibilityOverview,
   type IntentSummary,
@@ -82,10 +86,42 @@ const KIND_LABELS: Record<string, string> = {
 export default async function VisibilityPage() {
   const session = await requireSession();
   const profile = await requireBusinessProfile();
+
+  // The module is what the Visibility plans sell. Below Pro the page is a
+  // pitch, not a dashboard; Pro reads the dashboard but cannot run
+  // measurements. Agency workspaces see everything.
+  const billing = await getBillingSnapshot();
+  const planDef = PLANS[billing.effectivePlan];
+  const canRead = planDef.monthlyRuns > 0 || billing.effectivePlan === "pro";
+  const canMeasure = planDef.monthlyRuns > 0;
+
+  if (!canRead) {
+    return (
+      <>
+        <PageHeader
+          title="Visibility"
+          description="How often AI assistants mention this venue for the questions its customers actually ask, and which sources feed those answers."
+        />
+        <Panel>
+          <EmptyState
+            icon={Lock}
+            title="Part of the Visibility plans"
+            description="Measure whether ChatGPT, Google AI Overviews and Perplexity recommend this venue, see which sources they cite, and track the score as you fix things. Available on the Visibility and Unlimited plans; the Pro plan includes the read-only dashboard."
+          />
+          <div className="flex justify-center pb-6">
+            <Link href="/billing" className={buttonVariants({ size: "sm" })}>
+              See plans on the Billing page
+            </Link>
+          </div>
+        </Panel>
+      </>
+    );
+  }
+
   const overview = await getVisibilityOverview();
 
   // The measurement panel needs the saved battery, grouped by intent.
-  const isAdmin = canEditSettings(session.role);
+  const isAdmin = canEditSettings(session.role) && canMeasure;
   let batteryPrompts: BatteryPrompt[] = [];
   if (isAdmin) {
     const supabase = await getUserClient();
@@ -116,6 +152,20 @@ export default async function VisibilityPage() {
       })}
       hasKey={measurementConfigured()}
     />
+  ) : !canMeasure && canEditSettings(session.role) ? (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand-soft px-4 py-3">
+      <p className="text-xs">
+        <span className="font-medium">Dashboard is read only on Pro.</span>{" "}
+        Running your own measurements from the panel is part of the Visibility
+        plan.
+      </p>
+      <Link
+        href="/billing"
+        className={buttonVariants({ size: "sm", variant: "outline" })}
+      >
+        Upgrade
+      </Link>
+    </div>
   ) : null;
 
   if (!overview.hasData) {

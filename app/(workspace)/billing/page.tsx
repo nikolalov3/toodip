@@ -20,7 +20,13 @@ import { getBillingSnapshot, syncCheckoutSession } from "@/services/billing";
 
 export const metadata: Metadata = { title: "Billing" };
 
-const SELF_SERVE_PLANS = [PLANS.free, PLANS.starter, PLANS.pro];
+const SELF_SERVE_PLANS = [
+  PLANS.free,
+  PLANS.starter,
+  PLANS.pro,
+  PLANS.visibility,
+  PLANS.unlimited,
+];
 
 export default async function BillingPage({
   searchParams,
@@ -102,7 +108,7 @@ export default async function BillingPage({
                 : "Payments are not connected on this deployment yet, so the buttons are disabled."
             }
           />
-          <div className="grid gap-px bg-border sm:grid-cols-3">
+          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
             {SELF_SERVE_PLANS.map((plan) => {
               const current = snapshot.plan === plan.id;
               return (

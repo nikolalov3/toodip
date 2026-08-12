@@ -8,7 +8,13 @@
  * on the model.
  */
 
-export type BillingPlan = "free" | "starter" | "pro" | "agency";
+export type BillingPlan =
+  | "free"
+  | "starter"
+  | "pro"
+  | "visibility"
+  | "unlimited"
+  | "agency";
 
 export interface PlanDefinition {
   id: BillingPlan;
@@ -19,6 +25,8 @@ export interface PlanDefinition {
   monthlyReplies: number | null;
   /** Whether generation uses the AI engine or the offline draft engine. */
   aiEngine: boolean;
+  /** AI visibility measurement runs per month. Zero locks the module. */
+  monthlyRuns: number;
   blurb: string;
   features: string[];
   /** Env var holding the Stripe price id. Absent for unpurchasable plans. */
@@ -37,6 +45,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     priceCents: 0,
     monthlyReplies: 3,
     aiEngine: false,
+    monthlyRuns: 0,
     blurb: "Try the workflow on your own reviews.",
     features: [
       "3 replies a month",
@@ -51,12 +60,13 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     priceCents: 499,
     monthlyReplies: 15,
     aiEngine: true,
+    monthlyRuns: 0,
     blurb: "For a venue answering a steady trickle of reviews.",
     features: [
       "15 AI replies a month",
       "Replies written by the AI model",
       "Approval workflow and audit trail",
-      "Visibility dashboard",
+      "Everything in Free",
     ],
     stripePriceEnv: "STRIPE_PRICE_STARTER",
   },
@@ -66,15 +76,49 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     priceCents: 1999,
     monthlyReplies: null,
     aiEngine: true,
+    monthlyRuns: 0,
     blurb: "For a busy venue or one that cares about every reply.",
     features: [
       "First 7 days free",
       "Unlimited AI replies, fair use",
-      "Visibility measurements from the panel",
+      "Visibility dashboard, read only",
       "Everything in Starter",
     ],
     stripePriceEnv: "STRIPE_PRICE_PRO",
     trialDays: 7,
+  },
+  visibility: {
+    id: "visibility",
+    name: "Visibility",
+    priceCents: 4900,
+    monthlyReplies: null,
+    aiEngine: true,
+    monthlyRuns: 150,
+    blurb: "Know whether AI recommends you, and fix why not.",
+    features: [
+      "First 7 days free",
+      "150 AI visibility measurements a month",
+      "Score trend, source map, intervention log",
+      "Everything in Pro",
+    ],
+    stripePriceEnv: "STRIPE_PRICE_VISIBILITY",
+    trialDays: 7,
+  },
+  unlimited: {
+    id: "unlimited",
+    name: "Unlimited",
+    priceCents: 14900,
+    monthlyReplies: null,
+    aiEngine: true,
+    monthlyRuns: 1000,
+    blurb: "For venues and agencies that monitor weekly.",
+    features: [
+      "1000 measurements a month, fair use",
+      "Room for weekly batteries per platform",
+      "Priority support",
+      "Everything in Visibility",
+    ],
+    stripePriceEnv: "STRIPE_PRICE_UNLIMITED",
   },
   agency: {
     id: "agency",
@@ -82,6 +126,7 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     priceCents: 0,
     monthlyReplies: null,
     aiEngine: true,
+    monthlyRuns: 1000,
     blurb: "Run by the NotASlop team under a service agreement.",
     features: ["No self-serve limits", "Billing handled off-platform"],
   },
