@@ -109,7 +109,7 @@
 
 .evidence { background: #ecece7; position: relative; }
 .evidence::after { content: ""; position: absolute; height: 1px; background: #cad0ce; left: clamp(22px, 4vw, 66px); right: clamp(22px, 4vw, 66px); top: 0; }
-.evidence-board { grid-column: 2; margin-top: 62px; display: grid; grid-template-columns: 1.4fr 1fr; grid-template-rows: 246px 187px; gap: 13px; }
+.evidence-board { grid-column: 2; margin-top: 62px; display: grid; grid-template-columns: 1.4fr 1fr; grid-template-rows: minmax(246px, auto) minmax(187px, auto); gap: 13px; }
 .evidence-card { background: var(--paper-bright); padding: 22px; min-width: 0; border: 1px solid rgba(11,23,40,.08); box-shadow: 4px 4px 0 rgba(11,23,40,.04); transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
 .evidence-card:hover { transform: translateY(-3px); box-shadow: 7px 9px 0 rgba(11,23,40,.07); }
 .evidence-card-wide { grid-row: span 2; }
@@ -181,13 +181,15 @@
 .desk-footer svg { color: #168a68; }
 .desk-footer b { font-family: var(--mono); color: var(--ink); font-weight: 500; }
 
-.source-story { background: #e3f3fb; }
-.source-art-wrap { grid-column: 2; width: 48%; height: 420px; position: relative; overflow: hidden; box-shadow: 10px 10px 0 rgba(32,167,255,.18); background: #0b1728; }
+/* Art and copy live in real grid columns, not negative-margin overlap, so the
+   section stays level at every width and with every locale's line count. */
+.source-story { background: #e3f3fb; grid-template-columns: minmax(74px, 10vw) minmax(0, 46fr) minmax(0, 54fr); column-gap: clamp(36px, 4.5vw, 76px); }
+.source-art-wrap { grid-column: 2; width: 100%; height: 420px; position: relative; overflow: hidden; box-shadow: 10px 10px 0 rgba(32,167,255,.18); background: #0b1728; }
 .source-art-wrap::before { content: "SOURCE TRACE / EVIDENCE INDEX"; position: absolute; z-index: 2; top: 14px; left: 15px; color: #d9edfa; font-family: var(--mono); font-size: 7px; letter-spacing: .1em; }
 .source-art-wrap::after { content: ""; position: absolute; z-index: 1; inset: 0; background: repeating-linear-gradient(90deg, transparent 0, transparent 45px, rgba(218,242,255,.13) 46px, transparent 47px), repeating-linear-gradient(0deg, transparent 0, transparent 45px, rgba(218,242,255,.13) 46px, transparent 47px); }
 .source-art-wrap img { height: 100%; width: 100%; object-fit: cover; filter: grayscale(1) contrast(.85); opacity: .72; }
 .art-caption { position: absolute; z-index: 2; bottom: 13px; left: 15px; color: #d9edfa; font-family: var(--mono); font-size: 8px; letter-spacing: .1em; }
-.source-copy { grid-column: 2; margin-left: calc(48% + 76px); margin-top: -342px; align-self: start; }
+.source-copy { grid-column: 3; margin: 0; align-self: center; }
 .source-copy h2 { max-width: 500px; }
 .dark-link { color: var(--ink); margin-top: 9px; }
 
@@ -226,11 +228,11 @@
 .plan-cta-solid:hover { background: #17314d; color: white; }
 .pricing-footnote { margin: 18px 0 0; color: #737e85; font-size: 9px; line-height: 1.5; }
 
-.faq-section { background: var(--ink); color: white; }
-.faq-title { grid-column: 2; width: 35%; }
+.faq-section { background: var(--ink); color: white; grid-template-columns: minmax(74px, 10vw) minmax(0, 37fr) minmax(0, 57fr); column-gap: clamp(28px, 3.5vw, 64px); }
+.faq-title { grid-column: 2; }
 .faq-title h2 { color: white; margin-bottom: 0; }
 .faq-title .blue-phrase { color: var(--blue); }
-.faq-list { grid-column: 2; width: 57%; margin-left: 43%; margin-top: -150px; }
+.faq-list { grid-column: 3; margin: 0; }
 .faq-list details { border-top: 1px solid rgba(255,255,255,.22); padding: 18px 0; }
 .faq-list details:last-child { border-bottom: 1px solid rgba(255,255,255,.22); }
 .faq-list summary { list-style: none; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #f5f7f7; font-size: 13px; font-weight: 800; letter-spacing: -.3px; }
@@ -253,6 +255,10 @@
 .footer-meta .locale-switch a.font-semibold { color: #fff; }
 
 @media (prefers-reduced-motion: reduce) { .site-shell *, .site-shell *::before, .site-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
-@media (max-width: 1040px) { .main-nav { margin-left: 20px; gap: 15px; } .hero { min-height: 660px; } .hero h1 { font-size: clamp(45px, 5.2vw, 62px); } .hero-visual { width: 50vw; height: 440px; top: 112px; } .reply-stage { width: 47vw; } .source-copy { margin-left: calc(48% + 42px); } .faq-title { width: 38%; } .faq-list { width: 58%; margin-left: 42%; } }
-@media (max-width: 780px) { .site-header { height: 68px; } .main-nav { display: none; } .nav-actions { gap: 10px; } .sign-in { display: none; } .button-small { min-height: 34px; padding: 0 10px; font-size: 10px; } .brand { font-size: 18px; } .brand img { width: 28px; height: 28px; } .section-grid { grid-template-columns: 34px minmax(0, 1fr); padding-left: 18px; padding-right: 18px; } .section-rail { font-size: 8px; } .section-rail i { min-height: 25px; } .hero { padding-top: 54px; min-height: auto; padding-bottom: 70px; } .hero h1 { font-size: clamp(43px, 12vw, 64px); letter-spacing: -3.5px; } .hero-lead { max-width: 490px; font-size: 14px; } .hero-visual { position: relative; grid-column: 2; width: auto; height: 410px; right: auto; top: auto; margin-top: 53px; } .hero-image-wrap { width: 92%; } .measurement-card { width: 76%; bottom: 12px; } .hero-proof { margin-top: 43px; } .marquee-strip { margin: 0 18px; } .evidence-board { margin-top: 43px; grid-template-columns: 1fr; grid-template-rows: auto; } .evidence-card-wide { grid-row: auto; min-height: 270px; } .source-card, .intervention-card { min-height: 180px; } .reply-stage { position: relative; grid-column: 2; width: auto; right: auto; top: auto; margin-top: 50px; height: 430px; } .reply-desk { width: 78%; bottom: -13px; } .source-art-wrap { grid-column: 2; width: 100%; height: 315px; } .source-copy { grid-column: 2; margin: 43px 0 0; } .pricing-head { display: block; } .pricing-head > p:not(.eyebrow) { margin-top: 23px; } .pricing-body { margin-top: 50px; } .plan-group-heading { display: block; } .plan-group-heading p { text-align: left; margin: 10px 0 0; } .reply-plans { grid-template-columns: 1fr; } .visibility-plans { grid-template-columns: 1fr; } .visibility-heading { margin-top: 55px; } .plan-card { min-height: 335px; } .faq-title, .faq-list { grid-column: 2; width: 100%; margin-left: 0; } .faq-list { margin-top: 43px; } .site-footer { grid-template-columns: 1fr 1fr; } .footer-action { align-items: flex-start; } .footer-meta { align-items: flex-start; } .footer-main { grid-column: 1 / -1; } .footer-main p { margin-top: 14px; } }
+/* The original layout overlaps hero copy with the visual, and reply copy with
+   its stage, using absolute positioning tuned for a 1680px canvas. Below that
+   width there is no room for side-by-side, so both blocks stack instead. */
+@media (max-width: 1440px) { .reply-stage { position: relative; grid-column: 2; width: auto; right: auto; top: auto; margin-top: 50px; height: 440px; } .reply-desk { bottom: 10px; } .hero { min-height: auto; } .hero-visual { position: relative; grid-column: 2; width: auto; height: 440px; right: auto; top: auto; margin-top: 53px; } .hero-image-wrap { width: 94%; } .measurement-card { width: min(360px, 62%); bottom: 14px; } }
+@media (max-width: 1040px) { .main-nav { margin-left: 20px; gap: 15px; } .hero { min-height: 660px; } .hero h1 { font-size: clamp(45px, 5.2vw, 62px); } .hero-visual { width: 50vw; height: 440px; top: 112px; } }
+@media (max-width: 780px) { .site-header { height: 68px; } .main-nav { display: none; } .nav-actions { gap: 10px; } .sign-in { display: none; } .button-small { min-height: 34px; padding: 0 10px; font-size: 10px; } .brand { font-size: 18px; } .brand img { width: 28px; height: 28px; } .section-grid, .source-story, .faq-section { grid-template-columns: 34px minmax(0, 1fr); padding-left: 18px; padding-right: 18px; } .section-rail { font-size: 8px; } .section-rail i { min-height: 25px; } .hero { padding-top: 54px; min-height: auto; padding-bottom: 70px; } .hero h1 { font-size: clamp(43px, 12vw, 64px); letter-spacing: -3.5px; } .hero-lead { max-width: 490px; font-size: 14px; } .hero-visual { position: relative; grid-column: 2; width: auto; height: 410px; right: auto; top: auto; margin-top: 53px; } .hero-image-wrap { width: 92%; } .measurement-card { width: 76%; bottom: 12px; } .hero-proof { margin-top: 43px; } .marquee-strip { margin: 0 18px; } .evidence-board { margin-top: 43px; grid-template-columns: 1fr; grid-template-rows: auto; } .evidence-card-wide { grid-row: auto; min-height: 0; } .source-card, .intervention-card { min-height: 180px; } .reply-stage { position: relative; grid-column: 2; width: auto; right: auto; top: auto; margin-top: 50px; height: 430px; } .reply-desk { width: 78%; bottom: -13px; } .source-art-wrap { grid-column: 2; width: 100%; height: 315px; } .source-copy { grid-column: 2; margin: 43px 0 0; } .pricing-head { display: block; } .pricing-head > p:not(.eyebrow) { margin-top: 23px; } .pricing-body { margin-top: 50px; } .plan-group-heading { display: block; } .plan-group-heading p { text-align: left; margin: 10px 0 0; } .reply-plans { grid-template-columns: 1fr; } .visibility-plans { grid-template-columns: 1fr; } .visibility-heading { margin-top: 55px; } .plan-card { min-height: 335px; } .faq-title, .faq-list { grid-column: 2; width: 100%; margin-left: 0; } .faq-list { margin-top: 43px; } .site-footer { grid-template-columns: 1fr 1fr; } .footer-action { align-items: flex-start; } .footer-meta { align-items: flex-start; } .footer-main { grid-column: 1 / -1; } .footer-main p { margin-top: 14px; } }
 @media (max-width: 430px) { .hero h1 { font-size: 44px; } .hero-actions { align-items: flex-start; flex-direction: column; gap: 20px; } .hero-proof { gap: 16px; } .hero-proof div { gap: 6px; } .hero-proof strong { font-size: 20px; } .hero-proof span { font-size: 8px; } .hero-visual { height: 340px; } .measurement-card { width: 88%; padding: 15px; } .measure-lines > div { grid-template-columns: 92px 1fr 16px; font-size: 7px; } .source-art-wrap { height: 255px; } .reply-copy h2 { font-size: 58px; } .reply-stage { height: 370px; } .reply-desk { width: 90%; right: 0; } .assistant-response p { font-size: 8.5px; } .site-footer { grid-template-columns: 1fr } .footer-action { gap: 26px; } .footer-links { margin-top: 10px; } }
