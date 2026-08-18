@@ -27,7 +27,7 @@ export async function generateMetadata({
     lang,
     "",
     "toodip",
-    MARKETING_DICTS[lang].hero.body.slice(0, 155),
+    MARKETING_DICTS[lang].landing.lead.slice(0, 155),
   );
 }
 
