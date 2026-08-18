@@ -90,8 +90,8 @@ export default function SignUpPage() {
                     </span>
                   </div>
                   <p className="auth-quote">
-                    &bdquo;Kawa świetna, ale czekaliśmy 25 minut i nikt nawet nie
-                    podszedł&hellip;&rdquo;
+                    &bdquo;Great coffee, but we waited 25 minutes and nobody even
+                    came over&hellip;&rdquo;
                   </p>
                   <div className="auth-tags">
                     <span className="auth-tag neg">negative</span>
@@ -110,9 +110,9 @@ export default function SignUpPage() {
                     AI drafts the reply, in your voice
                   </span>
                   <p className="auth-quote auth-quote-blue">
-                    Dziękujemy za szczerość. 25 minut to za długo i nie ma co
-                    tego tłumaczyć. Napisz do nas, proszę, kiedy to było,
-                    wyjaśnimy to z zespołem&hellip;
+                    Thank you for the honesty. 25 minutes is too long and there
+                    is no excuse for it. Please write to us with the date and
+                    we&rsquo;ll look into it with the team&hellip;
                   </p>
                   <p className="auth-note">
                     Your tone, your phrases. No refunds promised in public, no
