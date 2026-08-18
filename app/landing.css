@@ -160,7 +160,7 @@
 .reply-benefits { list-style: none; padding: 0; margin: 29px 0 33px; display: grid; gap: 12px; color: #e3ecef; font-size: 11px; font-weight: 700; }
 .reply-benefits li { display: flex; gap: 9px; align-items: center; }
 .reply-benefits svg { color: var(--blue); flex: 0 0 auto; }
-.reply-stage { grid-column: 2; position: absolute; right: clamp(22px, 4vw, 66px); width: min(46.5vw, 710px); height: 475px; top: 118px; border: 1px solid rgba(151, 208, 236, .3); }
+.reply-stage { grid-column: 2; position: relative; width: 100%; height: 430px; margin-top: 66px; border: 1px solid rgba(151, 208, 236, .3); }
 .reply-stage::before { content: "REPLY RECORD / VERIFICATION REQUIRED"; position: absolute; z-index: 2; top: 12px; left: 14px; color: #bbddeb; font-family: var(--mono); font-size: 7px; letter-spacing: .12em; }
 .reply-stage::after { content: ""; position: absolute; z-index: 1; inset: 0; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0, transparent 55px, rgba(220,244,255,.14) 56px, transparent 57px), repeating-linear-gradient(0deg, transparent 0, transparent 55px, rgba(220,244,255,.14) 56px, transparent 57px); }
 .reply-art { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: .2; filter: grayscale(1) contrast(.78); mix-blend-mode: screen; }
