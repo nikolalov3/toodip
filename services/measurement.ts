@@ -301,44 +301,275 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
 export { classifyDomain };
 
 /**
- * Template based prompt proposals for a venue that has no battery yet.
- * Deterministic on purpose: no API cost, no Warsaw-for-Krakow surprises, and
- * the human still reviews every line before anything is saved.
+ * Prompt battery proposals, Profound style: realistic questions customers ask
+ * an AI assistant before choosing a business, grouped into intents. Two paths:
+ *
+ * - generatePromptBattery: the assistant writes them from the FULL business
+ *   profile, so the battery fits whatever the client added — a Berlin beauty
+ *   salon gets German beauty prompts, not Krakow coffee. Works with whichever
+ *   key is configured (OpenAI first, Gemini as fallback).
+ * - suggestPromptBattery: deterministic templates covering every category the
+ *   app knows, for workspaces with no key. Weaker on purpose, never wrong.
+ *
+ * Either way the human reviews every line before anything is saved.
  */
 export interface PromptProposal {
   intent: string;
-  language: "pl" | "en";
+  /** BCP-47ish two-letter code; the DB column is free text. */
+  language: string;
   text: string;
+  /** Branded prompts ask about the venue by name and never mix into category numbers. */
+  isBranded: boolean;
 }
 
+/** What each category's customers are actually choosing between, per language. */
+const CATEGORY_NOUNS: Record<string, { en: string; pl: string }> = {
+  cafe: { en: "cafe", pl: "kawiarnia" },
+  restaurant: { en: "restaurant", pl: "restauracja" },
+  bakery: { en: "bakery", pl: "piekarnia" },
+  bar: { en: "bar", pl: "bar" },
+  hotel: { en: "hotel", pl: "hotel" },
+  beauty: { en: "beauty salon", pl: "salon beauty" },
+  clinic: { en: "clinic", pl: "klinika" },
+  trades: { en: "service company", pl: "firma usługowa" },
+  other: { en: "place", pl: "miejsce" },
+};
+
+/** Use cases per category that produce distinct, winnable intents. */
+const CATEGORY_ANGLES: Record<string, string[]> = {
+  cafe: ["to work with a laptop", "for breakfast", "for specialty coffee"],
+  restaurant: ["for dinner with friends", "with vegetarian options", "for a business lunch"],
+  bakery: ["for fresh bread in the morning", "with good pastries"],
+  bar: ["for cocktails", "to watch a game"],
+  hotel: ["for a weekend stay", "close to the center"],
+  beauty: ["for a haircut", "for manicure", "for skin care"],
+  clinic: ["accepting new patients", "with short waiting times"],
+  trades: ["that is reliable and shows up on time", "with transparent pricing"],
+  other: ["worth recommending"],
+};
+
 export function suggestPromptBattery(profile: {
+  name?: string;
   category: string;
   city: string;
   district: string | null;
+  languages?: string[];
 }): PromptProposal[] {
-  const city = profile.city;
-  const district = profile.district;
-  const kindPl = profile.category === "restaurant" ? "restauracja" : "kawiarnia";
-  const kindPlGen = profile.category === "restaurant" ? "restauracji" : "kawiarni";
-  const kindEn = profile.category === "restaurant" ? "restaurant" : "cafe";
+  const { city, district } = profile;
+  const noun = CATEGORY_NOUNS[profile.category] ?? CATEGORY_NOUNS.other;
+  const angles = CATEGORY_ANGLES[profile.category] ?? CATEGORY_ANGLES.other;
+  const wantsPolish = (profile.languages ?? ["pl"]).includes("pl");
 
   const proposals: PromptProposal[] = [
-    { intent: `Best ${kindEn} in ${city}`, language: "pl", text: `Jaka jest najlepsza ${kindPl} w ${city}?` },
-    { intent: `Best ${kindEn} in ${city}`, language: "pl", text: `Polecacie jakąś dobrą ${kindPlGen.replace("kawiarni", "kawiarnię")} w ${city}?` },
-    { intent: `Best ${kindEn} in ${city}`, language: "en", text: `Best ${kindEn} in ${city}?` },
-    { intent: "Laptop friendly", language: "pl", text: `Gdzie w ${city} można popracować z laptopem w ${kindPlGen}?` },
-    { intent: "Laptop friendly", language: "en", text: `Good ${kindEn} to work from with a laptop in ${city}?` },
-    { intent: "Breakfast", language: "pl", text: `Gdzie na dobre śniadanie w ${city}?` },
-    { intent: "Breakfast", language: "en", text: `Where to get a good breakfast in ${city}?` },
+    { intent: `Best ${noun.en} in ${city}`, language: "en", isBranded: false, text: `What is the best ${noun.en} in ${city}?` },
+    { intent: `Best ${noun.en} in ${city}`, language: "en", isBranded: false, text: `Can you recommend a good ${noun.en} in ${city}?` },
   ];
+  if (wantsPolish) {
+    proposals.push({
+      intent: `Best ${noun.en} in ${city}`,
+      language: "pl",
+      isBranded: false,
+      text: `Jaka jest najlepsza ${noun.pl} w ${city}? Polecisz coś?`,
+    });
+  }
+
+  for (const angle of angles) {
+    proposals.push({
+      intent: angle,
+      language: "en",
+      isBranded: false,
+      text: `Which ${noun.en} in ${city} is best ${angle}?`,
+    });
+  }
 
   if (district) {
     proposals.push(
-      { intent: `District: ${district}`, language: "pl", text: `Jaka jest dobra ${kindPl} na ${district}u albo w okolicy?` },
-      { intent: `District: ${district}`, language: "pl", text: `Gdzie na kawę w okolicy ${district}a w ${city}?` },
-      { intent: `District: ${district}`, language: "en", text: `Where should I go for coffee near ${district} in ${city}?` },
+      { intent: `Near ${district}`, language: "en", isBranded: false, text: `Good ${noun.en} near ${district} in ${city}?` },
+      { intent: `Near ${district}`, language: "en", isBranded: false, text: `I am staying around ${district} in ${city} — where should I go for a ${noun.en}?` },
     );
   }
 
+  if (profile.name) {
+    proposals.push({
+      intent: `Branded: ${profile.name}`,
+      language: "en",
+      isBranded: true,
+      text: `What do people say about ${profile.name} in ${city}? Is it worth visiting?`,
+    });
+  }
+
   return proposals;
+}
+
+// ── AI generated battery ─────────────────────────────────────────────────────
+
+export function batteryGenerationConfigured(): boolean {
+  return Boolean(
+    process.env.OPENAI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim(),
+  );
+}
+
+export interface BatteryProfileInput {
+  name: string;
+  category: string;
+  city: string;
+  district: string | null;
+  description: string;
+  languages: string[];
+  primaryLanguage: string;
+}
+
+const BATTERY_INSTRUCTIONS = `You design prompt batteries for measuring how visible a local business is in AI assistant answers (the way Profound or Adobe LLM Optimizer do).
+
+Given a business profile, write the realistic questions this business's potential customers actually type into ChatGPT or Perplexity BEFORE choosing where to go. Rules:
+
+- 5 to 8 intents, 3 to 4 prompts each, 20 to 30 prompts total.
+- An intent is one buying situation ("best X in CITY", "X near DISTRICT", one per typical use case of this category, one comparison/ranking style question).
+- Prompts must sound like real people: casual, specific, sometimes with context ("I'm visiting for a weekend...", "moj budzet to..."). Vary phrasing; no two prompts near-identical.
+- Category prompts must NEVER contain the business name.
+- Exactly ONE intent is branded: 2-3 prompts asking about the business by name (reviews, is it worth it). Mark it "isBranded": true.
+- Write prompts in the profile's languages, favoring the primary language; include English prompts if "en" is listed (tourists ask in English).
+- Use the description to find niche intents customers would ask about (e.g. vegan options, dog friendly, specific services) — but only ones this business could plausibly win.
+- Intent names are short English labels regardless of prompt language.
+
+Return ONLY JSON: {"proposals": [{"intent": "...", "language": "pl", "isBranded": false, "text": "..."}, ...]}`;
+
+function batteryUserMessage(profile: BatteryProfileInput): string {
+  return JSON.stringify({
+    name: profile.name,
+    category: profile.category,
+    city: profile.city,
+    district: profile.district,
+    description: profile.description.slice(0, 1500),
+    languages: profile.languages,
+    primaryLanguage: profile.primaryLanguage,
+  });
+}
+
+async function generateViaOpenAi(
+  profile: BatteryProfileInput,
+  apiKey: string,
+): Promise<string> {
+  const data = await callOpenAi(
+    "/chat/completions",
+    {
+      model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: BATTERY_INSTRUCTIONS },
+        { role: "user", content: batteryUserMessage(profile) },
+      ],
+    },
+    apiKey,
+  );
+  const content = (
+    (data.choices as Array<Record<string, unknown>>)?.[0]?.message as
+      | Record<string, unknown>
+      | undefined
+  )?.content;
+  return String(content ?? "{}");
+}
+
+async function generateViaGemini(
+  profile: BatteryProfileInput,
+  apiKey: string,
+): Promise<string> {
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-flash-latest";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: BATTERY_INSTRUCTIONS }] },
+          contents: [{ parts: [{ text: batteryUserMessage(profile) }] }],
+          generationConfig: { responseMimeType: "application/json" },
+        }),
+        signal: controller.signal,
+      },
+    );
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Gemini ${response.status}: ${detail.slice(0, 200)}`);
+    }
+    const data = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    return data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "{}";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Sanity gate on model output. Bad lines are dropped, not fixed: the human
+ * reviews the list anyway, and a silently "repaired" prompt is how a battery
+ * ends up measuring something nobody wrote.
+ */
+function validateProposals(
+  raw: string,
+  businessName: string,
+): PromptProposal[] {
+  let parsed: { proposals?: unknown };
+  try {
+    parsed = JSON.parse(raw) as { proposals?: unknown };
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed.proposals)) return [];
+
+  const ownPattern = ownNamePattern(businessName);
+  const seen = new Set<string>();
+  const result: PromptProposal[] = [];
+  for (const item of parsed.proposals as Array<Record<string, unknown>>) {
+    const intent = typeof item.intent === "string" ? item.intent.trim() : "";
+    const text = typeof item.text === "string" ? item.text.trim() : "";
+    const language =
+      typeof item.language === "string"
+        ? item.language.trim().toLowerCase().slice(0, 5)
+        : "";
+    const isBranded = item.isBranded === true;
+    if (intent.length < 2 || intent.length > 80) continue;
+    if (text.length < 8 || text.length > 300) continue;
+    if (!/^[a-z]{2}(-[a-z]{2})?$/.test(language)) continue;
+    // A category prompt naming the venue would measure brand recall while
+    // claiming to measure the category. Drop it.
+    if (!isBranded && ownPattern.test(text)) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ intent, language, text, isBranded });
+    if (result.length >= 50) break;
+  }
+  return result;
+}
+
+/** The assistant writes the battery from the profile; template fallback on failure. */
+export async function generatePromptBattery(
+  profile: BatteryProfileInput,
+): Promise<{ proposals: PromptProposal[]; source: "openai" | "gemini" | "templates" }> {
+  const openaiKey = process.env.OPENAI_API_KEY?.trim();
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+
+  const attempts: Array<["openai" | "gemini", () => Promise<string>]> = [];
+  if (openaiKey) attempts.push(["openai", () => generateViaOpenAi(profile, openaiKey)]);
+  if (geminiKey) attempts.push(["gemini", () => generateViaGemini(profile, geminiKey)]);
+
+  for (const [source, attempt] of attempts) {
+    try {
+      const proposals = validateProposals(await attempt(), profile.name);
+      // Below this the model misfired; templates are the safer baseline.
+      if (proposals.length >= 10) return { proposals, source };
+    } catch (error) {
+      console.warn(`[battery:${source}]`, (error as Error).message);
+    }
+  }
+
+  return { proposals: suggestPromptBattery(profile), source: "templates" };
 }

@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
+import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { getUserClient } from "@/lib/supabase/server";
-import { executeVisibilityRun, type RunOutcome } from "@/services/measurement";
+import {
+  executeVisibilityRun,
+  generatePromptBattery,
+  type PromptProposal,
+  type RunOutcome,
+} from "@/services/measurement";
 
 /** One prompt, one execution. The browser loops and renders progress. */
 export async function runVisibilityPromptAction(
@@ -23,12 +29,17 @@ const proposalsSchema = z
   .array(
     z.object({
       intent: z.string().trim().min(2).max(80),
-      language: z.enum(["pl", "en"]),
+      language: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^[a-z]{2}(-[a-z]{2})?$/),
       text: z.string().trim().min(8).max(300),
+      isBranded: z.boolean().default(false),
     }),
   )
   .min(1)
-  .max(40);
+  .max(50);
 
 export interface SaveBatteryResult {
   ok: boolean;
@@ -59,7 +70,7 @@ export async function saveBatteryAction(
           tenant_id: session.tenantId,
           name: proposal.intent,
           language: proposal.language,
-          is_branded: false,
+          is_branded: proposal.isBranded,
         },
         { onConflict: "tenant_id,name" },
       )
@@ -81,4 +92,49 @@ export async function saveBatteryAction(
 
   revalidatePath("/visibility");
   return { ok: true, message: `${parsed.data.length} prompts saved.` };
+}
+
+export interface GenerateBatteryResult {
+  ok: boolean;
+  proposals: PromptProposal[];
+  /** Which engine wrote the battery, so the UI can say so honestly. */
+  source: "openai" | "gemini" | "templates";
+  message?: string;
+}
+
+/**
+ * The assistant proposes a battery from the workspace's own business profile.
+ * Nothing is saved here — the human reviews the list and saves explicitly.
+ */
+export async function generateBatteryAction(): Promise<GenerateBatteryResult> {
+  const session = await requireSession();
+  if (!canEditSettings(session.role)) {
+    return {
+      ok: false,
+      proposals: [],
+      source: "templates",
+      message: "Only admins can configure the battery.",
+    };
+  }
+
+  const profile = await requireBusinessProfile();
+  const { proposals, source } = await generatePromptBattery({
+    name: profile.name,
+    category: profile.category,
+    city: profile.city,
+    district: profile.district,
+    description: profile.description,
+    languages: profile.languages,
+    primaryLanguage: profile.primaryLanguage,
+  });
+
+  return {
+    ok: true,
+    proposals,
+    source,
+    message:
+      source === "templates"
+        ? "No AI key answered, so these are the standard templates."
+        : undefined,
+  };
 }

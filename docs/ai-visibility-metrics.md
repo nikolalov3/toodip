@@ -82,6 +82,28 @@ The panel already shows the metric card with an explanatory "needs analytics
 on the venue's site" state so the owner learns the concept before the pipe
 exists.
 
+## Prompt battery generation
+
+The battery must fit whatever business the client adds — never a hardcoded
+scenario. Two layers in `services/measurement.ts`:
+
+- **`generatePromptBattery`** — the assistant writes 20–30 prompts from the
+  full business profile (name, category, city, district, description,
+  languages): 5–8 intents covering "best X in city", district, per-category
+  use cases and one comparison question, plus exactly one branded intent.
+  Prompts are written in the profile's languages. Providers: OpenAI first,
+  Gemini fallback, whichever key is configured. Output is validated
+  (`validateProposals`): malformed lines are dropped, duplicates removed, and
+  any *category* prompt containing the venue name is rejected — it would
+  measure brand recall while claiming to measure the category.
+- **`suggestPromptBattery`** — deterministic templates covering every category
+  the app knows (cafe, restaurant, bakery, bar, hotel, beauty, clinic,
+  trades, other), used when no key is configured or the model misfires.
+
+Either way nothing is saved without human review: the panel shows the list
+with checkboxes, branded prompts labeled, and `saveBatteryAction` persists
+intents (with `is_branded`) and prompts only on explicit save.
+
 ## Methodology alignment
 
 Adobe recommends testing 20–50 real purchase-intent prompts and comparing

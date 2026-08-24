@@ -30,6 +30,7 @@ import { formatDate } from "@/lib/format";
 import { getUserClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import {
+  batteryGenerationConfigured,
   measurementConfigured,
   suggestPromptBattery,
 } from "@/services/measurement";
@@ -254,11 +255,14 @@ export default async function VisibilityPage() {
     <MeasurePanel
       prompts={batteryPrompts}
       suggestions={suggestPromptBattery({
+        name: profile.name,
         category: profile.category,
         city: profile.city,
         district: profile.district,
+        languages: profile.languages,
       })}
       hasKey={measurementConfigured()}
+      canGenerate={batteryGenerationConfigured()}
     />
   ) : !canMeasure && canEditSettings(session.role) ? (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand-soft px-4 py-3">

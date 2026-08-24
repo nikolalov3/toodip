@@ -124,6 +124,8 @@ Wszystkie cztery to strony opisujące, co zrobią i z czego skorzystają. Zero m
 
 Cztery branżowe metryki widoczności w AI (ujęcie Adobe) są policzone i widoczne na panelu: brand mentions (score), share of voice z rankingiem, citation rate (heurystyczne wykrywanie własnej strony i profili po nazwie lokalu) — wszystkie na promptach kategorii, brandowe nigdy nie zawyżają. Czwarta, AI referral traffic, wymaga analityki na stronie lokalu i jest rozpisana jako plan w docs/ai-visibility-metrics.md.
 
+Bateria promptów nie jest już przyspawana do kawiarni: asystent generuje 20–30 realnych pytań zakupowych z pełnego profilu biznesu klienta (kategoria, miasto, dzielnica, opis, języki), z jedną intencją brandową liczoną osobno — jak w Profound. Działa na OpenAI albo Gemini, a bez klucza wchodzą szablony pokrywające wszystkie kategorie. Każdą listę i tak zatwierdza człowiek przed zapisem.
+
 **Social content agent.** Posty z zatwierdzonych odpowiedzi i zdjęć gości, na tych samych zasadach marki. Potrzebuje magazynu na media i integracji z publikowaniem.
 
 **Competitors.** Porównanie oceny, tempa opinii i szybkości odpowiedzi z lokalami z tej samej ulicy. Potrzebuje źródła danych o miejscach.

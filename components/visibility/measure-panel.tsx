@@ -1,12 +1,13 @@
 "use client";
 
-import { Play, Square } from "lucide-react";
+import { Play, Sparkles, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   finishMeasurementAction,
+  generateBatteryAction,
   runVisibilityPromptAction,
   saveBatteryAction,
 } from "@/app/actions/visibility";
@@ -39,10 +40,13 @@ export function MeasurePanel({
   prompts,
   suggestions,
   hasKey,
+  canGenerate,
 }: {
   prompts: BatteryPrompt[];
   suggestions: PromptProposal[];
   hasKey: boolean;
+  /** Whether any AI key is configured for writing the battery itself. */
+  canGenerate: boolean;
 }) {
   const router = useRouter();
   const intents = useMemo(
@@ -58,21 +62,56 @@ export function MeasurePanel({
   const [progress, setProgress] = useState<Progress | null>(null);
   const stopRef = useRef(false);
 
-  // Setup mode: proposals reviewed before anything is saved.
+  // Setup mode: proposals reviewed before anything is saved. Starts on the
+  // deterministic templates; "Generate with AI" swaps in a battery written
+  // from the full business profile.
+  const [proposals, setProposals] = useState<PromptProposal[]>(suggestions);
   const [picked, setPicked] = useState<Set<number>>(
     () => new Set(suggestions.map((_, index) => index)),
   );
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   if (prompts.length === 0) {
     return (
       <Panel>
         <PanelHeader
           title="Set up the prompt battery"
-          description="Proposed from the business profile. Review every line before saving, then edit the set in the database as the venue's strategy sharpens."
+          description="The questions your customers ask AI assistants before choosing. Review every line before saving; nothing runs until you do."
+          action={
+            canGenerate ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={generating || saving}
+                onClick={async () => {
+                  setGenerating(true);
+                  const result = await generateBatteryAction();
+                  setGenerating(false);
+                  if (!result.ok) {
+                    toast.error(result.message ?? "Generation failed.");
+                    return;
+                  }
+                  setProposals(result.proposals);
+                  setPicked(new Set(result.proposals.map((_, index) => index)));
+                  toast[result.source === "templates" ? "warning" : "success"](
+                    result.message ??
+                      `${result.proposals.length} prompts written from your business profile.`,
+                  );
+                }}
+              >
+                <Sparkles className="size-3.5" />
+                {generating
+                  ? "Writing prompts..."
+                  : proposals !== suggestions
+                    ? "Regenerate with AI"
+                    : "Generate with AI"}
+              </Button>
+            ) : null
+          }
         />
-        <ul className="divide-y divide-border">
-          {suggestions.map((suggestion, index) => (
+        <ul className="max-h-[420px] divide-y divide-border overflow-y-auto">
+          {proposals.map((suggestion, index) => (
             <li key={suggestion.text} className="flex items-start gap-2.5 px-4 py-2.5">
               <input
                 type="checkbox"
@@ -90,19 +129,29 @@ export function MeasurePanel({
                 <p className="text-sm">{suggestion.text}</p>
                 <p className="text-xs text-muted-foreground">
                   {suggestion.intent} · {suggestion.language.toUpperCase()}
+                  {suggestion.isBranded && (
+                    <span className="ml-1.5 text-caution">
+                      branded — scored separately
+                    </span>
+                  )}
                 </p>
               </div>
             </li>
           ))}
         </ul>
-        <div className="flex justify-end border-t border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            {canGenerate
+              ? "Generated prompts come from your business profile: category, city, languages, description."
+              : "Standard templates. Add an AI key to have the battery written for this exact business."}
+          </p>
           <Button
             size="sm"
-            disabled={saving || picked.size === 0}
+            disabled={saving || generating || picked.size === 0}
             onClick={async () => {
               setSaving(true);
               const result = await saveBatteryAction(
-                suggestions.filter((_, index) => picked.has(index)),
+                proposals.filter((_, index) => picked.has(index)),
               );
               setSaving(false);
               if (result.ok) {
