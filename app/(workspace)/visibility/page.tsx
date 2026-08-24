@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 import {
   EmptyState,
+  MetricCard,
   PageHeader,
   Panel,
   PanelHeader,
@@ -107,6 +108,12 @@ const KIND_LABELS: Record<string, string> = {
   social_post: "Social",
   other: "Other",
 };
+
+/** "0%" must mean zero; a tiny nonzero share reads as "<1%" instead. */
+function pct(rate: number): string {
+  if (rate > 0 && rate < 0.005) return "<1%";
+  return `${Math.round(rate * 100)}%`;
+}
 
 /**
  * Numbered section shell. The page reads as a list of the owner's own
@@ -422,8 +429,40 @@ export default async function VisibilityPage() {
       <Section
         step={1}
         question="Am I visible?"
-        blurb="Your score after each measurement. Fix things, measure again, and this line should climb."
+        blurb="The four standard AI-visibility metrics, then your score after each measurement. Fix things, measure again, and these should climb."
       >
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Brand mentions"
+            value={pct(overview.metrics.brandMentionRate)}
+            hint={`Answers naming ${profile.name} — this is the score above`}
+          />
+          <MetricCard
+            label="Share of voice"
+            value={pct(overview.metrics.shareOfVoice)}
+            hint={
+              overview.metrics.sovRank
+                ? `of all recommendations — #${overview.metrics.sovRank} of ${overview.metrics.sovBrands} venues AI names`
+                : `of all recommendations across ${overview.metrics.sovBrands} venues AI names`
+            }
+          />
+          <MetricCard
+            label="Citation rate"
+            value={pct(overview.metrics.citationRate)}
+            hint={
+              overview.metrics.ownCitedSources.length > 0
+                ? `Answers citing your site or profiles (${overview.metrics.ownCitedSources
+                    .slice(0, 2)
+                    .join(", ")})`
+                : "AI never cites your website or social profiles yet"
+            }
+          />
+          <MetricCard
+            label="AI referral traffic"
+            value="—"
+            hint="Visitors your website gets from ChatGPT & co. Needs analytics on the venue's site — on the roadmap."
+          />
+        </div>
         {overview.timeline.length > 1 ? (
           <Panel>
             <ScoreTrend timeline={overview.timeline} />

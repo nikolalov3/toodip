@@ -86,6 +86,33 @@ export interface InterventionRow {
   performedOn: string;
 }
 
+/**
+ * The four industry-standard AI visibility metrics (Adobe's framing), all
+ * computed over category runs so branded questions never inflate them:
+ *
+ * - brandMentionRate  share of answers naming the venue (this is the score)
+ * - shareOfVoice      the venue's slice of ALL brand appearances, so it moves
+ *                     when competitors gain even if the venue holds steady
+ * - citationRate      share of answers citing the venue's own web presence
+ *                     (its site or its social profiles)
+ * - referral traffic  is NOT here: it lives in the venue's site analytics,
+ *                     not in measurement runs. See docs/ai-visibility-metrics.md.
+ */
+export interface MetricsSummary {
+  /** 0..1 across category runs. Same number the trend line plots. */
+  brandMentionRate: number;
+  /** Own appearances / all brand appearances, 0..1. */
+  shareOfVoice: number;
+  /** 1-based position on the leaderboard, null when never mentioned. */
+  sovRank: number | null;
+  /** How many venues compete on the leaderboard. */
+  sovBrands: number;
+  /** Share of category runs citing the venue's own site or profiles, 0..1. */
+  citationRate: number;
+  /** The domains/URLs the heuristic attributed to the venue, for the UI. */
+  ownCitedSources: string[];
+}
+
 /** One measured day: category runs only, branded intents excluded. */
 export interface TrendPoint {
   date: string;
@@ -99,6 +126,7 @@ export interface TrendPoint {
 
 export interface VisibilityOverview {
   hasData: boolean;
+  metrics: MetricsSummary;
   sources: string[];
   dates: string[];
   timeline: TrendPoint[];
@@ -127,7 +155,7 @@ interface RunRow {
     intents: { name: string; language: string; is_branded: boolean } | null;
   } | null;
   visibility_mentions: Array<{ name: string; is_own: boolean }>;
-  visibility_citations: Array<{ domain: string }>;
+  visibility_citations: Array<{ url: string; domain: string }>;
 }
 
 const SOCIAL = /instagram|facebook|youtube|tiktok|pinterest/;
@@ -142,6 +170,43 @@ export function classifyDomain(domain: string): SourceCategory {
   if (TRAVEL.test(domain)) return "Travel aggregators";
   if (GUIDES.test(domain)) return "Guides & blogs";
   return "Other & venue sites";
+}
+
+/** Words that appear in half the venue names in a category and identify nothing. */
+const GENERIC_NAME_WORDS = new Set([
+  "cafe", "caffe", "kawiarnia", "coffee", "kawa", "restaurant", "restauracja",
+  "bar", "bistro", "pizzeria", "hotel", "salon", "studio", "club", "klub",
+  "the", "and", "und", "house", "dom",
+]);
+
+/**
+ * Tokens that identify the venue inside a domain or URL, derived from its
+ * name. "Bruk Cafe" yields ["bruk", "brukcafe"], which matches brukcafe.pl and
+ * instagram.com/brukcafe. A heuristic on purpose: it needs no configuration,
+ * and an explicit own-domains list on the business profile can override it
+ * later without changing the metric's meaning.
+ */
+export function ownPresenceTokens(name: string): string[] {
+  const words = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  const tokens = new Set(
+    words.filter((word) => word.length >= 4 && !GENERIC_NAME_WORDS.has(word)),
+  );
+  if (words.length > 1) tokens.add(words.join(""));
+  return [...tokens];
+}
+
+export function citesOwnPresence(
+  citation: { url: string; domain: string },
+  tokens: string[],
+): boolean {
+  const haystack = `${citation.domain} ${citation.url}`.toLowerCase();
+  return tokens.some((token) => haystack.includes(token));
 }
 
 function topCounts(
@@ -160,11 +225,11 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
   const session = await requireSession();
   const supabase = await getUserClient();
 
-  const [runsResult, interventionsResult] = await Promise.all([
+  const [runsResult, interventionsResult, profileResult] = await Promise.all([
     supabase
       .from("visibility_runs")
       .select(
-        "id, platform, executed_on, source, response_text, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(domain)",
+        "id, platform, executed_on, source, response_text, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
       )
       .eq("tenant_id", session.tenantId)
       .order("executed_on", { ascending: false })
@@ -175,6 +240,11 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       .eq("tenant_id", session.tenantId)
       .order("performed_on", { ascending: false })
       .limit(50),
+    supabase
+      .from("business_profiles")
+      .select("name")
+      .eq("tenant_id", session.tenantId)
+      .maybeSingle(),
   ]);
 
   const runs = (runsResult.data ?? []) as unknown as RunRow[];
@@ -186,9 +256,19 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     performedOn: row.performed_on as string,
   }));
 
+  const emptyMetrics: MetricsSummary = {
+    brandMentionRate: 0,
+    shareOfVoice: 0,
+    sovRank: null,
+    sovBrands: 0,
+    citationRate: 0,
+    ownCitedSources: [],
+  };
+
   if (runs.length === 0) {
     return {
       hasData: false,
+      metrics: emptyMetrics,
       sources: [],
       dates: [],
       timeline: [],
@@ -300,6 +380,43 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       share: (own?.count ?? 0) / Math.max(categoryRuns.length, 1),
     });
   }
+
+  // ── The four headline metrics (see MetricsSummary) ────────────────────────
+  const ownEntry = [...brandCounts.values()].find((entry) => entry.isOwn);
+  const totalAppearances = [...brandCounts.values()].reduce(
+    (sum, entry) => sum + entry.count,
+    0,
+  );
+  const ownRankIndex = [...brandCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .findIndex((entry) => entry.isOwn);
+
+  const ownTokens = ownPresenceTokens(
+    (profileResult.data as { name: string } | null)?.name ?? "",
+  );
+  let ownCitedRuns = 0;
+  const ownCitedSources = new Set<string>();
+  if (ownTokens.length > 0) {
+    for (const run of categoryRuns) {
+      const ownCitations = run.visibility_citations.filter((citation) =>
+        citesOwnPresence(citation, ownTokens),
+      );
+      if (ownCitations.length === 0) continue;
+      ownCitedRuns += 1;
+      for (const citation of ownCitations) ownCitedSources.add(citation.domain);
+    }
+  }
+
+  const metrics: MetricsSummary = {
+    brandMentionRate:
+      categoryRuns.filter((run) => run.visibility_mentions.some((m) => m.is_own))
+        .length / Math.max(categoryRuns.length, 1),
+    shareOfVoice: (ownEntry?.count ?? 0) / Math.max(totalAppearances, 1),
+    sovRank: ownEntry && ownEntry.count > 0 ? ownRankIndex + 1 : null,
+    sovBrands: brandCounts.size,
+    citationRate: ownCitedRuns / Math.max(categoryRuns.length, 1),
+    ownCitedSources: [...ownCitedSources].sort(),
+  };
 
   // ── Per platform: own mention rate and citation diet ──────────────────────
   const platforms: PlatformSummary[] = (
@@ -422,6 +539,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
 
   return {
     hasData: true,
+    metrics,
     sources: [...new Set(runs.map((run) => run.source))],
     dates: [...new Set(runs.map((run) => run.executed_on))].sort(),
     timeline,

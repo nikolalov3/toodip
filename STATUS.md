@@ -122,6 +122,8 @@ Wszystkie cztery to strony opisujące, co zrobią i z czego skorzystają. Zero m
 
 **Visibility 🟡 (awans z planowanych).** Księga pomiarów działa: intencje z flagą brandową, prompty, wykonania per platforma, wzmianki i cytowania osobno, księga interwencji (publikacja odpowiedzi loguje się sama). Panel pokazuje właścicieli intencji, diagnozę per platforma i mapę cytowań. Punkt zerowy zaimportowany z eksportów Profound (7-8.08.2026). Brakuje: własnego runnera baterii (ChatGPT przez API OpenAI, Perplexity przez ich API, AIO przez dostawcę SERP) i progu próbki dla werdyktów. Pełna analiza: docs/profound-recon.md.
 
+Cztery branżowe metryki widoczności w AI (ujęcie Adobe) są policzone i widoczne na panelu: brand mentions (score), share of voice z rankingiem, citation rate (heurystyczne wykrywanie własnej strony i profili po nazwie lokalu) — wszystkie na promptach kategorii, brandowe nigdy nie zawyżają. Czwarta, AI referral traffic, wymaga analityki na stronie lokalu i jest rozpisana jako plan w docs/ai-visibility-metrics.md.
+
 **Social content agent.** Posty z zatwierdzonych odpowiedzi i zdjęć gości, na tych samych zasadach marki. Potrzebuje magazynu na media i integracji z publikowaniem.
 
 **Competitors.** Porównanie oceny, tempa opinii i szybkości odpowiedzi z lokalami z tej samej ulicy. Potrzebuje źródła danych o miejscach.
