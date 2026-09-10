@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
-import { LandingPage } from "@/components/marketing/landing-page";
+import { ComingSoon } from "@/components/marketing/coming-soon";
 import { getSession } from "@/lib/auth/session";
 import {
   MARKETING_DICTS,
@@ -38,5 +38,5 @@ export default async function LocalizedLanding({
   if (!isMarketingLocale(lang) || lang === "en") notFound();
   const session = await getSession();
   if (session) redirect("/dashboard");
-  return <LandingPage dict={MARKETING_DICTS[lang]} locale={lang} />;
+  return <ComingSoon locale={lang} />;
 }

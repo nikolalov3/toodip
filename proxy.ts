@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/sign-in",
   "/sign-up",
   "/auth/confirm",
+  "/terms",
   "/pricing",
   "/api/stripe",
   "/sitemap.xml",
