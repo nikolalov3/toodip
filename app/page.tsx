@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 export const metadata = marketingMetadata(
   "en",
   "",
-  "toodip — launching Q4 2026",
-  "toodip measures how often AI assistants recommend your venue, and shows what to fix. Launching Q4 2026 — join the waitlist.",
+  "toodip — invite only",
+  "toodip tracks how often ChatGPT, Google AI Overviews and Perplexity recommend your venue, and turns every gap into a clear next move. Access opens in waves — join the list.",
 );
 
 export default async function RootPage() {

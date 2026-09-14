@@ -4,9 +4,6 @@ import { PinMark } from "@/components/brand/logo";
 import { GlobeBackground } from "@/components/marketing/globe-background";
 import { WaitlistForm } from "@/components/marketing/waitlist-form";
 
-/** Expected public launch. Kept here so the copy and metadata agree. */
-export const LAUNCH_LABEL = "Q4 2026";
-
 /**
  * The public site while the product is pre-launch. A single, deliberate dark
  * treatment — this page does not follow the viewer's theme — so it reads as a
@@ -44,26 +41,30 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
           </span>
         </div>
 
-        <span className="mt-9 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/55 sm:mt-12 sm:text-[11px]">
-          <span className="size-1.5 rounded-full bg-[#4cc2ff] shadow-[0_0_10px_2px_rgba(76,194,255,0.6)]" />
-          Launching {LAUNCH_LABEL}
+        <span className="mt-9 inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50 sm:mt-12 sm:text-[11px]">
+          <span className="relative flex size-1.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#f6a94a] opacity-70" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-[#f6a94a]" />
+          </span>
+          Currently closed · Invite only
         </span>
 
-        <h1 className="mt-6 text-balance text-[1.7rem] font-semibold leading-[1.14] tracking-tight sm:mt-7 sm:text-[2.65rem] sm:leading-[1.12]">
+        <h1 className="mt-6 text-balance text-[1.7rem] font-semibold leading-[1.14] tracking-tight sm:mt-6 sm:text-[2.65rem] sm:leading-[1.12]">
           <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
             When people ask AI where to go, your venue should be the answer.
           </span>
         </h1>
 
         <p className="mx-auto mt-4 max-w-md text-pretty text-sm leading-relaxed text-white/55 sm:mt-5 sm:text-[0.95rem]">
-          toodip tracks how often ChatGPT, Google AI Overviews and Perplexity
-          put your business in front of people ready to visit — and turns every
-          gap into a clear next move.
+          toodip already tracks how often ChatGPT, Google AI Overviews and
+          Perplexity recommend a venue — and turns every gap into a clear next
+          move. New venues come on in small, invite-only waves.
         </p>
 
         <div className="mt-8 w-full max-w-md sm:mt-10">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.2em] text-white/40 sm:mb-3.5 sm:text-[11px]">
-            Request early access
+          <p className="mb-3 text-sm text-white/55">
+            The next wave is filling. Leave your email to hold your place —
+            before your competitors take it.
           </p>
           <WaitlistForm locale={locale} />
         </div>
