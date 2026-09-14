@@ -63,22 +63,14 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
 
         <div className="mt-8 w-full max-w-md sm:mt-10">
           <p className="mb-3 text-sm text-white/55">
-            The next wave is filling. Leave your email to hold your place —
-            before your competitors take it.
+            The next wave is filling. Leave your email to hold your place.
           </p>
           <WaitlistForm locale={locale} />
         </div>
 
+        {/* Client sign-in link intentionally hidden for now — existing clients
+            still reach the panel at /sign-in directly. Revisit before launch. */}
         <footer className="mt-11 flex items-center gap-4 text-xs text-white/40 sm:mt-16">
-          <Link
-            href="/sign-in"
-            className="transition-colors hover:text-white/85"
-          >
-            Client sign in
-          </Link>
-          <span aria-hidden className="text-white/20">
-            ·
-          </span>
           <Link href="/terms" className="transition-colors hover:text-white/85">
             Terms &amp; privacy
           </Link>
