@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { LogoMark } from "@/components/brand/logo";
+import { PinMark } from "@/components/brand/logo";
 import { GlobeBackground } from "@/components/marketing/globe-background";
 import { WaitlistForm } from "@/components/marketing/waitlist-form";
 
@@ -31,47 +31,44 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
       </div>
 
       <div className="relative flex w-full max-w-lg flex-col items-center text-center">
-        {/* Logo, presented as a medallion: the mark seated in a dark tile with a
-            hairline ring and a soft cast, wordmark spaced beneath. */}
-        <div className="flex flex-col items-center gap-4">
-          <span className="relative inline-flex size-[4.25rem] items-center justify-center rounded-[1.15rem] border border-white/10 bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_18px_50px_-16px_rgba(76,194,255,0.55)]">
-            <span
-              aria-hidden
-              className="absolute inset-0 rounded-[1.15rem]"
-              style={{ boxShadow: "0 0 0 1px rgba(76,194,255,0.16)" }}
-            />
-            <LogoMark size={40} />
-          </span>
-          <span className="text-lg font-semibold lowercase tracking-[0.34em] text-white/85">
+        {/* Logo: the location pin from the favicon, in white with the brand
+            signal dot and a soft cast, wordmark spaced beneath. */}
+        <div className="flex flex-col items-center gap-3.5">
+          <PinMark
+            size={52}
+            className="text-white"
+            style={{ filter: "drop-shadow(0 8px 24px rgba(56,182,255,0.38))" }}
+          />
+          <span className="text-base font-semibold lowercase tracking-[0.34em] text-white/85 sm:text-lg">
             toodip
           </span>
         </div>
 
-        <span className="mt-14 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.2em] text-white/55">
+        <span className="mt-9 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/55 sm:mt-12 sm:text-[11px]">
           <span className="size-1.5 rounded-full bg-[#4cc2ff] shadow-[0_0_10px_2px_rgba(76,194,255,0.6)]" />
           Launching {LAUNCH_LABEL}
         </span>
 
-        <h1 className="mt-7 text-balance text-[1.9rem] font-semibold leading-[1.12] tracking-tight sm:text-[2.65rem]">
+        <h1 className="mt-6 text-balance text-[1.7rem] font-semibold leading-[1.14] tracking-tight sm:mt-7 sm:text-[2.65rem] sm:leading-[1.12]">
           <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
             When people ask AI where to go, your venue should be the answer.
           </span>
         </h1>
 
-        <p className="mt-5 max-w-md text-pretty text-[0.95rem] leading-relaxed text-white/55">
+        <p className="mx-auto mt-4 max-w-md text-pretty text-sm leading-relaxed text-white/55 sm:mt-5 sm:text-[0.95rem]">
           toodip tracks how often ChatGPT, Google AI Overviews and Perplexity
           put your business in front of people ready to visit — and turns every
           gap into a clear next move.
         </p>
 
-        <div className="mt-10 w-full max-w-md">
-          <p className="mb-3.5 text-[11px] font-medium uppercase tracking-[0.2em] text-white/40">
+        <div className="mt-8 w-full max-w-md sm:mt-10">
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.2em] text-white/40 sm:mb-3.5 sm:text-[11px]">
             Request early access
           </p>
           <WaitlistForm locale={locale} />
         </div>
 
-        <footer className="mt-16 flex items-center gap-4 text-xs text-white/40">
+        <footer className="mt-11 flex items-center gap-4 text-xs text-white/40 sm:mt-16">
           <Link
             href="/sign-in"
             className="transition-colors hover:text-white/85"
@@ -86,7 +83,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
           </Link>
         </footer>
 
-        <p className="mt-8 text-[11px] tracking-wide text-white/25">
+        <p className="mt-7 text-[11px] tracking-wide text-white/25 sm:mt-8">
           © 2026 toodip
         </p>
       </div>

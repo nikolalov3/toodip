@@ -23,7 +23,7 @@ export function WaitlistForm({ locale = "en" }: { locale?: string }) {
 
   if (done) {
     return (
-      <div className="flex items-start gap-3 rounded-2xl border border-[rgba(76,194,255,0.25)] bg-[rgba(76,194,255,0.06)] px-4 py-4 text-left">
+      <div className="flex items-start gap-3 rounded-md border border-[rgba(76,194,255,0.25)] bg-[rgba(76,194,255,0.06)] px-4 py-4 text-left">
         <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[rgba(76,194,255,0.18)] text-[#7dd3fc]">
           <Check className="size-3.5" />
         </span>
@@ -64,12 +64,12 @@ export function WaitlistForm({ locale = "en" }: { locale?: string }) {
           placeholder="you@venue.com"
           aria-label="Email address"
           disabled={pending}
-          className="h-12 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[rgba(76,194,255,0.5)] focus:bg-white/[0.06] focus:ring-4 focus:ring-[rgba(76,194,255,0.14)] disabled:opacity-60"
+          className="h-12 flex-1 rounded-md border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[rgba(76,194,255,0.5)] focus:bg-white/[0.06] focus:ring-4 focus:ring-[rgba(76,194,255,0.14)] disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={pending}
-          className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-[#070709] transition hover:bg-white/90 disabled:opacity-70"
+          className="group inline-flex h-12 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-[#070709] transition hover:bg-white/90 disabled:opacity-70"
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
           {pending ? "Joining" : "Join the waitlist"}
@@ -92,7 +92,7 @@ export function WaitlistForm({ locale = "en" }: { locale?: string }) {
             if (event.target.checked) setError(null);
           }}
           disabled={pending}
-          className="mt-0.5 size-4 shrink-0 rounded border-white/20 bg-white/5 accent-[#4cc2ff]"
+          className="mt-0.5 size-4 shrink-0 rounded-[3px] border-white/20 bg-white/5 accent-[#4cc2ff]"
         />
         <span>
           I agree to join the waitlist and accept the{" "}

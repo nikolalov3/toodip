@@ -1,4 +1,42 @@
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/utils";
+
+/**
+ * The location pin, matching the favicon (app/icon.svg): a ring-cut teardrop
+ * with a signal dot. The pin body inherits `currentColor` so it can sit on any
+ * surface; the dot keeps the brand blue.
+ */
+export function PinMark({
+  size = 44,
+  className,
+  style,
+}: {
+  size?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+      aria-hidden
+    >
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M16 30.5C12.9 23.4 4.8 20.3 4.8 13A11.2 11.2 0 1 1 27.2 13C27.2 20.3 19.1 23.4 16 30.5ZM16 5.8A7.1 7.1 0 1 0 16 20 7.1 7.1 0 0 0 16 5.8Z"
+      />
+      <circle cx="16" cy="12.9" r="3.7" fill="#38b6ff" />
+    </svg>
+  );
+}
 
 /**
  * The toodip mark: a mine cart carrying two glowing nuggets.
