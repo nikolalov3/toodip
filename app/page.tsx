@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = marketingMetadata(
   "en",
   "",
-  "toodip — invite only",
+  "toodip — Waitlist",
   "toodip tracks how often ChatGPT, Google AI Overviews and Perplexity recommend your venue, and turns every gap into a clear next move. Access opens in waves — join the list.",
 );
 
