@@ -65,14 +65,8 @@ export default function TermsPage() {
           </h2>
           <p className="mt-1.5">
             You can unsubscribe from any message we send, and you can ask us to
-            delete your data at any time by writing to{" "}
-            <a
-              href="mailto:kontakt@notaslop.com"
-              className="text-brand underline underline-offset-2 hover:no-underline"
-            >
-              kontakt@notaslop.com
-            </a>
-            . We remove waitlist entries on request without delay.
+            delete your data at any time — just reply to any email from us. We
+            remove waitlist entries on request without delay.
           </p>
         </section>
       </div>
