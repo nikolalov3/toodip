@@ -38,6 +38,13 @@ export interface PlanDefinition {
 /** Hard stop for "unlimited", so one runaway loop cannot eat the API budget. */
 export const FAIR_USE_CAP = 300;
 
+/**
+ * Rough cost of one measurement execution (gpt-4.1-mini + web search +
+ * extraction), for the estimate the panel shows before a run. Real cost is
+ * metered per run; this is only the preview number.
+ */
+export const RUN_COST_ESTIMATE_USD = 0.035;
+
 export const PLANS: Record<BillingPlan, PlanDefinition> = {
   free: {
     id: "free",
@@ -90,14 +97,17 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
   visibility: {
     id: "visibility",
     name: "Visibility",
-    priceCents: 9900,
+    priceCents: 19900,
     monthlyReplies: null,
     aiEngine: true,
-    monthlyRuns: 150,
+    // One full monthly report: 50 prompts × 2 repetitions. Failed executions
+    // never insert a run, so they do not consume the allowance.
+    monthlyRuns: 100,
     blurb: "Know whether AI recommends you, and fix why not.",
     features: [
       "First 7 days free",
-      "150 AI visibility measurements a month",
+      "Monthly AI visibility report: 50 questions, asked twice each",
+      "Prompt agent that writes the questions for your business",
       "Score trend, source map, intervention log",
       "Everything in Pro",
     ],

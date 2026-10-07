@@ -39,7 +39,7 @@ const proposalsSchema = z
     }),
   )
   .min(1)
-  .max(50);
+  .max(120);
 
 export interface SaveBatteryResult {
   ok: boolean;
@@ -102,11 +102,24 @@ export interface GenerateBatteryResult {
   message?: string;
 }
 
+const generateInputSchema = z.object({
+  websiteUrl: z
+    .string()
+    .trim()
+    .max(300)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+  count: z.number().int().min(10).max(100).default(50),
+});
+
 /**
- * The assistant proposes a battery from the workspace's own business profile.
- * Nothing is saved here — the human reviews the list and saves explicitly.
+ * The assistant proposes a battery from the workspace's own business profile,
+ * plus the client's website when given. Nothing is saved here — the human
+ * reviews and edits the list, then saves explicitly.
  */
-export async function generateBatteryAction(): Promise<GenerateBatteryResult> {
+export async function generateBatteryAction(
+  input?: unknown,
+): Promise<GenerateBatteryResult> {
   const session = await requireSession();
   if (!canEditSettings(session.role)) {
     return {
@@ -114,6 +127,16 @@ export async function generateBatteryAction(): Promise<GenerateBatteryResult> {
       proposals: [],
       source: "templates",
       message: "Only admins can configure the battery.",
+    };
+  }
+
+  const options = generateInputSchema.safeParse(input ?? {});
+  if (!options.success) {
+    return {
+      ok: false,
+      proposals: [],
+      source: "templates",
+      message: "Check the website address and the number of questions.",
     };
   }
 
@@ -126,6 +149,8 @@ export async function generateBatteryAction(): Promise<GenerateBatteryResult> {
     description: profile.description,
     languages: profile.languages,
     primaryLanguage: profile.primaryLanguage,
+    websiteUrl: options.data.websiteUrl,
+    targetCount: options.data.count,
   });
 
   return {

@@ -24,6 +24,24 @@ const OPENAI_BASE = () =>
 
 const RUN_TIMEOUT_MS = 50_000;
 
+/**
+ * Per-run cost model, in USD. Defaults are gpt-4.1-mini list prices plus the
+ * web_search tool call; override via env when the model or pricing changes.
+ * The numbers land on every run (raw + typed columns) so the admin view shows
+ * real cost per client instead of an estimate.
+ */
+const PRICE_IN_PER_M = Number(process.env.AI_PRICE_IN_PER_M ?? 0.4);
+const PRICE_OUT_PER_M = Number(process.env.AI_PRICE_OUT_PER_M ?? 1.6);
+const PRICE_WEB_SEARCH = Number(process.env.AI_PRICE_WEB_SEARCH ?? 0.025);
+
+export function runCostUsd(tokensIn: number, tokensOut: number, webSearches: number): number {
+  const cost =
+    (tokensIn / 1_000_000) * PRICE_IN_PER_M +
+    (tokensOut / 1_000_000) * PRICE_OUT_PER_M +
+    webSearches * PRICE_WEB_SEARCH;
+  return Math.round(cost * 1_000_000) / 1_000_000;
+}
+
 export function measurementConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
@@ -76,6 +94,9 @@ interface SearchAnswer {
   model: string;
   citations: string[];
   usedSearch: boolean;
+  webSearches: number;
+  tokensIn: number;
+  tokensOut: number;
 }
 
 /** Asks the model with web search on, and collects the cited URLs. */
@@ -91,9 +112,13 @@ async function askWithSearch(prompt: string, apiKey: string): Promise<SearchAnsw
   let text = "";
   const citations: string[] = [];
   let usedSearch = false;
+  let webSearches = 0;
 
   for (const item of output) {
-    if (item.type === "web_search_call") usedSearch = true;
+    if (item.type === "web_search_call") {
+      usedSearch = true;
+      webSearches += 1;
+    }
     if (item.type !== "message") continue;
     for (const part of (item.content ?? []) as Array<Record<string, unknown>>) {
       if (typeof part.text === "string") text += part.text;
@@ -103,17 +128,27 @@ async function askWithSearch(prompt: string, apiKey: string): Promise<SearchAnsw
     }
   }
 
+  const usage = (data.usage ?? {}) as Record<string, unknown>;
   return {
     text: text.trim(),
     model: (data.model as string) ?? model,
     citations: [...new Set(citations)],
     usedSearch,
+    webSearches,
+    tokensIn: Number(usage.input_tokens ?? 0) || 0,
+    tokensOut: Number(usage.output_tokens ?? 0) || 0,
   };
 }
 
+interface Extraction {
+  venues: string[];
+  tokensIn: number;
+  tokensOut: number;
+}
+
 /** Pulls the venue names out of an answer, in order of appearance. */
-async function extractVenues(answer: string, apiKey: string): Promise<string[]> {
-  if (!answer.trim()) return [];
+async function extractVenues(answer: string, apiKey: string): Promise<Extraction> {
+  if (!answer.trim()) return { venues: [], tokensIn: 0, tokensOut: 0 };
   try {
     const data = await callOpenAi(
       "/chat/completions",
@@ -135,13 +170,18 @@ async function extractVenues(answer: string, apiKey: string): Promise<string[]> 
       ((data.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, unknown>)
         ?.content;
     const parsed = JSON.parse(String(content ?? "{}")) as { venues?: unknown };
-    return Array.isArray(parsed.venues)
-      ? parsed.venues.filter((v): v is string => typeof v === "string").slice(0, 20)
-      : [];
+    const usage = (data.usage ?? {}) as Record<string, unknown>;
+    return {
+      venues: Array.isArray(parsed.venues)
+        ? parsed.venues.filter((v): v is string => typeof v === "string").slice(0, 20)
+        : [],
+      tokensIn: Number(usage.prompt_tokens ?? 0) || 0,
+      tokensOut: Number(usage.completion_tokens ?? 0) || 0,
+    };
   } catch {
     // Extraction failing must not lose the run. The response text is stored
     // either way, so mentions can be re-extracted later.
-    return [];
+    return { venues: [], tokensIn: 0, tokensOut: 0 };
   }
 }
 
@@ -151,6 +191,8 @@ export interface RunOutcome {
   mentions: string[];
   citations: number;
   usedSearch: boolean;
+  /** What this execution cost, so the panel can total a report honestly. */
+  costUsd?: number;
   error?: string;
 }
 
@@ -225,7 +267,12 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
 
   try {
     const answer = await askWithSearch(promptResult.data.text as string, apiKey);
-    const venues = await extractVenues(answer.text, apiKey);
+    const extracted = await extractVenues(answer.text, apiKey);
+    const venues = extracted.venues;
+
+    const tokensIn = answer.tokensIn + extracted.tokensIn;
+    const tokensOut = answer.tokensOut + extracted.tokensOut;
+    const costUsd = runCostUsd(tokensIn, tokensOut, answer.webSearches);
 
     const run = await supabase
       .from("visibility_runs")
@@ -237,11 +284,27 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
         source: "toodip",
         executed_on: new Date().toISOString().slice(0, 10),
         response_text: answer.text,
-        raw: { used_search: answer.usedSearch },
+        // Metering lives in raw too, so cost is recorded even before the typed
+        // columns from the run_metering migration exist in an environment.
+        raw: {
+          used_search: answer.usedSearch,
+          web_searches: answer.webSearches,
+          tokens_in: tokensIn,
+          tokens_out: tokensOut,
+          cost_usd: costUsd,
+        },
       })
       .select("id")
       .single();
     if (run.error) throw new Error(run.error.message);
+
+    // Typed metering columns (run_metering migration). supabase-js reports a
+    // missing column as an error value, not a throw, so a pre-migration
+    // environment just keeps the numbers in raw.
+    await supabase
+      .from("visibility_runs")
+      .update({ tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd })
+      .eq("id", run.data.id);
 
     // The extractor plus a direct pattern check: if the model named the venue
     // but the extractor missed it, the run still counts as a mention.
@@ -284,6 +347,7 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
       mentions: mentionRows.map((m) => m.name),
       citations: answer.citations.length,
       usedSearch: answer.usedSearch,
+      costUsd,
     };
   } catch (error) {
     return {
@@ -417,24 +481,73 @@ export interface BatteryProfileInput {
   description: string;
   languages: string[];
   primaryLanguage: string;
+  /** The client's own site; its text sharpens the niche intents. */
+  websiteUrl?: string | null;
+  /** How many prompts to aim for. The product default is 50. */
+  targetCount?: number;
 }
 
-const BATTERY_INSTRUCTIONS = `You design prompt batteries for measuring how visible a local business is in AI assistant answers (the way Profound or Adobe LLM Optimizer do).
+export const DEFAULT_BATTERY_SIZE = 50;
+const MAX_BATTERY_SIZE = 100;
 
-Given a business profile, write the realistic questions this business's potential customers actually type into ChatGPT or Perplexity BEFORE choosing where to go. Rules:
+/**
+ * Fetches the client's site and reduces it to plain text for the generator.
+ * Best effort and bounded: a slow or odd site yields "" and the battery is
+ * still written from the profile alone.
+ */
+async function fetchSiteContext(url: string | null | undefined): Promise<string> {
+  if (!url) return "";
+  let target: URL;
+  try {
+    target = new URL(url.includes("://") ? url : `https://${url}`);
+  } catch {
+    return "";
+  }
+  if (target.protocol !== "http:" && target.protocol !== "https:") return "";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(target.toString(), {
+      signal: controller.signal,
+      headers: { "user-agent": "toodip-battery-agent/1.0 (+https://toodip.com)" },
+      redirect: "follow",
+    });
+    if (!response.ok) return "";
+    const html = (await response.text()).slice(0, 400_000);
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;|&amp;|&quot;|&#39;|&lt;|&gt;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return text.slice(0, 3_000);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
-- 5 to 8 intents, 3 to 4 prompts each, 20 to 30 prompts total.
-- An intent is one buying situation ("best X in CITY", "X near DISTRICT", one per typical use case of this category, one comparison/ranking style question).
+function batteryInstructions(count: number): string {
+  const intents = Math.max(5, Math.round(count / 5));
+  return `You design prompt batteries for measuring how visible a local business is in AI assistant answers (the way Profound or Adobe LLM Optimizer do).
+
+Given a business profile (and, when present, an excerpt of its website), write the realistic questions this business's potential customers actually type into ChatGPT or Perplexity BEFORE choosing where to go. Rules:
+
+- About ${count} prompts total, grouped into roughly ${intents} intents of 4-6 prompts each.
+- An intent is one buying situation ("best X in CITY", "X near DISTRICT", one per typical use case of this category, comparison/ranking questions, occasion-based questions).
 - Prompts must sound like real people: casual, specific, sometimes with context ("I'm visiting for a weekend...", "moj budzet to..."). Vary phrasing; no two prompts near-identical.
 - Category prompts must NEVER contain the business name.
-- Exactly ONE intent is branded: 2-3 prompts asking about the business by name (reviews, is it worth it). Mark it "isBranded": true.
+- Exactly ONE intent is branded: 3-4 prompts asking about the business by name (reviews, is it worth it, opening hours). Mark it "isBranded": true.
 - Write prompts in the profile's languages, favoring the primary language; include English prompts if "en" is listed (tourists ask in English).
-- Use the description to find niche intents customers would ask about (e.g. vegan options, dog friendly, specific services) — but only ones this business could plausibly win.
+- Use the description and the website excerpt to find niche intents customers would ask about (specific products, services, dietary options, amenities) — but only ones this business could plausibly win.
 - Intent names are short English labels regardless of prompt language.
 
 Return ONLY JSON: {"proposals": [{"intent": "...", "language": "pl", "isBranded": false, "text": "..."}, ...]}`;
+}
 
-function batteryUserMessage(profile: BatteryProfileInput): string {
+function batteryUserMessage(profile: BatteryProfileInput, siteExcerpt: string): string {
   return JSON.stringify({
     name: profile.name,
     category: profile.category,
@@ -443,11 +556,15 @@ function batteryUserMessage(profile: BatteryProfileInput): string {
     description: profile.description.slice(0, 1500),
     languages: profile.languages,
     primaryLanguage: profile.primaryLanguage,
+    website: profile.websiteUrl ?? null,
+    websiteExcerpt: siteExcerpt || null,
   });
 }
 
 async function generateViaOpenAi(
   profile: BatteryProfileInput,
+  siteExcerpt: string,
+  count: number,
   apiKey: string,
 ): Promise<string> {
   const data = await callOpenAi(
@@ -456,8 +573,8 @@ async function generateViaOpenAi(
       model: process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini",
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: BATTERY_INSTRUCTIONS },
-        { role: "user", content: batteryUserMessage(profile) },
+        { role: "system", content: batteryInstructions(count) },
+        { role: "user", content: batteryUserMessage(profile, siteExcerpt) },
       ],
     },
     apiKey,
@@ -472,6 +589,8 @@ async function generateViaOpenAi(
 
 async function generateViaGemini(
   profile: BatteryProfileInput,
+  siteExcerpt: string,
+  count: number,
   apiKey: string,
 ): Promise<string> {
   const model = process.env.GEMINI_MODEL?.trim() || "gemini-flash-latest";
@@ -487,8 +606,8 @@ async function generateViaGemini(
           "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          system_instruction: { parts: [{ text: BATTERY_INSTRUCTIONS }] },
-          contents: [{ parts: [{ text: batteryUserMessage(profile) }] }],
+          system_instruction: { parts: [{ text: batteryInstructions(count) }] },
+          contents: [{ parts: [{ text: batteryUserMessage(profile, siteExcerpt) }] }],
           generationConfig: { responseMimeType: "application/json" },
         }),
         signal: controller.signal,
@@ -515,6 +634,7 @@ async function generateViaGemini(
 function validateProposals(
   raw: string,
   businessName: string,
+  cap: number,
 ): PromptProposal[] {
   let parsed: { proposals?: unknown };
   try {
@@ -545,7 +665,7 @@ function validateProposals(
     if (seen.has(key)) continue;
     seen.add(key);
     result.push({ intent, language, text, isBranded });
-    if (result.length >= 50) break;
+    if (result.length >= cap) break;
   }
   return result;
 }
@@ -556,14 +676,18 @@ export async function generatePromptBattery(
 ): Promise<{ proposals: PromptProposal[]; source: "openai" | "gemini" | "templates" }> {
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  const count = Math.min(MAX_BATTERY_SIZE, Math.max(10, profile.targetCount ?? DEFAULT_BATTERY_SIZE));
+  // A little headroom above the target, since validation drops some lines.
+  const cap = Math.min(MAX_BATTERY_SIZE + 20, count + 10);
+  const siteExcerpt = await fetchSiteContext(profile.websiteUrl);
 
   const attempts: Array<["openai" | "gemini", () => Promise<string>]> = [];
-  if (openaiKey) attempts.push(["openai", () => generateViaOpenAi(profile, openaiKey)]);
-  if (geminiKey) attempts.push(["gemini", () => generateViaGemini(profile, geminiKey)]);
+  if (openaiKey) attempts.push(["openai", () => generateViaOpenAi(profile, siteExcerpt, count, openaiKey)]);
+  if (geminiKey) attempts.push(["gemini", () => generateViaGemini(profile, siteExcerpt, count, geminiKey)]);
 
   for (const [source, attempt] of attempts) {
     try {
-      const proposals = validateProposals(await attempt(), profile.name);
+      const proposals = validateProposals(await attempt(), profile.name, cap);
       // Below this the model misfired; templates are the safer baseline.
       if (proposals.length >= 10) return { proposals, source };
     } catch (error) {

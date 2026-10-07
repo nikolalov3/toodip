@@ -232,6 +232,7 @@ export default async function VisibilityPage() {
   // The measurement panel needs the saved battery, grouped by intent.
   const isAdmin = canEditSettings(session.role) && canMeasure;
   let batteryPrompts: BatteryPrompt[] = [];
+  let runsUsed = 0;
   if (isAdmin) {
     const supabase = await getUserClient();
     const promptRows = await supabase
@@ -249,6 +250,17 @@ export default async function VisibilityPage() {
       intent: row.intents?.name ?? "unknown",
       isBranded: row.intents?.is_branded ?? false,
     }));
+
+    // Same count the runner enforces: this month's own executions only, so
+    // the panel's estimate and the server's limit never disagree.
+    const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+    const used = await supabase
+      .from("visibility_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", session.tenantId)
+      .eq("source", "toodip")
+      .gte("executed_on", monthStart);
+    runsUsed = used.count ?? 0;
   }
 
   const measurePanel = isAdmin ? (
@@ -263,6 +275,8 @@ export default async function VisibilityPage() {
       })}
       hasKey={measurementConfigured()}
       canGenerate={batteryGenerationConfigured()}
+      runsUsed={runsUsed}
+      runsLimit={planDef.monthlyRuns}
     />
   ) : !canMeasure && canEditSettings(session.role) ? (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand-soft px-4 py-3">
