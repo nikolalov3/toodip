@@ -377,6 +377,9 @@ export { classifyDomain };
  *
  * Either way the human reviews every line before anything is saved.
  */
+/** Which engine wrote a battery, so the UI can say so honestly. */
+export type BatterySource = "openrouter" | "openai" | "gemini" | "templates";
+
 export interface PromptProposal {
   intent: string;
   /** BCP-47ish two-letter code; the DB column is free text. */
@@ -469,8 +472,102 @@ export function suggestPromptBattery(profile: {
 
 export function batteryGenerationConfigured(): boolean {
   return Boolean(
-    process.env.OPENAI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim(),
+    process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.OPENAI_API_KEY?.trim() ||
+      process.env.GEMINI_API_KEY?.trim(),
   );
+}
+
+/** Battery writing is a long structured-output call; fail over before the route's 60s cap. */
+const GENERATION_TIMEOUT_MS = 55_000;
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+
+/**
+ * First-choice engine for writing the battery: DeepSeek via OpenRouter. Cheap,
+ * strong at long structured lists, and OpenAI-compatible, so it shares the
+ * same instructions and JSON contract as the other providers.
+ */
+/**
+ * DeepSeek routes on OpenRouter get rate-limited upstream in bursts (429). We
+ * try a short list of model ids and retry a 429 once after a pause, all inside
+ * one time budget so the whole generation stays under the route's 60s cap.
+ */
+const OPENROUTER_MODELS = (
+  process.env.OPENROUTER_BATTERY_MODELS?.trim() ||
+  "deepseek/deepseek-v4-flash,deepseek/deepseek-v3.2,deepseek/deepseek-chat-v3-0324"
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+async function generateViaOpenRouter(
+  profile: BatteryProfileInput,
+  siteExcerpt: string,
+  count: number,
+  apiKey: string,
+): Promise<string> {
+  const startedAt = Date.now();
+  const budgetLeft = () => GENERATION_TIMEOUT_MS - (Date.now() - startedAt);
+  const messages = [
+    { role: "system", content: batteryInstructions(count) },
+    { role: "user", content: batteryUserMessage(profile, siteExcerpt) },
+  ];
+  let lastError = "no attempt";
+
+  for (const model of OPENROUTER_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const remaining = budgetLeft();
+      if (remaining < 8_000) throw new Error(`OpenRouter: out of time (${lastError})`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), remaining);
+      try {
+        const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://toodip.com",
+            "X-Title": "toodip battery agent",
+          },
+          body: JSON.stringify({
+            model,
+            response_format: { type: "json_object" },
+            temperature: 0.7,
+            provider: { allow_fallbacks: true },
+            messages,
+          }),
+          signal: controller.signal,
+        });
+        if (response.status === 429) {
+          lastError = `${model} 429`;
+          // One pause then retry the same model; then move on to the next id.
+          if (attempt === 0 && budgetLeft() > 12_000) {
+            await new Promise((r) => setTimeout(r, 2_500));
+            continue;
+          }
+          break;
+        }
+        if (!response.ok) {
+          const detail = await response.text();
+          lastError = `${model} ${response.status}: ${detail.slice(0, 160)}`;
+          break; // a non-429 failure on this model: try the next id
+        }
+        const data = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const content = data.choices?.[0]?.message?.content;
+        if (content && content.trim()) return content;
+        lastError = `${model}: empty content`;
+        break;
+      } catch (error) {
+        lastError = `${model}: ${(error as Error).message}`;
+        break;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  }
+  throw new Error(`OpenRouter ${lastError}`);
 }
 
 export interface BatteryProfileInput {
@@ -638,7 +735,9 @@ function validateProposals(
 ): PromptProposal[] {
   let parsed: { proposals?: unknown };
   try {
-    parsed = JSON.parse(raw) as { proposals?: unknown };
+    // Some models wrap JSON in a markdown fence despite JSON mode; tolerate it.
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    parsed = JSON.parse(cleaned) as { proposals?: unknown };
   } catch {
     return [];
   }
@@ -673,7 +772,8 @@ function validateProposals(
 /** The assistant writes the battery from the profile; template fallback on failure. */
 export async function generatePromptBattery(
   profile: BatteryProfileInput,
-): Promise<{ proposals: PromptProposal[]; source: "openai" | "gemini" | "templates" }> {
+): Promise<{ proposals: PromptProposal[]; source: BatterySource }> {
+  const openrouterKey = process.env.OPENROUTER_API_KEY?.trim();
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const count = Math.min(MAX_BATTERY_SIZE, Math.max(10, profile.targetCount ?? DEFAULT_BATTERY_SIZE));
@@ -681,7 +781,9 @@ export async function generatePromptBattery(
   const cap = Math.min(MAX_BATTERY_SIZE + 20, count + 10);
   const siteExcerpt = await fetchSiteContext(profile.websiteUrl);
 
-  const attempts: Array<["openai" | "gemini", () => Promise<string>]> = [];
+  // Order of preference: DeepSeek on OpenRouter, then OpenAI, then Gemini.
+  const attempts: Array<[BatterySource, () => Promise<string>]> = [];
+  if (openrouterKey) attempts.push(["openrouter", () => generateViaOpenRouter(profile, siteExcerpt, count, openrouterKey)]);
   if (openaiKey) attempts.push(["openai", () => generateViaOpenAi(profile, siteExcerpt, count, openaiKey)]);
   if (geminiKey) attempts.push(["gemini", () => generateViaGemini(profile, siteExcerpt, count, geminiKey)]);
 

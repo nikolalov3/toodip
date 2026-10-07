@@ -9,6 +9,7 @@ import { getUserClient } from "@/lib/supabase/server";
 import {
   executeVisibilityRun,
   generatePromptBattery,
+  type BatterySource,
   type PromptProposal,
   type RunOutcome,
 } from "@/services/measurement";
@@ -98,7 +99,7 @@ export interface GenerateBatteryResult {
   ok: boolean;
   proposals: PromptProposal[];
   /** Which engine wrote the battery, so the UI can say so honestly. */
-  source: "openai" | "gemini" | "templates";
+  source: BatterySource;
   message?: string;
 }
 
