@@ -69,43 +69,40 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
           <WaitlistForm locale={locale} />
         </div>
 
-        {/* Members: the one door for people who already hold a key. Framed as
-            exclusive on purpose — no "create account" anywhere on the public
-            site; access is granted, not signed up for. */}
-        <section className="mt-12 w-full max-w-md sm:mt-14" aria-labelledby="members-title">
-          <Link
-            href="/sign-in"
-            className="group relative block overflow-hidden border border-white/10 bg-white/[0.025] px-5 py-4 text-left transition-colors duration-300 hover:border-[rgba(76,194,255,0.45)] hover:bg-white/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(76,194,255,0.5)]"
+        {/* Members: the one door for people who already hold a key. No label,
+            no explanation — a key icon, one line, an arrow. Access is granted,
+            not signed up for, so there is nothing more to say here. */}
+        <Link
+          href="/sign-in"
+          aria-label="Members: enter your workspace"
+          className="group relative mt-12 flex w-full max-w-md items-center gap-3.5 overflow-hidden border border-white/10 bg-white/[0.025] px-4 py-3.5 text-left transition-colors duration-300 hover:border-[rgba(76,194,255,0.45)] hover:bg-white/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(76,194,255,0.5)] sm:mt-14"
+        >
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-[rgba(76,194,255,0)] to-transparent transition-all duration-500 group-hover:via-[rgba(76,194,255,0.9)]"
+          />
+          <span
+            aria-hidden
+            className="flex size-9 shrink-0 items-center justify-center border border-white/10 text-white/70 transition-colors duration-300 group-hover:border-[rgba(76,194,255,0.5)] group-hover:text-white"
           >
-            {/* a thin signal line that lights up on hover, like a key turning */}
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-[rgba(76,194,255,0.0)] to-transparent transition-all duration-500 group-hover:via-[rgba(76,194,255,0.9)]"
-            />
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-white/45">
-                  Members
-                </p>
-                <p id="members-title" className="mt-1.5 text-sm font-medium text-white/90">
-                  Already hold access? Enter your workspace.
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-white/45">
-                  Access is granted by invitation only. There is nothing to sign up for here —
-                  if you were given credentials, this door is yours.
-                </p>
-              </div>
-              <span
-                aria-hidden
-                className="flex size-9 shrink-0 items-center justify-center border border-white/10 text-white/60 transition-all duration-300 group-hover:border-[rgba(76,194,255,0.5)] group-hover:text-white group-hover:translate-x-0.5"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </span>
-            </div>
-          </Link>
-        </section>
+            {/* key */}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="15" r="4" />
+              <path d="M10.85 12.15 19 4M18 5l2 2M15 8l2 2" />
+            </svg>
+          </span>
+          <span className="flex-1 text-sm font-medium text-white/90">
+            Already hold access? Enter your workspace.
+          </span>
+          <span
+            aria-hidden
+            className="shrink-0 text-white/50 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-white"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </Link>
 
         <footer className="mt-10 flex items-center gap-4 text-xs text-white/40 sm:mt-12">
           <Link href="/terms" className="transition-colors hover:text-white/85">
