@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { PLANS } from "@/lib/billing";
 import { getUserClient } from "@/lib/supabase/server";
@@ -196,78 +198,61 @@ export interface RunOutcome {
   error?: string;
 }
 
-/** One execution of one prompt, stored straight into the ledger. */
-export async function executeVisibilityRun(promptId: string): Promise<RunOutcome> {
-  const session = await requireSession();
-  if (!canEditSettings(session.role)) {
-    return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error: "Only admins can run measurements." };
-  }
+/** Everything one execution needs, however the caller is authenticated. */
+export interface RunContext {
+  tenantId: string;
+  /** The venue's own name, for marking own mentions. */
+  venueName: string;
+  /** Monthly allowance of the tenant's plan. */
+  runsLimit: number;
+  planName: string;
+  apiKey: string;
+  /** A user client (RLS) from the panel, or the service client from the cron. */
+  supabase: SupabaseClient;
+}
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error: "OPENAI_API_KEY is not set." };
-  }
+function failed(error: string): RunOutcome {
+  return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error };
+}
 
-  // Each run is a web_search call, the most expensive request in the app.
+/**
+ * The core of one execution: allowance check, the search call, extraction and
+ * the ledger writes. Shared by the panel (signed-in user) and the monthly cron
+ * (service role), so both paths produce identical rows.
+ */
+export async function executeRunForTenant(ctx: RunContext, promptId: string): Promise<RunOutcome> {
+  const { supabase } = ctx;
+
   // Runs are budgeted per plan and counted from the runs table itself, source
   // "toodip" only, so imported baselines never eat the budget.
-  const billing = await getBillingSnapshot();
-  const runsLimit = PLANS[billing.effectivePlan].monthlyRuns;
-  if (runsLimit <= 0) {
-    return {
-      ok: false,
-      mentionedOwn: false,
-      mentions: [],
-      citations: 0,
-      usedSearch: false,
-      error:
-        "Measurements are part of the Visibility and Unlimited plans. Upgrade on the Billing page.",
-    };
-  }
-
-  const supabase = await getUserClient();
-
   const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
   const usedResult = await supabase
     .from("visibility_runs")
     .select("id", { count: "exact", head: true })
-    .eq("tenant_id", session.tenantId)
+    .eq("tenant_id", ctx.tenantId)
     .eq("source", "toodip")
     .gte("executed_on", monthStart);
-  if ((usedResult.count ?? 0) >= runsLimit) {
-    return {
-      ok: false,
-      mentionedOwn: false,
-      mentions: [],
-      citations: 0,
-      usedSearch: false,
-      error: `The ${PLANS[billing.effectivePlan].name} plan includes ${runsLimit} measurements a month and this workspace has used them.`,
-    };
+  if ((usedResult.count ?? 0) >= ctx.runsLimit) {
+    return failed(
+      `The ${ctx.planName} plan includes ${ctx.runsLimit} measurements a month and this workspace has used them.`,
+    );
   }
 
   const promptResult = await supabase
     .from("visibility_prompts")
     .select("id, text, tenant_id")
     .eq("id", promptId)
-    .eq("tenant_id", session.tenantId)
+    .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (promptResult.error || !promptResult.data) {
-    return { ok: false, mentionedOwn: false, mentions: [], citations: 0, usedSearch: false, error: "Prompt not found in this workspace." };
+    return failed("Prompt not found in this workspace.");
   }
 
-  const profileResult = await supabase
-    .from("business_profiles")
-    .select("name")
-    .eq("tenant_id", session.tenantId)
-    .limit(1)
-    .maybeSingle();
-  const ownPattern = ownNamePattern(
-    (profileResult.data as { name: string } | null)?.name ?? session.tenantName,
-  );
+  const ownPattern = ownNamePattern(ctx.venueName);
 
   try {
-    const answer = await askWithSearch(promptResult.data.text as string, apiKey);
-    const extracted = await extractVenues(answer.text, apiKey);
+    const answer = await askWithSearch(promptResult.data.text as string, ctx.apiKey);
+    const extracted = await extractVenues(answer.text, ctx.apiKey);
     const venues = extracted.venues;
 
     const tokensIn = answer.tokensIn + extracted.tokensIn;
@@ -277,7 +262,7 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
     const run = await supabase
       .from("visibility_runs")
       .insert({
-        tenant_id: session.tenantId,
+        tenant_id: ctx.tenantId,
         prompt_id: promptId,
         platform: "chatgpt",
         model_version: answer.model,
@@ -318,7 +303,7 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
     if (!extractorFoundOwn && ownPattern.test(answer.text)) {
       mentionRows.push({
         run_id: run.data.id,
-        name: (profileResult.data as { name: string } | null)?.name ?? session.tenantName,
+        name: ctx.venueName,
         is_own: true,
         position: mentionRows.length + 1,
       });
@@ -350,15 +335,46 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
       costUsd,
     };
   } catch (error) {
-    return {
-      ok: false,
-      mentionedOwn: false,
-      mentions: [],
-      citations: 0,
-      usedSearch: false,
-      error: (error as Error).message,
-    };
+    return failed((error as Error).message);
   }
+}
+
+/** One execution of one prompt from the panel, under the signed-in user. */
+export async function executeVisibilityRun(promptId: string): Promise<RunOutcome> {
+  const session = await requireSession();
+  if (!canEditSettings(session.role)) return failed("Only admins can run measurements.");
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) return failed("OPENAI_API_KEY is not set.");
+
+  // Each run is a web_search call, the most expensive request in the app.
+  const billing = await getBillingSnapshot();
+  const plan = PLANS[billing.effectivePlan];
+  if (plan.monthlyRuns <= 0) {
+    return failed(
+      "Measurements are part of the Visibility and Unlimited plans. Upgrade on the Billing page.",
+    );
+  }
+
+  const supabase = await getUserClient();
+  const profileResult = await supabase
+    .from("business_profiles")
+    .select("name")
+    .eq("tenant_id", session.tenantId)
+    .limit(1)
+    .maybeSingle();
+
+  return executeRunForTenant(
+    {
+      tenantId: session.tenantId,
+      venueName: (profileResult.data as { name: string } | null)?.name ?? session.tenantName,
+      runsLimit: plan.monthlyRuns,
+      planName: plan.name,
+      apiKey,
+      supabase,
+    },
+    promptId,
+  );
 }
 
 // Suffix classification lives in visibility.ts; re-export for the panel.

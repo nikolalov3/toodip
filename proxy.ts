@@ -19,6 +19,7 @@ const PUBLIC_PATHS = [
   "/terms",
   "/pricing",
   "/api/stripe",
+  "/api/cron",
   "/sitemap.xml",
   "/robots.txt",
 ];

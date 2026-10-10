@@ -128,7 +128,9 @@ Bateria promptów nie jest już przyspawana do kawiarni: asystent generuje domy�
 
 Ekonomia raportu: domyślnie każde pytanie pytane 2 razy (50 × 2 = 100 wykonań ≈ 3–4 USD kosztu AI), a plan Visibility to 199 € za jeden pełny raport miesięcznie (limit 100 wykonań). Panel pokazuje przed startem liczbę wykonań, szacowany koszt, czas i zużycie limitu w miesiącu, a kolejka nigdy nie przekracza limitu. Każde wykonanie zapisuje tokeny i koszt (w `raw` oraz, po migracji `run_metering`, w kolumnach typowanych i widoku `v_tenant_usage_monthly`) — fundament pod panel admina ze zużyciem per klient.
 
-**Co dalej (Sprint 2–3):** miesięczny runner na cronie (`measurement_jobs`), widok zużycia i kosztów w `/clients`, self-serve po płatności (webhook Stripe → tenant → wizard), porównanie raportów w czasie w panelu stats.
+**Miesięczny runner (Sprint 2) ✅.** `/api/cron/measure` (Vercel Cron co 10 min, `Authorization: Bearer CRON_SECRET`) tworzy jeden job na klienta na miesiąc dla planów z pomiarami (`measurement_jobs`, unikalny per tenant+miesiąc, więc podwójny tick nie zrobi drugiego raportu) i przesuwa otwarte joby po kilka wykonań na tick, zapisując postęp po każdym runie — zerwany tick wznawia się od miejsca przerwania. Rdzeń wykonania (`executeRunForTenant`) jest wspólny dla panelu i crona, więc oba produkują identyczne wiersze w rejestrze. `?dry=1` pokazuje plan bez wykonywania. Strona `/clients` ma kolumny Raport (status jobu, zrobione/zaplanowane), Pomiary (zużycie/limit) i Koszt AI, plus sumę miesiąca w nagłówku — czytane rolą serwisową, działa także przed migracjami (wtedy kolumna raportu pokazuje „not scheduled").
+
+**Co dalej (Sprint 3):** self-serve po płatności (webhook Stripe → tenant → wizard), porównanie raportów w czasie w panelu stats, warstwa atrybutów.
 
 **Social content agent.** Posty z zatwierdzonych odpowiedzi i zdjęć gości, na tych samych zasadach marki. Potrzebuje magazynu na media i integracji z publikowaniem.
 

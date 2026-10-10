@@ -9,6 +9,7 @@ import {
 } from "@/lib/billing";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { getServiceClient, getUserClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * The billing questions the rest of the app is allowed to ask: what plan is
@@ -44,6 +45,37 @@ function monthStartIso(): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
+/**
+ * A paid plan without a live subscription behaves like free. Agency is
+ * managed off-platform and never downgrades itself. The one rule, in one place,
+ * for the session path and the session-free (cron, admin) path alike.
+ */
+export function effectivePlanFrom(row: {
+  billing_plan: BillingPlan;
+  billing_status: string;
+}): BillingPlan {
+  const paidButLapsed =
+    row.billing_plan !== "free" &&
+    row.billing_plan !== "agency" &&
+    row.billing_status !== "active" &&
+    row.billing_status !== "past_due";
+  return paidButLapsed ? "free" : row.billing_plan;
+}
+
+/** Plan for any tenant without a session — what the monthly cron asks. */
+export async function getTenantEffectivePlan(
+  tenantId: string,
+  client: SupabaseClient,
+): Promise<BillingPlan> {
+  const { data } = await client
+    .from("tenants")
+    .select("billing_plan, billing_status")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (!data) return "free";
+  return effectivePlanFrom(data as { billing_plan: BillingPlan; billing_status: string });
+}
+
 export async function getBillingSnapshot(): Promise<BillingSnapshot> {
   const session = await requireSession();
   const supabase = await getUserClient();
@@ -73,14 +105,7 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
   const usageThisMonth =
     typeof usageResult.data === "number" ? usageResult.data : 0;
 
-  // A paid plan without a live subscription behaves like free. Agency is
-  // managed off-platform and never downgrades itself.
-  const paidButLapsed =
-    row.billing_plan !== "free" &&
-    row.billing_plan !== "agency" &&
-    row.billing_status !== "active" &&
-    row.billing_status !== "past_due";
-  const effectivePlan: BillingPlan = paidButLapsed ? "free" : row.billing_plan;
+  const effectivePlan: BillingPlan = effectivePlanFrom(row);
 
   const limit = repliesLimitFor(effectivePlan);
   const remaining = Math.max(0, limit - usageThisMonth);
