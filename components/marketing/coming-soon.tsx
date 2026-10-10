@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { PinMark } from "@/components/brand/logo";
 import { GlobeBackground } from "@/components/marketing/globe-background";
+import { PinIntro } from "@/components/marketing/pin-intro";
 import { WaitlistForm } from "@/components/marketing/waitlist-form";
 
 /**
@@ -32,11 +32,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
         {/* Logo: the location pin from the favicon, in white with the brand
             signal dot and a soft cast, wordmark spaced beneath. */}
         <div className="flex flex-col items-center gap-3.5">
-          <PinMark
-            size={52}
-            className="text-white"
-            style={{ filter: "drop-shadow(0 8px 24px rgba(56,182,255,0.38))" }}
-          />
+          <PinIntro size={52} />
           <span className="text-base font-semibold lowercase tracking-[0.34em] text-white/85 sm:text-lg">
             toodip
           </span>

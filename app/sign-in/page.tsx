@@ -1,10 +1,11 @@
-import { Compass, Radar, Wrench } from "lucide-react";
+import { UserRound } from "lucide-react";
 import type { Metadata } from "next";
 import { DM_Mono, Instrument_Serif, Manrope } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { SignalVisual } from "@/components/auth/signal-visual";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
@@ -27,23 +28,6 @@ const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument-serif",
 });
 
-const HIGHLIGHTS = [
-  {
-    icon: Radar,
-    title: "Know if AI recommends you",
-    body: "We ask ChatGPT, Google AI Overviews and Perplexity what your customers ask. You see how often your venue is the answer, and who is named instead.",
-  },
-  {
-    icon: Compass,
-    title: "See what the AI is reading",
-    body: "The guides, reviews and websites behind every answer. Where your venue is present, and where it is missing.",
-  },
-  {
-    icon: Wrench,
-    title: "Turn every gap into a next move",
-    body: "One clear step at a time, then a fresh measurement that shows whether it worked.",
-  },
-];
 
 export default async function SignInPage({
   searchParams,
@@ -76,49 +60,22 @@ export default async function SignInPage({
       </header>
 
       <main className="auth-main">
-        <div className="auth-panel">
-          {/* Left: why toodip */}
-          <section className="auth-left">
-            <p className="auth-eyebrow">
-              <span className="dot" /> Invite only
-            </p>
-            <h1>
-              When people ask AI where to go, your venue should be <em>the answer</em>.
-            </h1>
-            <p className="auth-left-lead">
-              toodip tracks how often ChatGPT, Google AI Overviews and Perplexity
-              recommend a venue, and turns every gap into a clear next move.
-            </p>
-
-            <div className="auth-highlights">
-              {HIGHLIGHTS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.title} className="auth-highlight">
-                    <span className="auth-highlight-icon">
-                      <Icon className="size-4" />
-                    </span>
-                    <div>
-                      <h3>{item.title}</h3>
-                      <p>{item.body}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="auth-left-note">
-              New venues come on in small, invite-only waves. If you were given access, sign in on the right.
-            </p>
-          </section>
-
-          {/* Right: the form */}
-          <section className="auth-right">
-            <div className="auth-right-inner">
-              <p className="auth-eyebrow">Members</p>
-              <h2>Sign in</h2>
+        <div className="auth-panel auth-panel-signin">
+          {/* Left: the form */}
+          <section className="auth-form-col">
+            <div className="auth-form-inner">
+              <p className="auth-kicker">
+                <span className="rule" aria-hidden="true" />
+                Private access
+              </p>
+              <span className="auth-member-mark" role="img" aria-label="Members">
+                <UserRound className="size-[18px]" strokeWidth={1.6} />
+              </span>
+              <h1>
+                Sign in<span className="auth-h1-sub">Your venue, in the AI&apos;s answer.</span>
+              </h1>
               <p className="auth-right-lead">
-                Use the credentials you were given. You can change your password from your account page once inside.
+                Use the credentials you were given. toodip tracks how often ChatGPT, Google AI Overviews and Perplexity recommend you, and what to do next.
               </p>
 
               {configured ? (
@@ -133,7 +90,15 @@ export default async function SignInPage({
               <p className="auth-right-sub">
                 Lost your password? The person who opened your workspace can issue a new one.
               </p>
+              <p className="auth-left-note">
+                New venues come on in small, invite-only waves.
+              </p>
             </div>
+          </section>
+
+          {/* Right: the product, moving */}
+          <section className="auth-visual-col">
+            <SignalVisual />
           </section>
         </div>
 
