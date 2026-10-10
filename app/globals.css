@@ -326,13 +326,15 @@
 @keyframes tw-blink { 50% { opacity: 0; } }
 @keyframes tw-out { to { opacity: 0; width: 0; } }
 
-/* The rest of the page is uncovered from the top down once the pin has
-   landed: an invisible curtain sliding off, with a soft edge. */
-.cs-curtain { clip-path: inset(0 0 100% 0); opacity: 0; animation: cs-curtain 1.6s cubic-bezier(0.65, 0, 0.35, 1) 3.3s forwards; }
-.cs-curtain-body { animation-delay: 3.55s; animation-duration: 2.2s; }
+/* The rest of the page is uncovered by the wave itself. The globe's front
+   leaves the pin tip at the stamp (3.2s, pin-intro.tsx) and travels at
+   0.9px/ms (globe-background.tsx); the curtain follows the same line: the
+   status row sits ~120px below the tip, the body runs from ~220px to ~1000px,
+   so each starts when the front arrives and moves at the front's pace. */
+.cs-curtain { clip-path: inset(0 0 100% 0); opacity: 0; animation: cs-curtain 0.35s linear 3.3s forwards; }
+.cs-curtain-body { animation-delay: 3.42s; animation-duration: 0.95s; }
 @keyframes cs-curtain {
-  0% { clip-path: inset(0 0 100% 0); opacity: 0; }
-  12% { opacity: 1; }
+  0% { clip-path: inset(0 0 100% 0); opacity: 1; }
   100% { clip-path: inset(0 0 -2% 0); opacity: 1; }
 }
 
