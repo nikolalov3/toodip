@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-import { PinMark } from "@/components/brand/logo";
+import { useEffect, useRef } from "react";
 
 /**
  * The pin arriving. The outline draws itself from the tip, up the left side,
@@ -11,7 +9,9 @@ import { PinMark } from "@/components/brand/logo";
  * The stamp sends one event with the tip's position, which the globe behind
  * answers with a wave through its lines.
  *
- * People who asked for reduced motion get the finished pin, nothing moving.
+ * People who asked for reduced motion get the finished pin, nothing moving:
+ * the stylesheet handles that, so the markup is the same on the server and in
+ * the browser and the drawing starts on the first painted frame.
  */
 
 const OUTER =
@@ -23,12 +23,9 @@ const STAMP_AT_MS = 2350;
 
 export function PinIntro({ size = 52 }: { size?: number }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [reduce, setReduce] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setReduce(mq.matches);
-    if (mq.matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setTimeout(() => {
       const el = ref.current;
       if (!el) return;
@@ -41,18 +38,6 @@ export function PinIntro({ size = 52 }: { size?: number }) {
     }, STAMP_AT_MS);
     return () => window.clearTimeout(timer);
   }, []);
-
-  if (reduce === null || reduce) {
-    return (
-      <div ref={ref} style={{ width: size, height: size }}>
-        <PinMark
-          size={size}
-          className="text-white"
-          style={{ filter: "drop-shadow(0 8px 24px rgba(56,182,255,0.38))" }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div ref={ref} className="pin-intro" style={{ width: size, height: size }}>
