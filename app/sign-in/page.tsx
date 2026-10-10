@@ -72,9 +72,7 @@ export default async function SignInPage({
           />
           <span>toodip</span>
         </Link>
-        <p className="auth-header-aside">
-          New here? <Link href="/sign-up">Create your workspace</Link>
-        </p>
+        <p className="auth-header-aside">Access by invitation</p>
       </header>
 
       <main className="auth-main">
@@ -110,14 +108,14 @@ export default async function SignInPage({
             </div>
 
             <p className="auth-left-note">
-              Start free in two minutes, no card needed.
+              Workspaces are opened by invitation. If you were given access, sign in on the right.
             </p>
           </section>
 
           {/* Right: the form */}
           <section className="auth-right">
             <div className="auth-right-inner">
-              <p className="auth-eyebrow">Welcome back</p>
+              <p className="auth-eyebrow">Members</p>
               <h2>Sign in</h2>
               <p className="auth-right-lead">
                 Use the address and password you were given. You can change the
@@ -133,9 +131,6 @@ export default async function SignInPage({
                 </p>
               )}
 
-              <p className="auth-right-links">
-                New here? <Link href="/sign-up">Create your workspace, free</Link>
-              </p>
               <p className="auth-right-sub">
                 Lost your password? Ask the person who set the workspace up.
                 They can issue a new one.
