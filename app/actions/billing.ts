@@ -76,6 +76,10 @@ export async function createCheckoutAction(
     billing_address_collection: "required",
     tax_id_collection: { enabled: true },
     customer_update: { name: "auto", address: "auto" },
+    // Stripe Tax works out VAT from the buyer's address and tax id: reverse
+    // charge for EU businesses, local VAT for consumers, nothing outside the
+    // registered jurisdictions. Prices are net, so tax is added on top.
+    automatic_tax: { enabled: true },
   });
 
   if (!checkout.url) return { ok: false, message: "Stripe did not return a checkout URL." };

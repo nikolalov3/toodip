@@ -73,6 +73,7 @@ export async function resolvePriceId(plan: BillingPlan): Promise<string | null> 
     currency: "eur",
     unit_amount: definition.priceCents,
     recurring: { interval: "month" },
+    tax_behavior: "exclusive",
     lookup_key: lookupKey,
     transfer_lookup_key: true,
     product_data: { name: `toodip ${definition.name}` },
