@@ -6,7 +6,7 @@ import { WaitlistForm } from "@/components/marketing/waitlist-form";
 
 /**
  * The public site while the product is pre-launch. A single, deliberate dark
- * treatment — this page does not follow the viewer's theme — so it reads as a
+ * treatment (this page does not follow the viewer's theme), so it reads as a
  * finished product teaser rather than an app screen. Its whole job: say when,
  * and take the waitlist. Existing clients enter through the Members door;
  * there is no public sign-up.
@@ -58,7 +58,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
 
         <p className="mx-auto mt-4 max-w-md text-pretty text-sm leading-relaxed text-white/55 sm:mt-5 sm:text-[0.95rem]">
           toodip already tracks how often ChatGPT, Google AI Overviews and
-          Perplexity recommend a venue — and turns every gap into a clear next
+          Perplexity recommend a venue, and turns every gap into a clear next
           move. New venues come on in small, invite-only waves.
         </p>
 
@@ -70,7 +70,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
         </div>
 
         {/* Members: the one door for people who already hold a key. No label,
-            no explanation — a key icon, one line, an arrow. Access is granted,
+            no explanation: a key icon, one line, an arrow. Access is granted,
             not signed up for, so there is nothing more to say here. */}
         <Link
           href="/sign-in"

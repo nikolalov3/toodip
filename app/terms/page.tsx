@@ -65,7 +65,7 @@ export default function TermsPage() {
           </h2>
           <p className="mt-1.5">
             You can unsubscribe from any message we send, and you can ask us to
-            delete your data at any time — just reply to any email from us. We
+            delete your data at any time. Just reply to any email from us. We
             remove waitlist entries on request without delay.
           </p>
         </section>

@@ -30,7 +30,7 @@ export function WaitlistForm({ locale = "en" }: { locale?: string }) {
         <div>
           <p className="text-sm font-medium text-white">{done}</p>
           <p className="mt-0.5 text-xs text-white/45">
-            You&apos;ll hear from us the moment we open the doors — and nothing
+            You&apos;ll hear from us the moment we open the doors, and nothing
             in between.
           </p>
         </div>

@@ -1,4 +1,4 @@
-import { ShieldCheck, Timer, Workflow } from "lucide-react";
+import { Compass, Radar, Wrench } from "lucide-react";
 import type { Metadata } from "next";
 import { DM_Mono, Instrument_Serif, Manrope } from "next/font/google";
 import Image from "next/image";
@@ -29,19 +29,19 @@ const instrumentSerif = Instrument_Serif({
 
 const HIGHLIGHTS = [
   {
-    icon: Timer,
-    title: "Reply in minutes, not next week",
-    body: "Every new review lands triaged, with a draft that already matches how the venue talks.",
+    icon: Radar,
+    title: "Know if AI recommends you",
+    body: "We ask ChatGPT, Google AI Overviews and Perplexity what your customers ask. You see how often your venue is the answer, and who is named instead.",
   },
   {
-    icon: ShieldCheck,
-    title: "A human signs off what matters",
-    body: "Complaints, hygiene, refunds and legal threats never reach the public without approval.",
+    icon: Compass,
+    title: "See what the AI is reading",
+    body: "The guides, reviews and websites behind every answer. Where your venue is present, and where it is missing.",
   },
   {
-    icon: Workflow,
-    title: "One workflow across every venue",
-    body: "Built multi tenant from the first table, so an agency runs ten locations the same way.",
+    icon: Wrench,
+    title: "Turn every gap into a next move",
+    body: "One clear step at a time, then a fresh measurement that shows whether it worked.",
   },
 ];
 
@@ -80,14 +80,14 @@ export default async function SignInPage({
           {/* Left: why toodip */}
           <section className="auth-left">
             <p className="auth-eyebrow">
-              <span className="dot" /> Reputation operations
+              <span className="dot" /> Invite only
             </p>
             <h1>
-              Reputation operations for <em>local</em> business.
+              When people ask AI where to go, your venue should be <em>the answer</em>.
             </h1>
             <p className="auth-left-lead">
-              Reviews arrive, get classified, get a draft in the venue&rsquo;s
-              own voice and wait for the right person to approve them.
+              toodip tracks how often ChatGPT, Google AI Overviews and Perplexity
+              recommend a venue, and turns every gap into a clear next move.
             </p>
 
             <div className="auth-highlights">
@@ -108,7 +108,7 @@ export default async function SignInPage({
             </div>
 
             <p className="auth-left-note">
-              Workspaces are opened by invitation. If you were given access, sign in on the right.
+              New venues come on in small, invite-only waves. If you were given access, sign in on the right.
             </p>
           </section>
 
@@ -118,8 +118,7 @@ export default async function SignInPage({
               <p className="auth-eyebrow">Members</p>
               <h2>Sign in</h2>
               <p className="auth-right-lead">
-                Use the address and password you were given. You can change the
-                password from your account page once you are in.
+                Use the credentials you were given. You can change your password from your account page once inside.
               </p>
 
               {configured ? (
@@ -132,15 +131,14 @@ export default async function SignInPage({
               )}
 
               <p className="auth-right-sub">
-                Lost your password? Ask the person who set the workspace up.
-                They can issue a new one.
+                Lost your password? The person who opened your workspace can issue a new one.
               </p>
             </div>
           </section>
         </div>
 
         <p className="auth-foot">
-          Reputation operations for local business, built in Europe.
+          Built in Europe for venues that want to be the answer.
         </p>
       </main>
     </div>
