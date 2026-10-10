@@ -197,6 +197,39 @@ function detectSentiment(
   return "negative";
 }
 
+const POSITIVE_MARKERS =
+  /\b(polecam|super|swietn\w*|pyszn\w*|rewelacj\w*|przepyszn\w*|najleps\w*|cudown\w*|wspanial\w*|milo|mila obsluga|great|amazing|delicious|excellent|perfect|lovely|fantastic|wonderful|best|recommend|loved?)\b/;
+
+const NEGATIVE_MARKERS =
+  /\b(nie polecam|tragedi\w*|tragiczn\w*|fatal\w*|okropn\w*|masakra|porazka|najgorsz\w*|slab\w*|zawiod\w*|rozczarow\w*|terrible|awful|horrible|worst|disappoint\w*|avoid|never again|\bbad\b)\b/;
+
+/** Positive phrases that flip meaning under negation, removed before scoring. */
+const NEGATED_POSITIVES =
+  /\b(nie polecam|nie warto|not recommend(ed)?|wouldn'?t recommend|don'?t recommend)\b/g;
+
+/**
+ * Chat-mode ingestion has no star input, so the rating is read off the text:
+ * negative -> 2, neutral or unclear -> 3, positive -> 5. The full classifier
+ * then runs on that inferred rating exactly as it would on a typed one.
+ */
+export function inferStarsFromText(text: string): number {
+  const normalized = normalize(text);
+  const negative =
+    NEGATIVE_MARKERS.test(normalized) ||
+    FLAG_RULES.some(
+      (rule) =>
+        rule.flagType !== "competitor_mention" &&
+        rule.patterns.some((pattern) => pattern.test(normalized)),
+    );
+  const positive = POSITIVE_MARKERS.test(
+    normalized.replace(NEGATED_POSITIVES, ""),
+  );
+
+  if (negative) return 2;
+  if (positive) return 5;
+  return 3;
+}
+
 export function classifyReview(
   input: ClassificationInput,
 ): ClassificationResult {

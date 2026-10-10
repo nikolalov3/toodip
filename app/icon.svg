@@ -1,0 +1,13 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .ring { fill: #0b1728; }
+    .dot { fill: #20a7ff; }
+    @media (prefers-color-scheme: dark) {
+      .ring { fill: #eef4f8; }
+    }
+  </style>
+  <!-- Ink pin with a transparent centre (true ring on any tab colour) -->
+  <path class="ring" fill-rule="evenodd" clip-rule="evenodd" d="M16 30.5C12.9 23.4 4.8 20.3 4.8 13A11.2 11.2 0 1 1 27.2 13C27.2 20.3 19.1 23.4 16 30.5ZM16 5.8A7.1 7.1 0 1 0 16 20 7.1 7.1 0 0 0 16 5.8Z"/>
+  <!-- Signal dot -->
+  <circle class="dot" cx="16" cy="12.9" r="3.7"/>
+</svg>

@@ -92,7 +92,6 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
       "Everything in Starter",
     ],
     stripePriceEnv: "STRIPE_PRICE_PRO",
-    trialDays: 7,
   },
   visibility: {
     id: "visibility",
@@ -112,7 +111,6 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
       "Everything in Pro",
     ],
     stripePriceEnv: "STRIPE_PRICE_VISIBILITY",
-    trialDays: 7,
   },
   unlimited: {
     id: "unlimited",

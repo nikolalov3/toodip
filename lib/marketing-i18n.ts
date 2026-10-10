@@ -49,38 +49,70 @@ export interface PlanCopy {
 
 export interface MarketingDict {
   nav: { pricing: string; signIn: string; startFree: string };
-  hero: {
+  /** Evidence Atelier landing. Structure mirrors the approved design file. */
+  landing: {
+    navVisibility: string;
     kicker: string;
-    title: string;
-    body: string;
+    hero: { pre: string; em: string; post: string };
+    lead: string;
     ctaMeasure: string;
-    ctaPricing: string;
+    ctaReply: string;
+    proof: Array<{ value: string; label: string }>;
+    marquee: string[];
+    card: {
+      label: string;
+      live: string;
+      question: string;
+      rows: string[];
+      foot: string;
+      delta: string;
+    };
+    vis: {
+      eyebrow: string;
+      title: { pre: string; blue: string };
+      body: string;
+      shareLabel: string;
+      shareRows: string[];
+      shareNote: string;
+      srcLabel: string;
+      srcRows: Array<{ name: string; verdict: string }>;
+      srcNote: string;
+      logEyebrow: string;
+      logTitle: { pre: string; em: string };
+      logKeys: string[];
+    };
+    reply: {
+      eyebrow: string;
+      stamp: string;
+      lead: string;
+      benefits: string[];
+      cta: string;
+      deskLabel: string;
+      quote: string;
+      response: string;
+      tags: string[];
+      approval: string;
+      copyAria: string;
+    };
+    source: {
+      eyebrow: string;
+      title: { pre: string; blue: string };
+      body: string;
+      cta: string;
+      caption: string;
+    };
+    pricing: {
+      eyebrow: string;
+      title: { pre: string; blue: string };
+      body: string;
+      groupA: { title: string; note: string; cta: string };
+      groupB: { title: string; note: string; cta: string };
+      mostPopular: string;
+      footnote: string;
+    };
+    faq: { eyebrow: string; title: { pre: string; blue: string } };
+    footer: { tagline: string; cta: string };
   };
-  evidence: {
-    title: string;
-    body: string;
-    sovTitle: string;
-    sovNote: string;
-    sourcesTitle: string;
-    sourcesNote: string;
-    yourVenue: string;
-    competitor: string;
-    citations: string;
-  };
-  gates: {
-    title: string;
-    items: Array<{ title: string; body: string }>;
-    interventionLead: string;
-    interventionBody: string;
-  };
-  reply: {
-    kicker: string;
-    title: string;
-    body: string;
-    cta: string;
-    bullets: string[];
-  };
-  teaser: { title: string; body: string; cta: string };
   contact: {
     title: string;
     body: string;
@@ -114,61 +146,106 @@ export interface MarketingDict {
 
 const en: MarketingDict = {
   nav: { pricing: "Pricing", signIn: "Sign in", startFree: "Start free" },
-  hero: {
-    kicker: "AI visibility for local business, built in Europe",
-    title:
-      "Your next guest didn't search. They asked an AI, and it named three places.",
-    body: "toodip asks ChatGPT, Google AI Overviews and Perplexity the questions your customers ask, records every answer, and shows you whether your name is in them. Then it shows which sources the AI trusted, so you know exactly what to fix. No magic, no promises. Evidence.",
-    ctaMeasure: "Measure your venue",
-    ctaPricing: "See pricing",
-  },
-  evidence: {
-    title: "What a measurement looks like",
-    body: "A battery of real customer questions runs against each platform. Every answer is stored with who was mentioned and what was cited.",
-    sovTitle: "Share of voice, category questions",
-    sovNote: "The uncomfortable chart. Also the one that moves.",
-    sourcesTitle: "Which sources feed the answers",
-    sourcesNote:
-      "When your own site has zero citations, that is not bad luck. That is the to-do list.",
-    yourVenue: "Your venue",
-    competitor: "Competitor",
-    citations: "citations",
-  },
-  gates: {
-    title: "Three questions, in order",
-    items: [
-      {
-        title: "Does AI know you exist?",
-        body: "Ask about your venue by name across ChatGPT, Google AI Overviews and Perplexity. If the answer is thin or wrong, the record work starts here.",
-      },
-      {
-        title: "Does AI recommend you?",
-        body: "Ask the way real customers ask: best in the district, open late, good for working. Either your name is in the answer or a competitor's is.",
-      },
-      {
-        title: "Do the sources support you?",
-        body: "Every answer cites somewhere: guides, Instagram, Google records, blogs. We map which domains feed each platform, and where you are missing.",
-      },
+  landing: {
+    navVisibility: "AI visibility",
+    kicker: "A European visibility system for local brands",
+    hero: {
+      pre: "When a guest asks AI, ",
+      em: "your venue",
+      post: " should have something to say.",
+    },
+    lead: "toodip shows how your brand appears in AI answers — and helps you build a more useful trace in every conversation that matters to a customer.",
+    ctaMeasure: "Measure your visibility",
+    ctaReply: "Go to the review desk",
+    proof: [
+      { value: "3", label: "AI answer sources\nin one view" },
+      { value: "1", label: "consistent way\nof handling reviews" },
     ],
-    interventionLead: "Then you fix things, and the line answers back.",
-    interventionBody:
-      "Every change you make is logged next to the measurements, so when the score moves you know which work moved it. That log is the difference between a report and a method.",
-  },
-  reply: {
-    kicker: "Also in the panel",
-    title: "The review reply desk",
-    body: "Review replies are one of the sources AI reads, and the easiest one to control. Paste a Google review, get a reply in your own voice, approve it, publish it. Risky reviews never go out without a human. From {price} a month, free to try.",
-    cta: "Try it on your reviews",
-    bullets: [
-      "Paste a review, it lands classified: sentiment, risk, who must sign off.",
-      "AI drafts in your tone, with your phrases and your rules baked in.",
-      "Refunds, staff names and legal threats never reach the public unapproved.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Google reviews",
+      "Your brand",
     ],
-  },
-  teaser: {
-    title: "Reply desk from {reply}. Visibility from {visibility}.",
-    body: "Monthly subscriptions, 7 days free on the bigger plans, cancel any time. VAT invoices at checkout.",
-    cta: "Full pricing",
+    card: {
+      label: "VISIBILITY MEASUREMENT",
+      live: "current",
+      question: "Does your venue show up when the choice is being made?",
+      rows: ["Local recommendations", "Review replies", "Own sources"],
+      foot: "NEW SIGNAL",
+      delta: "+ 14 pts",
+    },
+    vis: {
+      eyebrow: "VISIBILITY YOU CAN SEE",
+      title: {
+        pre: "Don't guess whether AI knows your venue. ",
+        blue: "See the trace.",
+      },
+      body: "toodip organises the questions, answers and sources that shape how AI describes your brand. You learn where to build presence — without the marketing noise.",
+      shareLabel: "SHARE OF RECOMMENDATIONS",
+      shareRows: ["Other venues", "Competitors", "Your venue"],
+      shareNote: "Not a report for the report's sake. A direction for the next decision.",
+      srcLabel: "SOURCE STRENGTH",
+      srcRows: [
+        { name: "own website", verdict: "strong signal" },
+        { name: "local guides", verdict: "present" },
+        { name: "social & reviews", verdict: "to strengthen" },
+      ],
+      srcNote: "The sources AI systems cite more often than others.",
+      logEyebrow: "CHANGE LOG",
+      logTitle: { pre: "Small actions.", em: "A visible difference." },
+      logKeys: ["replies", "sources", "measurement"],
+    },
+    reply: {
+      eyebrow: "NEW IN TOODIP",
+      stamp: "MODULE / 01",
+      lead: "Replying to reviews doesn't have to be another chore. Reply Assistant helps you write them in your brand's voice — with tact, consistency and the context that matters.",
+      benefits: [
+        "Brand voice kept in every reply",
+        "Key signals and topics picked up naturally",
+        "The final decision always stays with you",
+      ],
+      cta: "Try it on your reviews",
+      deskLabel: "CUSTOMER REVIEW",
+      quote:
+        "“Great coffee, calm and comfortable — I'll be back next time I work in this part of town.”",
+      response:
+        "Thank you for such a specific review. We're glad the coffee and the calm space helped you make the most of your time. See you on your next working day.",
+      tags: ["consistent tone", "ready to approve"],
+      approval: "requires approval",
+      copyAria: "Copy reply",
+    },
+    source: {
+      eyebrow: "FROM A REPLY TO A BRAND PICTURE",
+      title: { pre: "A better reply is ", blue: "more than a reaction." },
+      body: "It is a small but repeatable signal: about your standard of service, the character of the place, and what's worth remembering. toodip helps assemble those signals into a coherent brand presence.",
+      cta: "See the measurement plans",
+      caption: "SOURCES / CONTEXT / PRESENCE",
+    },
+    pricing: {
+      eyebrow: "PRICING",
+      title: { pre: "Two product lines.", blue: "One panel." },
+      body: "Pick where you start. Every plan can be changed later, straight from the billing panel.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Review replies that work towards a coherent picture of the venue.",
+        cta: "Start with reviews",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Measure your brand's presence in the answers your guests ask for.",
+        cta: "Start measuring",
+      },
+      mostPopular: "Most popular choice",
+      footnote:
+        "Monthly prices in EUR. VAT invoices at checkout. Cancel any time from the billing panel.",
+    },
+    faq: { eyebrow: "SHORT AND CONCRETE", title: { pre: "Common", blue: "questions." } },
+    footer: {
+      tagline: "Local brand visibility\nin the age of AI answers.",
+      cta: "Start measuring",
+    },
   },
   contact: {
     title: "Contact",
@@ -193,10 +270,6 @@ const en: MarketingDict = {
       "The Pro reply plan includes the visibility dashboard read only: imported baselines and past measurements, without running new ones.",
     faqTitle: "Common questions",
     faq: [
-      {
-        q: "How do trials work?",
-        a: "Pro and Visibility start with 7 days free. You add a card at checkout, pay nothing for a week, and can cancel from the billing portal before the first charge.",
-      },
       {
         q: "Do I get a VAT invoice?",
         a: "Yes. Checkout collects your billing address and VAT ID, and every invoice carries them. Invoices download from the billing portal in the panel.",
@@ -246,7 +319,6 @@ const en: MarketingDict = {
     pro: {
       blurb: "For a busy venue or one that cares about every reply.",
       features: [
-        "First 7 days free",
         "Unlimited AI replies, fair use",
         "Visibility dashboard, read only",
         "Everything in Starter",
@@ -255,7 +327,6 @@ const en: MarketingDict = {
     visibility: {
       blurb: "Know whether AI recommends you, and fix why not.",
       features: [
-        "First 7 days free",
         "150 AI visibility measurements a month",
         "Score trend, source map, intervention log",
         "Everything in Pro",
@@ -275,61 +346,109 @@ const en: MarketingDict = {
 
 const pl: MarketingDict = {
   nav: { pricing: "Cennik", signIn: "Zaloguj się", startFree: "Zacznij za darmo" },
-  hero: {
-    kicker: "Widoczność w AI dla lokalnego biznesu, budowane w Europie",
-    title:
-      "Twój następny gość nie szukał w Google. Zapytał AI, a ono wymieniło trzy miejsca.",
-    body: "toodip zadaje ChatGPT, Google AI Overviews i Perplexity pytania, które zadają Twoi klienci, zapisuje każdą odpowiedź i pokazuje, czy pada w nich Twoja nazwa. Potem pokazuje, którym źródłom AI zaufało, więc wiesz dokładnie, co poprawić. Bez magii i obietnic. Dowody.",
-    ctaMeasure: "Zmierz swój lokal",
-    ctaPricing: "Zobacz cennik",
-  },
-  evidence: {
-    title: "Jak wygląda pomiar",
-    body: "Bateria prawdziwych pytań klientów uruchamiana na każdej platformie. Każda odpowiedź jest zapisana wraz z tym, kogo wymieniono i co zacytowano.",
-    sovTitle: "Udział w odpowiedziach, pytania kategorii",
-    sovNote: "Niewygodny wykres. Ale to on się rusza.",
-    sourcesTitle: "Które źródła karmią odpowiedzi",
-    sourcesNote:
-      "Kiedy Twoja strona ma zero cytowań, to nie pech. To lista zadań.",
-    yourVenue: "Twój lokal",
-    competitor: "Konkurent",
-    citations: "cytowań",
-  },
-  gates: {
-    title: "Trzy pytania, po kolei",
-    items: [
-      {
-        title: "Czy AI wie, że istniejesz?",
-        body: "Zapytaj o swój lokal po nazwie w ChatGPT, Google AI Overviews i Perplexity. Jeśli odpowiedź jest uboga albo błędna, praca nad wizytówką zaczyna się tutaj.",
-      },
-      {
-        title: "Czy AI Cię poleca?",
-        body: "Pytaj tak, jak pytają klienci: najlepsze w dzielnicy, otwarte późno, dobre do pracy. Albo w odpowiedzi jest Twoja nazwa, albo konkurenta.",
-      },
-      {
-        title: "Czy źródła Cię wspierają?",
-        body: "Każda odpowiedź coś cytuje: przewodniki, Instagram, wizytówki Google, blogi. Mapujemy, które domeny karmią każdą platformę i gdzie Cię brakuje.",
-      },
+  landing: {
+    navVisibility: "Widoczność AI",
+    kicker: "Europejski system widoczności dla lokalnych marek",
+    hero: {
+      pre: "Gdy gość pyta AI, ",
+      em: "Twoje miejsce",
+      post: " powinno mieć coś do powiedzenia.",
+    },
+    lead: "Toodip pokazuje, jak Twoja marka jest widziana w odpowiedziach AI — i pomaga budować bardziej użyteczny ślad w każdej ważnej rozmowie z klientem.",
+    ctaMeasure: "Zmierz swoją widoczność",
+    ctaReply: "Przejdź do zapisu opinii",
+    proof: [
+      { value: "3", label: "źródła odpowiedzi AI\nw jednym widoku" },
+      { value: "1", label: "spójny sposób pracy\nz opiniami" },
     ],
-    interventionLead: "Potem poprawiasz, a linia odpowiada.",
-    interventionBody:
-      "Każda zmiana jest logowana obok pomiarów, więc gdy wynik się rusza, wiesz, która praca go ruszyła. Ten dziennik to różnica między raportem a metodą.",
-  },
-  reply: {
-    kicker: "Również w panelu",
-    title: "Biurko odpowiedzi na opinie",
-    body: "Odpowiedzi na opinie to jedno ze źródeł, które AI czyta, i najłatwiejsze do kontrolowania. Wklej opinię z Google, dostań odpowiedź w swoim głosie, zatwierdź, opublikuj. Ryzykowne opinie nigdy nie wychodzą bez człowieka. Od {price} miesięcznie, za darmo na próbę.",
-    cta: "Wypróbuj na swoich opiniach",
-    bullets: [
-      "Wklejasz opinię, ląduje sklasyfikowana: sentyment, ryzyko, kto musi zatwierdzić.",
-      "AI pisze w Twoim tonie, z Twoimi frazami i zasadami.",
-      "Zwroty pieniędzy, imiona pracowników i groźby prawne nigdy nie trafiają do sieci bez zgody.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Opinie Google",
+      "Twoja marka",
     ],
-  },
-  teaser: {
-    title: "Odpowiedzi od {reply}. Widoczność od {visibility}.",
-    body: "Subskrypcje miesięczne, 7 dni za darmo na większych planach, anulujesz kiedy chcesz. Faktury VAT przy płatności.",
-    cta: "Pełny cennik",
+    card: {
+      label: "POMIAR WIDOCZNOŚCI",
+      live: "aktualne",
+      question: "Czy Twoje miejsce pojawia się, gdy liczy się wybór?",
+      rows: ["Rekomendacje lokalne", "Odpowiedzi na opinie", "Własne źródła"],
+      foot: "NOWY SYGNAŁ",
+      delta: "+ 14 pkt",
+    },
+    vis: {
+      eyebrow: "WIDOCZNOŚĆ, KTÓRĄ MOŻNA ZOBACZYĆ",
+      title: {
+        pre: "Nie zgaduj, czy AI zna Twoje miejsce. ",
+        blue: "Zobacz ślad.",
+      },
+      body: "Toodip porządkuje pytania, odpowiedzi i źródła, które współtworzą obraz Twojej marki. Dzięki temu wiesz, gdzie budować obecność — bez marketingowego szumu.",
+      shareLabel: "UDZIAŁ W REKOMENDACJACH",
+      shareRows: ["Inne miejsca", "Konkurencja", "Twoje miejsce"],
+      shareNote: "Nie raport dla raportu. Kierunek do następnej decyzji.",
+      srcLabel: "SIŁA ŹRÓDEŁ",
+      srcRows: [
+        { name: "własna strona", verdict: "mocny sygnał" },
+        { name: "lokalne przewodniki", verdict: "obecny" },
+        { name: "social i opinie", verdict: "do wzmocnienia" },
+      ],
+      srcNote: "Źródła, które systemy AI przywołują częściej niż inne.",
+      logEyebrow: "DZIENNIK ZMIAN",
+      logTitle: { pre: "Małe działania.", em: "Widoczna różnica." },
+      logKeys: ["odpowiedzi", "źródła", "pomiar"],
+    },
+    reply: {
+      eyebrow: "NOWOŚĆ W TOODIP",
+      stamp: "MODUŁ / 01",
+      lead: "Twoje odpowiedzi na opinie nie muszą być kolejnym zadaniem do odhaczenia. Reply Assistant pomaga pisać je w tonie marki — z wyczuciem, spójnością i potrzebnym kontekstem.",
+      benefits: [
+        "Głos marki zachowany w każdej odpowiedzi",
+        "Istotne sygnały i tematy uchwycone naturalnie",
+        "Ostateczna decyzja zawsze pozostaje po Twojej stronie",
+      ],
+      cta: "Otwórz próbny zapis opinii",
+      deskLabel: "OPINIA KLIENTA",
+      quote:
+        "„Świetna kawa, spokojnie i wygodnie — wrócę, gdy znów będę pracować w tej części miasta.”",
+      response:
+        "Dziękujemy za tak konkretną opinię. Cieszymy się, że kawa i spokojna przestrzeń pomogły Ci dobrze wykorzystać czas. Do zobaczenia przy następnym dniu pracy.",
+      tags: ["spójny ton", "gotowe do akceptacji"],
+      approval: "wymaga akceptacji",
+      copyAria: "Kopiuj odpowiedź",
+    },
+    source: {
+      eyebrow: "OD ODPOWIEDZI DO OBRAZU MARKI",
+      title: { pre: "Lepsza odpowiedź to ", blue: "więcej niż reakcja." },
+      body: "Jest drobnym, ale powtarzalnym sygnałem: o standardzie obsługi, charakterze miejsca i tym, co warto zapamiętać. Toodip pomaga składać te sygnały w spójną obecność marki.",
+      cta: "Zobacz warianty pomiaru",
+      caption: "ŹRÓDŁA / KONTEKST / OBECNOŚĆ",
+    },
+    pricing: {
+      eyebrow: "CENNIK",
+      title: { pre: "Dwie linie produktu.", blue: "Jeden panel." },
+      body: "Wybierz, od czego zaczynasz. Każdy plan można później zmienić prosto z panelu rozliczeń.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Odpowiedzi na opinie, które pracują na spójny obraz miejsca.",
+        cta: "Zacznij od opinii",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Pomiar obecności marki w odpowiedziach, których szukają Twoi goście.",
+        cta: "Rozpocznij pomiar",
+      },
+      mostPopular: "Najczęstszy wybór",
+      footnote:
+        "Ceny miesięczne w EUR. Faktura VAT przy płatności. Możesz anulować w dowolnym momencie z poziomu panelu rozliczeń.",
+    },
+    faq: {
+      eyebrow: "KRÓTKO I KONKRETNIE",
+      title: { pre: "Najczęstsze", blue: "pytania." },
+    },
+    footer: {
+      tagline: "Widoczność lokalnej marki\nw epoce odpowiedzi AI.",
+      cta: "Rozpocznij pomiar",
+    },
   },
   contact: {
     title: "Kontakt",
@@ -354,10 +473,6 @@ const pl: MarketingDict = {
       "Plan Pro zawiera panel widoczności tylko do odczytu: zaimportowane punkty odniesienia i przeszłe pomiary, bez uruchamiania nowych.",
     faqTitle: "Częste pytania",
     faq: [
-      {
-        q: "Jak działają okresy próbne?",
-        a: "Pro i Visibility zaczynają od 7 dni za darmo. Podajesz kartę przy płatności, przez tydzień nie płacisz nic i możesz anulować w portalu rozliczeń przed pierwszym obciążeniem.",
-      },
       {
         q: "Dostanę fakturę VAT?",
         a: "Tak. Przy płatności zbieramy adres rozliczeniowy i NIP, a każda faktura je zawiera. Faktury pobierasz z portalu rozliczeń w panelu.",
@@ -407,7 +522,6 @@ const pl: MarketingDict = {
     pro: {
       blurb: "Dla ruchliwego lokalu, któremu zależy na każdej odpowiedzi.",
       features: [
-        "Pierwsze 7 dni za darmo",
         "Odpowiedzi AI bez limitu, fair use",
         "Panel widoczności tylko do odczytu",
         "Wszystko z planu Starter",
@@ -416,7 +530,6 @@ const pl: MarketingDict = {
     visibility: {
       blurb: "Wiedz, czy AI Cię poleca, i napraw dlaczego nie.",
       features: [
-        "Pierwsze 7 dni za darmo",
         "150 pomiarów widoczności miesięcznie",
         "Trend wyniku, mapa źródeł, dziennik interwencji",
         "Wszystko z planu Pro",
@@ -436,61 +549,106 @@ const pl: MarketingDict = {
 
 const de: MarketingDict = {
   nav: { pricing: "Preise", signIn: "Anmelden", startFree: "Kostenlos starten" },
-  hero: {
-    kicker: "KI-Sichtbarkeit für lokale Unternehmen, gebaut in Europa",
-    title:
-      "Ihr nächster Gast hat nicht gegoogelt. Er hat eine KI gefragt, und sie nannte drei Orte.",
-    body: "toodip stellt ChatGPT, Google AI Overviews und Perplexity die Fragen Ihrer Kunden, speichert jede Antwort und zeigt, ob Ihr Name darin vorkommt. Danach sehen Sie, welchen Quellen die KI vertraut hat, damit Sie genau wissen, was zu tun ist. Keine Magie, keine Versprechen. Belege.",
-    ctaMeasure: "Ihr Lokal messen",
-    ctaPricing: "Preise ansehen",
-  },
-  evidence: {
-    title: "So sieht eine Messung aus",
-    body: "Eine Batterie echter Kundenfragen läuft gegen jede Plattform. Jede Antwort wird gespeichert, samt Erwähnungen und zitierten Quellen.",
-    sovTitle: "Share of Voice, Kategorie-Fragen",
-    sovNote: "Die unbequeme Grafik. Aber die, die sich bewegt.",
-    sourcesTitle: "Welche Quellen die Antworten speisen",
-    sourcesNote:
-      "Wenn die eigene Website null Zitate hat, ist das kein Pech. Das ist die Aufgabenliste.",
-    yourVenue: "Ihr Lokal",
-    competitor: "Wettbewerber",
-    citations: "Zitate",
-  },
-  gates: {
-    title: "Drei Fragen, der Reihe nach",
-    items: [
-      {
-        title: "Weiß die KI, dass es Sie gibt?",
-        body: "Fragen Sie nach Ihrem Lokal beim Namen, in ChatGPT, Google AI Overviews und Perplexity. Ist die Antwort dünn oder falsch, beginnt hier die Arbeit am Eintrag.",
-      },
-      {
-        title: "Empfiehlt die KI Sie?",
-        body: "Fragen Sie wie echte Kunden: das Beste im Viertel, spät geöffnet, gut zum Arbeiten. Entweder steht Ihr Name in der Antwort oder der eines Wettbewerbers.",
-      },
-      {
-        title: "Stützen die Quellen Sie?",
-        body: "Jede Antwort zitiert etwas: Guides, Instagram, Google-Einträge, Blogs. Wir kartieren, welche Domains jede Plattform speisen und wo Sie fehlen.",
-      },
+  landing: {
+    navVisibility: "KI-Sichtbarkeit",
+    kicker: "Ein europäisches Sichtbarkeitssystem für lokale Marken",
+    hero: {
+      pre: "Wenn ein Gast die KI fragt, sollte ",
+      em: "dein Lokal",
+      post: " etwas zu sagen haben.",
+    },
+    lead: "toodip zeigt, wie deine Marke in KI-Antworten gesehen wird — und hilft dir, in jedem wichtigen Kundengespräch eine nützlichere Spur aufzubauen.",
+    ctaMeasure: "Miss deine Sichtbarkeit",
+    ctaReply: "Zum Bewertungs-Desk",
+    proof: [
+      { value: "3", label: "KI-Antwortquellen\nin einer Ansicht" },
+      { value: "1", label: "einheitlicher Umgang\nmit Bewertungen" },
     ],
-    interventionLead: "Dann beheben Sie es, und die Linie antwortet.",
-    interventionBody:
-      "Jede Änderung wird neben den Messungen protokolliert. Bewegt sich der Wert, wissen Sie, welche Arbeit ihn bewegt hat. Dieses Protokoll unterscheidet einen Bericht von einer Methode.",
-  },
-  reply: {
-    kicker: "Ebenfalls im Panel",
-    title: "Der Antwort-Schreibtisch für Bewertungen",
-    body: "Antworten auf Bewertungen sind eine der Quellen, die KI liest, und die am leichtesten kontrollierbare. Google-Bewertung einfügen, Antwort in Ihrer Stimme erhalten, freigeben, veröffentlichen. Riskante Bewertungen gehen nie ohne Menschen raus. Ab {price} im Monat, kostenlos testbar.",
-    cta: "Mit Ihren Bewertungen testen",
-    bullets: [
-      "Bewertung einfügen, sie landet klassifiziert: Stimmung, Risiko, wer freigeben muss.",
-      "Die KI schreibt in Ihrem Ton, mit Ihren Formulierungen und Regeln.",
-      "Erstattungen, Mitarbeiternamen und Rechtsdrohungen erreichen die Öffentlichkeit nie ungeprüft.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Google-Bewertungen",
+      "Deine Marke",
     ],
-  },
-  teaser: {
-    title: "Antworten ab {reply}. Sichtbarkeit ab {visibility}.",
-    body: "Monatsabos, 7 Tage gratis bei den größeren Plänen, jederzeit kündbar. Rechnungen mit USt. beim Checkout.",
-    cta: "Alle Preise",
+    card: {
+      label: "SICHTBARKEITSMESSUNG",
+      live: "aktuell",
+      question: "Taucht dein Lokal auf, wenn die Wahl fällt?",
+      rows: ["Lokale Empfehlungen", "Antworten auf Bewertungen", "Eigene Quellen"],
+      foot: "NEUES SIGNAL",
+      delta: "+ 14 Pkt.",
+    },
+    vis: {
+      eyebrow: "SICHTBARKEIT ZUM ANSEHEN",
+      title: {
+        pre: "Rate nicht, ob die KI dein Lokal kennt. ",
+        blue: "Sieh die Spur.",
+      },
+      body: "toodip ordnet die Fragen, Antworten und Quellen, die das Bild deiner Marke prägen. So weißt du, wo du Präsenz aufbauen solltest — ohne Marketinglärm.",
+      shareLabel: "ANTEIL AN EMPFEHLUNGEN",
+      shareRows: ["Andere Orte", "Wettbewerber", "Dein Lokal"],
+      shareNote: "Kein Bericht um des Berichts willen. Eine Richtung für die nächste Entscheidung.",
+      srcLabel: "QUELLENSTÄRKE",
+      srcRows: [
+        { name: "eigene Website", verdict: "starkes Signal" },
+        { name: "lokale Guides", verdict: "vorhanden" },
+        { name: "Social & Bewertungen", verdict: "auszubauen" },
+      ],
+      srcNote: "Die Quellen, die KI-Systeme häufiger zitieren als andere.",
+      logEyebrow: "ÄNDERUNGSPROTOKOLL",
+      logTitle: { pre: "Kleine Schritte.", em: "Sichtbarer Unterschied." },
+      logKeys: ["Antworten", "Quellen", "Messung"],
+    },
+    reply: {
+      eyebrow: "NEU IN TOODIP",
+      stamp: "MODUL / 01",
+      lead: "Antworten auf Bewertungen müssen keine lästige Pflicht sein. Der Reply Assistant hilft dir, sie im Ton deiner Marke zu schreiben — mit Feingefühl, Konsistenz und dem nötigen Kontext.",
+      benefits: [
+        "Markenstimme in jeder Antwort gewahrt",
+        "Wichtige Signale und Themen natürlich aufgegriffen",
+        "Die letzte Entscheidung bleibt immer bei dir",
+      ],
+      cta: "Bewertungs-Desk testen",
+      deskLabel: "KUNDENBEWERTUNG",
+      quote:
+        "„Toller Kaffee, ruhig und bequem — ich komme wieder, wenn ich das nächste Mal in dieser Gegend arbeite.“",
+      response:
+        "Danke für diese konkrete Bewertung. Es freut uns, dass Kaffee und die ruhige Atmosphäre dir geholfen haben, deine Zeit gut zu nutzen. Bis zum nächsten Arbeitstag bei uns.",
+      tags: ["einheitlicher Ton", "bereit zur Freigabe"],
+      approval: "Freigabe erforderlich",
+      copyAria: "Antwort kopieren",
+    },
+    source: {
+      eyebrow: "VON DER ANTWORT ZUM MARKENBILD",
+      title: { pre: "Eine bessere Antwort ist ", blue: "mehr als eine Reaktion." },
+      body: "Sie ist ein kleines, aber wiederholbares Signal: über deinen Servicestandard, den Charakter des Ortes und das, was man sich merken sollte. toodip fügt diese Signale zu einer stimmigen Markenpräsenz zusammen.",
+      cta: "Messvarianten ansehen",
+      caption: "QUELLEN / KONTEXT / PRÄSENZ",
+    },
+    pricing: {
+      eyebrow: "PREISE",
+      title: { pre: "Zwei Produktlinien.", blue: "Ein Panel." },
+      body: "Wähle, womit du startest. Jeder Plan lässt sich später direkt im Abrechnungsbereich wechseln.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Antworten auf Bewertungen, die auf ein stimmiges Bild des Lokals einzahlen.",
+        cta: "Mit Bewertungen starten",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Miss die Präsenz deiner Marke in den Antworten, nach denen deine Gäste fragen.",
+        cta: "Messung starten",
+      },
+      mostPopular: "Beliebteste Wahl",
+      footnote:
+        "Monatspreise in EUR. Rechnung mit ausgewiesener USt. beim Checkout. Jederzeit im Abrechnungsbereich kündbar.",
+    },
+    faq: { eyebrow: "KURZ UND KONKRET", title: { pre: "Häufige", blue: "Fragen." } },
+    footer: {
+      tagline: "Sichtbarkeit lokaler Marken\nim Zeitalter der KI-Antworten.",
+      cta: "Messung starten",
+    },
   },
   contact: {
     title: "Kontakt",
@@ -515,10 +673,6 @@ const de: MarketingDict = {
       "Der Pro-Plan enthält das Sichtbarkeits-Dashboard nur lesend: importierte Basislinien und vergangene Messungen, ohne neue zu starten.",
     faqTitle: "Häufige Fragen",
     faq: [
-      {
-        q: "Wie funktionieren die Testphasen?",
-        a: "Pro und Visibility starten mit 7 Tagen gratis. Sie hinterlegen beim Checkout eine Karte, zahlen eine Woche nichts und können vor der ersten Abbuchung im Abrechnungsportal kündigen.",
-      },
       {
         q: "Bekomme ich eine Rechnung mit USt.?",
         a: "Ja. Der Checkout erfasst Rechnungsadresse und USt-IdNr., jede Rechnung trägt beides. Rechnungen laden Sie im Abrechnungsportal herunter.",
@@ -568,7 +722,6 @@ const de: MarketingDict = {
     pro: {
       blurb: "Für ein volles Haus, dem jede Antwort wichtig ist.",
       features: [
-        "Die ersten 7 Tage gratis",
         "Unbegrenzte KI-Antworten, Fair Use",
         "Sichtbarkeits-Dashboard, nur lesend",
         "Alles aus Starter",
@@ -577,7 +730,6 @@ const de: MarketingDict = {
     visibility: {
       blurb: "Wissen, ob KI Sie empfiehlt, und beheben, warum nicht.",
       features: [
-        "Die ersten 7 Tage gratis",
         "150 Sichtbarkeitsmessungen pro Monat",
         "Trend, Quellenkarte, Interventionsprotokoll",
         "Alles aus Pro",
@@ -597,61 +749,106 @@ const de: MarketingDict = {
 
 const uk: MarketingDict = {
   nav: { pricing: "Ціни", signIn: "Увійти", startFree: "Почати безкоштовно" },
-  hero: {
-    kicker: "Видимість в ШІ для локального бізнесу, створено в Європі",
-    title:
-      "Ваш наступний гість не шукав у Google. Він запитав ШІ, і той назвав три місця.",
-    body: "toodip ставить ChatGPT, Google AI Overviews і Perplexity запитання, які ставлять ваші клієнти, зберігає кожну відповідь і показує, чи є в них ваша назва. Потім показує, яким джерелам ШІ довірився, щоб ви точно знали, що виправити. Без магії та обіцянок. Докази.",
-    ctaMeasure: "Виміряти свій заклад",
-    ctaPricing: "Переглянути ціни",
-  },
-  evidence: {
-    title: "Як виглядає вимірювання",
-    body: "Батарея справжніх запитань клієнтів запускається на кожній платформі. Кожна відповідь зберігається разом зі згадками та цитованими джерелами.",
-    sovTitle: "Частка голосу, запитання категорії",
-    sovNote: "Незручний графік. Але саме він рухається.",
-    sourcesTitle: "Які джерела живлять відповіді",
-    sourcesNote:
-      "Коли ваш сайт має нуль цитувань, це не невдача. Це список завдань.",
-    yourVenue: "Ваш заклад",
-    competitor: "Конкурент",
-    citations: "цитувань",
-  },
-  gates: {
-    title: "Три запитання, по черзі",
-    items: [
-      {
-        title: "Чи знає ШІ, що ви існуєте?",
-        body: "Запитайте про свій заклад за назвою в ChatGPT, Google AI Overviews і Perplexity. Якщо відповідь бідна або хибна, робота над карткою починається тут.",
-      },
-      {
-        title: "Чи рекомендує вас ШІ?",
-        body: "Питайте так, як питають клієнти: найкраще в районі, відчинено допізна, зручно працювати. Або у відповіді ваша назва, або назва конкурента.",
-      },
-      {
-        title: "Чи підтримують вас джерела?",
-        body: "Кожна відповідь щось цитує: путівники, Instagram, картки Google, блоги. Ми мапуємо, які домени живлять кожну платформу і де вас бракує.",
-      },
+  landing: {
+    navVisibility: "Видимість в AI",
+    kicker: "Європейська система видимості для локальних брендів",
+    hero: {
+      pre: "Коли гість питає AI, ",
+      em: "вашому закладу",
+      post: " є що сказати.",
+    },
+    lead: "toodip показує, як ваш бренд виглядає у відповідях AI — і допомагає лишати кориснішій слід у кожній важливій розмові з клієнтом.",
+    ctaMeasure: "Виміряйте свою видимість",
+    ctaReply: "До відповідей на відгуки",
+    proof: [
+      { value: "3", label: "джерела відповідей AI\nв одному вікні" },
+      { value: "1", label: "послідовний спосіб\nроботи з відгуками" },
     ],
-    interventionLead: "Потім ви виправляєте, і лінія відповідає.",
-    interventionBody:
-      "Кожна зміна фіксується поруч із вимірюваннями, тож коли показник рухається, ви знаєте, яка робота його зрушила. Цей журнал і відрізняє звіт від методу.",
-  },
-  reply: {
-    kicker: "Також у панелі",
-    title: "Стіл відповідей на відгуки",
-    body: "Відповіді на відгуки — це одне з джерел, які читає ШІ, і найлегше контрольоване. Вставте відгук з Google, отримайте відповідь вашим голосом, затвердьте, опублікуйте. Ризиковані відгуки ніколи не виходять без людини. Від {price} на місяць, безкоштовно на пробу.",
-    cta: "Спробувати на своїх відгуках",
-    bullets: [
-      "Вставляєте відгук, він одразу класифікований: настрій, ризик, хто має затвердити.",
-      "ШІ пише вашим тоном, з вашими фразами та правилами.",
-      "Повернення коштів, імена працівників і юридичні погрози ніколи не виходять без погодження.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Відгуки Google",
+      "Ваш бренд",
     ],
-  },
-  teaser: {
-    title: "Відповіді від {reply}. Видимість від {visibility}.",
-    body: "Місячні підписки, 7 днів безкоштовно на більших планах, скасування будь-коли. Рахунки з ПДВ при оплаті.",
-    cta: "Повний прайс",
+    card: {
+      label: "ВИМІР ВИДИМОСТІ",
+      live: "актуально",
+      question: "Чи з'являється ваш заклад, коли вирішується вибір?",
+      rows: ["Локальні рекомендації", "Відповіді на відгуки", "Власні джерела"],
+      foot: "НОВИЙ СИГНАЛ",
+      delta: "+ 14 балів",
+    },
+    vis: {
+      eyebrow: "ВИДИМІСТЬ, ЯКУ ВИДНО",
+      title: {
+        pre: "Не вгадуйте, чи знає AI ваш заклад. ",
+        blue: "Побачте слід.",
+      },
+      body: "toodip упорядковує запитання, відповіді та джерела, які формують образ вашого бренду. Ви знаєте, де будувати присутність — без маркетингового шуму.",
+      shareLabel: "ЧАСТКА В РЕКОМЕНДАЦІЯХ",
+      shareRows: ["Інші місця", "Конкуренти", "Ваш заклад"],
+      shareNote: "Не звіт заради звіту. Напрям для наступного рішення.",
+      srcLabel: "СИЛА ДЖЕРЕЛ",
+      srcRows: [
+        { name: "власний сайт", verdict: "сильний сигнал" },
+        { name: "локальні путівники", verdict: "присутній" },
+        { name: "соцмережі та відгуки", verdict: "підсилити" },
+      ],
+      srcNote: "Джерела, які системи AI цитують частіше за інші.",
+      logEyebrow: "ЖУРНАЛ ЗМІН",
+      logTitle: { pre: "Малі дії.", em: "Помітна різниця." },
+      logKeys: ["відповіді", "джерела", "вимір"],
+    },
+    reply: {
+      eyebrow: "НОВЕ В TOODIP",
+      stamp: "МОДУЛЬ / 01",
+      lead: "Відповіді на відгуки не мусять бути ще одним пунктом у списку справ. Reply Assistant допомагає писати їх голосом бренду — з тактом, послідовністю та потрібним контекстом.",
+      benefits: [
+        "Голос бренду збережено в кожній відповіді",
+        "Важливі сигнали й теми підхоплено природно",
+        "Останнє слово завжди за вами",
+      ],
+      cta: "Спробуйте на своїх відгуках",
+      deskLabel: "ВІДГУК КЛІЄНТА",
+      quote:
+        "«Чудова кава, спокійно та зручно — повернуся, коли знову працюватиму в цій частині міста.»",
+      response:
+        "Дякуємо за такий конкретний відгук. Раді, що кава та спокійний простір допомогли вам добре використати час. До зустрічі наступного робочого дня.",
+      tags: ["послідовний тон", "готово до схвалення"],
+      approval: "потребує схвалення",
+      copyAria: "Скопіювати відповідь",
+    },
+    source: {
+      eyebrow: "ВІД ВІДПОВІДІ ДО ОБРАЗУ БРЕНДУ",
+      title: { pre: "Краща відповідь — це ", blue: "більше, ніж реакція." },
+      body: "Це маленький, але повторюваний сигнал: про стандарт обслуговування, характер місця й те, що варто запам'ятати. toodip складає ці сигнали в цілісну присутність бренду.",
+      cta: "Переглянути варіанти виміру",
+      caption: "ДЖЕРЕЛА / КОНТЕКСТ / ПРИСУТНІСТЬ",
+    },
+    pricing: {
+      eyebrow: "ЦІНИ",
+      title: { pre: "Дві лінійки продукту.", blue: "Одна панель." },
+      body: "Оберіть, з чого почати. Будь-який план можна змінити пізніше просто з панелі оплат.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Відповіді на відгуки, що працюють на цілісний образ закладу.",
+        cta: "Почати з відгуків",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Вимірюйте присутність бренду у відповідях, яких шукають ваші гості.",
+        cta: "Почати вимір",
+      },
+      mostPopular: "Найчастіший вибір",
+      footnote:
+        "Місячні ціни в EUR. Рахунок-фактура з ПДВ під час оплати. Скасувати можна будь-коли з панелі оплат.",
+    },
+    faq: { eyebrow: "КОРОТКО І ПО СУТІ", title: { pre: "Поширені", blue: "запитання." } },
+    footer: {
+      tagline: "Видимість локального бренду\nв епоху відповідей AI.",
+      cta: "Почати вимір",
+    },
   },
   contact: {
     title: "Контакт",
@@ -676,10 +873,6 @@ const uk: MarketingDict = {
       "План Pro містить панель видимості лише для читання: імпортовані базові лінії та минулі вимірювання, без запуску нових.",
     faqTitle: "Часті запитання",
     faq: [
-      {
-        q: "Як працюють пробні періоди?",
-        a: "Pro і Visibility починаються з 7 безкоштовних днів. Ви додаєте картку при оплаті, тиждень не платите нічого і можете скасувати в порталі розрахунків до першого списання.",
-      },
       {
         q: "Чи отримаю я рахунок з ПДВ?",
         a: "Так. При оплаті ми збираємо платіжну адресу та податковий номер, і кожен рахунок їх містить. Рахунки завантажуються з порталу розрахунків у панелі.",
@@ -729,7 +922,6 @@ const uk: MarketingDict = {
     pro: {
       blurb: "Для жвавого закладу, якому важлива кожна відповідь.",
       features: [
-        "Перші 7 днів безкоштовно",
         "Відповіді ШІ без ліміту, fair use",
         "Панель видимості лише для читання",
         "Усе з плану Starter",
@@ -738,7 +930,6 @@ const uk: MarketingDict = {
     visibility: {
       blurb: "Знайте, чи рекомендує вас ШІ, і виправте, чому ні.",
       features: [
-        "Перші 7 днів безкоштовно",
         "150 вимірювань видимості на місяць",
         "Тренд, мапа джерел, журнал втручань",
         "Усе з плану Pro",
@@ -758,61 +949,106 @@ const uk: MarketingDict = {
 
 const fr: MarketingDict = {
   nav: { pricing: "Tarifs", signIn: "Se connecter", startFree: "Commencer gratuitement" },
-  hero: {
-    kicker: "Visibilité IA pour les commerces locaux, construit en Europe",
-    title:
-      "Votre prochain client n'a pas cherché sur Google. Il a demandé à une IA, qui a cité trois adresses.",
-    body: "toodip pose à ChatGPT, Google AI Overviews et Perplexity les questions que posent vos clients, enregistre chaque réponse et vous montre si votre nom y figure. Puis il montre quelles sources l'IA a crues, pour que vous sachiez exactement quoi corriger. Ni magie, ni promesses. Des preuves.",
-    ctaMeasure: "Mesurer votre établissement",
-    ctaPricing: "Voir les tarifs",
-  },
-  evidence: {
-    title: "À quoi ressemble une mesure",
-    body: "Une batterie de vraies questions de clients tourne sur chaque plateforme. Chaque réponse est conservée avec les mentions et les sources citées.",
-    sovTitle: "Part de voix, questions de catégorie",
-    sovNote: "Le graphique inconfortable. Mais c'est lui qui bouge.",
-    sourcesTitle: "Quelles sources nourrissent les réponses",
-    sourcesNote:
-      "Quand votre propre site a zéro citation, ce n'est pas de la malchance. C'est la liste des tâches.",
-    yourVenue: "Votre établissement",
-    competitor: "Concurrent",
-    citations: "citations",
-  },
-  gates: {
-    title: "Trois questions, dans l'ordre",
-    items: [
-      {
-        title: "L'IA sait-elle que vous existez ?",
-        body: "Demandez votre établissement par son nom sur ChatGPT, Google AI Overviews et Perplexity. Si la réponse est maigre ou fausse, le travail sur la fiche commence ici.",
-      },
-      {
-        title: "L'IA vous recommande-t-elle ?",
-        body: "Demandez comme vos clients : le meilleur du quartier, ouvert tard, pratique pour travailler. Soit votre nom est dans la réponse, soit celui d'un concurrent.",
-      },
-      {
-        title: "Les sources vous soutiennent-elles ?",
-        body: "Chaque réponse cite quelque chose : guides, Instagram, fiches Google, blogs. Nous cartographions les domaines qui nourrissent chaque plateforme, et où vous manquez.",
-      },
+  landing: {
+    navVisibility: "Visibilité IA",
+    kicker: "Un système européen de visibilité pour les marques locales",
+    hero: {
+      pre: "Quand un client interroge l'IA, ",
+      em: "votre établissement",
+      post: " devrait avoir son mot à dire.",
+    },
+    lead: "toodip montre comment votre marque apparaît dans les réponses de l'IA — et vous aide à laisser une trace plus utile dans chaque conversation qui compte.",
+    ctaMeasure: "Mesurez votre visibilité",
+    ctaReply: "Accéder aux réponses aux avis",
+    proof: [
+      { value: "3", label: "sources de réponses IA\ndans une seule vue" },
+      { value: "1", label: "façon cohérente\nde traiter les avis" },
     ],
-    interventionLead: "Ensuite vous corrigez, et la courbe répond.",
-    interventionBody:
-      "Chaque changement est consigné à côté des mesures. Quand le score bouge, vous savez quel travail l'a fait bouger. Ce journal fait la différence entre un rapport et une méthode.",
-  },
-  reply: {
-    kicker: "Aussi dans le panneau",
-    title: "Le bureau des réponses aux avis",
-    body: "Les réponses aux avis sont l'une des sources que lit l'IA, et la plus facile à contrôler. Collez un avis Google, recevez une réponse dans votre voix, validez, publiez. Les avis à risque ne sortent jamais sans un humain. À partir de {price} par mois, essai gratuit.",
-    cta: "Essayer sur vos avis",
-    bullets: [
-      "Collez un avis, il arrive classé : sentiment, risque, qui doit valider.",
-      "L'IA rédige dans votre ton, avec vos formules et vos règles.",
-      "Remboursements, noms d'employés et menaces juridiques ne sortent jamais sans validation.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Avis Google",
+      "Votre marque",
     ],
-  },
-  teaser: {
-    title: "Réponses dès {reply}. Visibilité dès {visibility}.",
-    body: "Abonnements mensuels, 7 jours gratuits sur les grands plans, résiliable à tout moment. Factures avec TVA au paiement.",
-    cta: "Tous les tarifs",
+    card: {
+      label: "MESURE DE VISIBILITÉ",
+      live: "à jour",
+      question: "Votre établissement apparaît-il au moment du choix ?",
+      rows: ["Recommandations locales", "Réponses aux avis", "Sources propres"],
+      foot: "NOUVEAU SIGNAL",
+      delta: "+ 14 pts",
+    },
+    vis: {
+      eyebrow: "UNE VISIBILITÉ QUI SE VOIT",
+      title: {
+        pre: "Ne devinez pas si l'IA connaît votre établissement. ",
+        blue: "Voyez la trace.",
+      },
+      body: "toodip organise les questions, les réponses et les sources qui façonnent l'image de votre marque. Vous savez où construire votre présence — sans bruit marketing.",
+      shareLabel: "PART DES RECOMMANDATIONS",
+      shareRows: ["Autres lieux", "Concurrents", "Votre établissement"],
+      shareNote: "Pas un rapport pour le rapport. Une direction pour la prochaine décision.",
+      srcLabel: "FORCE DES SOURCES",
+      srcRows: [
+        { name: "site web propre", verdict: "signal fort" },
+        { name: "guides locaux", verdict: "présent" },
+        { name: "réseaux sociaux et avis", verdict: "à renforcer" },
+      ],
+      srcNote: "Les sources que les systèmes d'IA citent plus souvent que les autres.",
+      logEyebrow: "JOURNAL DES CHANGEMENTS",
+      logTitle: { pre: "Petites actions.", em: "Différence visible." },
+      logKeys: ["réponses", "sources", "mesure"],
+    },
+    reply: {
+      eyebrow: "NOUVEAU DANS TOODIP",
+      stamp: "MODULE / 01",
+      lead: "Répondre aux avis ne doit pas être une corvée de plus. Reply Assistant vous aide à les écrire dans le ton de votre marque — avec tact, cohérence et le contexte nécessaire.",
+      benefits: [
+        "La voix de la marque préservée dans chaque réponse",
+        "Les signaux et sujets importants repris naturellement",
+        "La décision finale vous appartient toujours",
+      ],
+      cta: "Essayer sur vos avis",
+      deskLabel: "AVIS CLIENT",
+      quote:
+        "« Excellent café, calme et confortable — je reviendrai la prochaine fois que je travaille dans ce quartier. »",
+      response:
+        "Merci pour cet avis si précis. Nous sommes ravis que le café et le calme vous aient aidé à bien utiliser votre temps. À bientôt pour votre prochaine journée de travail.",
+      tags: ["ton cohérent", "prêt à valider"],
+      approval: "validation requise",
+      copyAria: "Copier la réponse",
+    },
+    source: {
+      eyebrow: "DE LA RÉPONSE À L'IMAGE DE MARQUE",
+      title: { pre: "Une meilleure réponse est ", blue: "plus qu'une réaction." },
+      body: "C'est un signal discret mais répétable : sur votre standard de service, le caractère du lieu et ce qu'il faut retenir. toodip assemble ces signaux en une présence de marque cohérente.",
+      cta: "Voir les formules de mesure",
+      caption: "SOURCES / CONTEXTE / PRÉSENCE",
+    },
+    pricing: {
+      eyebrow: "TARIFS",
+      title: { pre: "Deux lignes de produit.", blue: "Un seul panneau." },
+      body: "Choisissez par où commencer. Chaque formule peut être changée plus tard, directement depuis l'espace de facturation.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Des réponses aux avis qui construisent une image cohérente du lieu.",
+        cta: "Commencer par les avis",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Mesurez la présence de votre marque dans les réponses que cherchent vos clients.",
+        cta: "Commencer la mesure",
+      },
+      mostPopular: "Choix le plus fréquent",
+      footnote:
+        "Prix mensuels en EUR. Facture avec TVA au paiement. Annulation possible à tout moment depuis l'espace de facturation.",
+    },
+    faq: { eyebrow: "COURT ET CONCRET", title: { pre: "Questions", blue: "fréquentes." } },
+    footer: {
+      tagline: "La visibilité des marques locales\nà l'ère des réponses IA.",
+      cta: "Commencer la mesure",
+    },
   },
   contact: {
     title: "Contact",
@@ -837,10 +1073,6 @@ const fr: MarketingDict = {
       "Le plan Pro inclut le tableau de visibilité en lecture seule : bases importées et mesures passées, sans en lancer de nouvelles.",
     faqTitle: "Questions fréquentes",
     faq: [
-      {
-        q: "Comment fonctionnent les essais ?",
-        a: "Pro et Visibility commencent par 7 jours gratuits. Vous ajoutez une carte au paiement, ne payez rien pendant une semaine et pouvez résilier depuis le portail avant le premier prélèvement.",
-      },
       {
         q: "Ai-je une facture avec TVA ?",
         a: "Oui. Le paiement recueille votre adresse de facturation et votre numéro de TVA, et chaque facture les porte. Les factures se téléchargent depuis le portail de facturation.",
@@ -890,7 +1122,6 @@ const fr: MarketingDict = {
     pro: {
       blurb: "Pour un lieu animé qui tient à chaque réponse.",
       features: [
-        "7 premiers jours gratuits",
         "Réponses IA illimitées, usage raisonnable",
         "Tableau de visibilité en lecture seule",
         "Tout le plan Starter",
@@ -899,7 +1130,6 @@ const fr: MarketingDict = {
     visibility: {
       blurb: "Sachez si l'IA vous recommande, et corrigez pourquoi non.",
       features: [
-        "7 premiers jours gratuits",
         "150 mesures de visibilité par mois",
         "Tendance, carte des sources, journal des interventions",
         "Tout le plan Pro",
@@ -919,61 +1149,106 @@ const fr: MarketingDict = {
 
 const it: MarketingDict = {
   nav: { pricing: "Prezzi", signIn: "Accedi", startFree: "Inizia gratis" },
-  hero: {
-    kicker: "Visibilità AI per le attività locali, costruito in Europa",
-    title:
-      "Il tuo prossimo ospite non ha cercato su Google. Ha chiesto a un'AI, che ha nominato tre posti.",
-    body: "toodip pone a ChatGPT, Google AI Overviews e Perplexity le domande che fanno i tuoi clienti, registra ogni risposta e ti mostra se il tuo nome c'è. Poi mostra a quali fonti l'AI ha creduto, così sai esattamente cosa sistemare. Niente magia, niente promesse. Prove.",
-    ctaMeasure: "Misura il tuo locale",
-    ctaPricing: "Vedi i prezzi",
-  },
-  evidence: {
-    title: "Come appare una misurazione",
-    body: "Una batteria di vere domande dei clienti gira su ogni piattaforma. Ogni risposta viene salvata con le menzioni e le fonti citate.",
-    sovTitle: "Share of voice, domande di categoria",
-    sovNote: "Il grafico scomodo. Ma è quello che si muove.",
-    sourcesTitle: "Quali fonti alimentano le risposte",
-    sourcesNote:
-      "Quando il tuo sito ha zero citazioni, non è sfortuna. È la lista delle cose da fare.",
-    yourVenue: "Il tuo locale",
-    competitor: "Concorrente",
-    citations: "citazioni",
-  },
-  gates: {
-    title: "Tre domande, in ordine",
-    items: [
-      {
-        title: "L'AI sa che esisti?",
-        body: "Chiedi del tuo locale per nome su ChatGPT, Google AI Overviews e Perplexity. Se la risposta è povera o sbagliata, il lavoro sulla scheda inizia qui.",
-      },
-      {
-        title: "L'AI ti consiglia?",
-        body: "Chiedi come chiedono i clienti: il migliore del quartiere, aperto fino a tardi, comodo per lavorare. O nella risposta c'è il tuo nome, o quello di un concorrente.",
-      },
-      {
-        title: "Le fonti ti sostengono?",
-        body: "Ogni risposta cita qualcosa: guide, Instagram, schede Google, blog. Mappiamo quali domini alimentano ogni piattaforma e dove manchi.",
-      },
+  landing: {
+    navVisibility: "Visibilità IA",
+    kicker: "Un sistema europeo di visibilità per i brand locali",
+    hero: {
+      pre: "Quando un ospite chiede all'IA, ",
+      em: "il tuo locale",
+      post: " dovrebbe avere qualcosa da dire.",
+    },
+    lead: "toodip mostra come il tuo brand appare nelle risposte dell'IA — e ti aiuta a lasciare una traccia più utile in ogni conversazione che conta.",
+    ctaMeasure: "Misura la tua visibilità",
+    ctaReply: "Vai alle risposte alle recensioni",
+    proof: [
+      { value: "3", label: "fonti di risposte IA\nin un'unica vista" },
+      { value: "1", label: "un modo coerente\ndi gestire le recensioni" },
     ],
-    interventionLead: "Poi sistemi le cose, e la linea risponde.",
-    interventionBody:
-      "Ogni modifica viene registrata accanto alle misurazioni. Quando il punteggio si muove, sai quale lavoro lo ha mosso. Quel registro è la differenza tra un report e un metodo.",
-  },
-  reply: {
-    kicker: "Anche nel pannello",
-    title: "La scrivania delle risposte alle recensioni",
-    body: "Le risposte alle recensioni sono una delle fonti che l'AI legge, e la più facile da controllare. Incolla una recensione Google, ricevi una risposta con la tua voce, approva, pubblica. Le recensioni a rischio non escono mai senza un umano. Da {price} al mese, prova gratuita.",
-    cta: "Provalo sulle tue recensioni",
-    bullets: [
-      "Incolli una recensione, arriva classificata: sentimento, rischio, chi deve approvare.",
-      "L'AI scrive nel tuo tono, con le tue frasi e le tue regole.",
-      "Rimborsi, nomi dei dipendenti e minacce legali non escono mai senza approvazione.",
+    marquee: [
+      "Google AI Overviews",
+      "ChatGPT",
+      "Perplexity",
+      "Recensioni Google",
+      "Il tuo brand",
     ],
-  },
-  teaser: {
-    title: "Risposte da {reply}. Visibilità da {visibility}.",
-    body: "Abbonamenti mensili, 7 giorni gratis sui piani maggiori, disdici quando vuoi. Fatture con IVA al pagamento.",
-    cta: "Tutti i prezzi",
+    card: {
+      label: "MISURA DELLA VISIBILITÀ",
+      live: "aggiornato",
+      question: "Il tuo locale compare quando si decide la scelta?",
+      rows: ["Raccomandazioni locali", "Risposte alle recensioni", "Fonti proprie"],
+      foot: "NUOVO SEGNALE",
+      delta: "+ 14 pt",
+    },
+    vis: {
+      eyebrow: "UNA VISIBILITÀ CHE SI VEDE",
+      title: {
+        pre: "Non indovinare se l'IA conosce il tuo locale. ",
+        blue: "Guarda la traccia.",
+      },
+      body: "toodip ordina le domande, le risposte e le fonti che formano l'immagine del tuo brand. Sai dove costruire presenza — senza rumore di marketing.",
+      shareLabel: "QUOTA DELLE RACCOMANDAZIONI",
+      shareRows: ["Altri locali", "Concorrenti", "Il tuo locale"],
+      shareNote: "Non un report per il report. Una direzione per la prossima decisione.",
+      srcLabel: "FORZA DELLE FONTI",
+      srcRows: [
+        { name: "sito proprio", verdict: "segnale forte" },
+        { name: "guide locali", verdict: "presente" },
+        { name: "social e recensioni", verdict: "da rafforzare" },
+      ],
+      srcNote: "Le fonti che i sistemi di IA citano più spesso delle altre.",
+      logEyebrow: "REGISTRO DEI CAMBIAMENTI",
+      logTitle: { pre: "Piccole azioni.", em: "Differenza visibile." },
+      logKeys: ["risposte", "fonti", "misura"],
+    },
+    reply: {
+      eyebrow: "NOVITÀ IN TOODIP",
+      stamp: "MODULO / 01",
+      lead: "Rispondere alle recensioni non deve essere l'ennesima incombenza. Reply Assistant ti aiuta a scriverle nel tono del tuo brand — con tatto, coerenza e il contesto necessario.",
+      benefits: [
+        "La voce del brand preservata in ogni risposta",
+        "Segnali e temi importanti colti con naturalezza",
+        "L'ultima parola resta sempre a te",
+      ],
+      cta: "Provalo sulle tue recensioni",
+      deskLabel: "RECENSIONE DEL CLIENTE",
+      quote:
+        "«Ottimo caffè, tranquillo e comodo — tornerò la prossima volta che lavoro in questa zona.»",
+      response:
+        "Grazie per una recensione così concreta. Siamo felici che il caffè e la calma ti abbiano aiutato a usare bene il tuo tempo. A presto, alla prossima giornata di lavoro.",
+      tags: ["tono coerente", "pronto per l'approvazione"],
+      approval: "richiede approvazione",
+      copyAria: "Copia risposta",
+    },
+    source: {
+      eyebrow: "DALLA RISPOSTA ALL'IMMAGINE DEL BRAND",
+      title: { pre: "Una risposta migliore è ", blue: "più di una reazione." },
+      body: "È un segnale piccolo ma ripetibile: sullo standard del servizio, sul carattere del locale e su ciò che vale la pena ricordare. toodip compone questi segnali in una presenza di brand coerente.",
+      cta: "Vedi le varianti di misura",
+      caption: "FONTI / CONTESTO / PRESENZA",
+    },
+    pricing: {
+      eyebrow: "PREZZI",
+      title: { pre: "Due linee di prodotto.", blue: "Un unico pannello." },
+      body: "Scegli da dove iniziare. Ogni piano può essere cambiato in seguito, direttamente dal pannello di fatturazione.",
+      groupA: {
+        title: "Reply Assistant",
+        note: "Risposte alle recensioni che lavorano per un'immagine coerente del locale.",
+        cta: "Inizia dalle recensioni",
+      },
+      groupB: {
+        title: "AI visibility",
+        note: "Misura la presenza del brand nelle risposte che i tuoi ospiti cercano.",
+        cta: "Inizia la misura",
+      },
+      mostPopular: "Scelta più frequente",
+      footnote:
+        "Prezzi mensili in EUR. Fattura con IVA al pagamento. Puoi annullare in qualsiasi momento dal pannello di fatturazione.",
+    },
+    faq: { eyebrow: "BREVE E CONCRETO", title: { pre: "Domande", blue: "frequenti." } },
+    footer: {
+      tagline: "La visibilità dei brand locali\nnell'era delle risposte IA.",
+      cta: "Inizia la misura",
+    },
   },
   contact: {
     title: "Contatti",
@@ -998,10 +1273,6 @@ const it: MarketingDict = {
       "Il piano Pro include il pannello di visibilità in sola lettura: basi importate e misurazioni passate, senza lanciarne di nuove.",
     faqTitle: "Domande frequenti",
     faq: [
-      {
-        q: "Come funzionano le prove?",
-        a: "Pro e Visibility iniziano con 7 giorni gratis. Aggiungi una carta al pagamento, per una settimana non paghi nulla e puoi disdire dal portale prima del primo addebito.",
-      },
       {
         q: "Ricevo una fattura con IVA?",
         a: "Sì. Il pagamento raccoglie indirizzo di fatturazione e partita IVA, e ogni fattura li riporta. Le fatture si scaricano dal portale di fatturazione.",
@@ -1051,7 +1322,6 @@ const it: MarketingDict = {
     pro: {
       blurb: "Per un locale pieno che tiene a ogni risposta.",
       features: [
-        "Primi 7 giorni gratis",
         "Risposte AI illimitate, fair use",
         "Pannello di visibilità in sola lettura",
         "Tutto il piano Starter",
@@ -1060,7 +1330,6 @@ const it: MarketingDict = {
     visibility: {
       blurb: "Sappi se l'AI ti consiglia, e sistema il perché no.",
       features: [
-        "Primi 7 giorni gratis",
         "150 misurazioni di visibilità al mese",
         "Trend, mappa delle fonti, registro interventi",
         "Tutto il piano Pro",

@@ -20,7 +20,9 @@ import type {
  *   GEMINI_MODEL     defaults below
  */
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// Google retired direct access to gemini-2.5-flash for new users (404).
+// The alias tracks the current flash model instead of pinning a dead one.
+const DEFAULT_MODEL = "gemini-flash-latest";
 const TIMEOUT_MS = 30_000;
 
 const responseSchema = z.object({
