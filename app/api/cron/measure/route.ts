@@ -6,9 +6,11 @@ import { effectivePlanFrom } from "@/services/billing";
 import { executeRunForTenant } from "@/services/measurement";
 
 /**
- * The monthly report runner. Vercel Cron calls this every few minutes with
- * `Authorization: Bearer $CRON_SECRET`; each call does a bounded slice of
- * work so it always finishes inside the function's time cap:
+ * The monthly report runner. Vercel Cron calls this once a day (the Hobby
+ * plan allows no more; on Pro the schedule in vercel.json can be tightened)
+ * with `Authorization: Bearer $CRON_SECRET`. Each call does a bounded slice
+ * of work, by count and by wall clock, so it always finishes inside the
+ * function's time cap:
  *
  *   1. every tenant on a plan with measurements gets one job per month
  *      (unique per tenant+month, so a duplicate tick cannot create two);
@@ -22,9 +24,11 @@ import { executeRunForTenant } from "@/services/measurement";
  */
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-const RUNS_PER_TICK = Math.max(1, Number(process.env.CRON_RUNS_PER_TICK ?? 4));
+const RUNS_PER_TICK = Math.max(1, Number(process.env.CRON_RUNS_PER_TICK ?? 60));
+/** Stop starting new runs once this much of the tick has elapsed. */
+const TIME_BUDGET_MS = Math.max(10_000, Number(process.env.CRON_TIME_BUDGET_MS ?? 260_000));
 const REPS = Math.max(1, Number(process.env.MONTHLY_REPORT_REPS ?? 2));
 
 type JobStatus = "pending" | "running" | "done" | "failed";
@@ -64,6 +68,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const dry = request.nextUrl.searchParams.get("dry") === "1";
+  const startedAt = Date.now();
+  const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS;
   const service = getServiceClient();
   const month = monthStart();
   const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
@@ -200,7 +206,7 @@ export async function GET(request: NextRequest) {
     let failedRuns = job.runs_failed;
     let cost = Number(job.cost_usd) || 0;
 
-    while (budget > 0 && attempted < planned) {
+    while (budget > 0 && attempted < planned && !outOfTime()) {
       const prompt = prompts[Math.floor(attempted / REPS)];
       const outcome = await executeRunForTenant(
         {
@@ -244,7 +250,7 @@ export async function GET(request: NextRequest) {
       failed: failedRuns,
       costUsd: Math.round(cost * 100) / 100,
     });
-    if (budget <= 0) break;
+    if (budget <= 0 || outOfTime()) break;
   }
 
   return NextResponse.json({
@@ -252,6 +258,8 @@ export async function GET(request: NextRequest) {
     dry,
     repsPerQuestion: REPS,
     runsPerTick: RUNS_PER_TICK,
+    timeBudgetMs: TIME_BUDGET_MS,
+    elapsedMs: Date.now() - startedAt,
     eligible: eligible.map((t) => ({ tenant: t.name, plan: t.plan, limit: t.limit })),
     jobsCreated: created,
     processed,
