@@ -3,11 +3,12 @@
 import { useEffect, useRef } from "react";
 
 /**
- * The pin arriving. The outline draws itself from the tip, up the left side,
- * over the top and back down the right, with the inner ring closing around the
- * signal dot; the body fills; the pin lifts, then drops and stamps the page.
- * The stamp sends one event with the tip's position, which the globe behind
- * answers with a wave through its lines.
+ * The pin arriving, on a slow loop. The outline draws itself from the tip, up
+ * the left side, over the top and back down the right, with the inner ring
+ * closing around the signal dot; the body fills; the pin lifts, then drops and
+ * stamps the page; it rests, fades, and draws again. Only the first stamp
+ * sends the event the globe behind answers with a wave through its lines, so
+ * the page settles after its entrance.
  *
  * People who asked for reduced motion get the finished pin, nothing moving:
  * the stylesheet handles that, so the markup is the same on the server and in
@@ -19,7 +20,9 @@ const OUTER =
 const INNER = "M16 5.8A7.1 7.1 0 1 0 16 20 7.1 7.1 0 0 0 16 5.8Z";
 
 export const STAMP_EVENT = "toodip:stamp";
-const STAMP_AT_MS = 2350;
+/** One cycle of the loop; the stamp lands at 40% of it. Matches globals.css. */
+const CYCLE_MS = 8000;
+const STAMP_AT_MS = CYCLE_MS * 0.4;
 
 export function PinIntro({ size = 52 }: { size?: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -62,8 +65,6 @@ export function PinIntro({ size = 52 }: { size?: number }) {
         <circle cx="16" cy="12.9" r="3.7" fill="#38b6ff" className="pin-dot" />
       </svg>
       <span className="pin-shadow" aria-hidden />
-      <span className="pin-ripple" aria-hidden />
-      <span className="pin-ripple pin-ripple-late" aria-hidden />
     </div>
   );
 }

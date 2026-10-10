@@ -46,6 +46,12 @@ export function SignalVisual() {
           </span>
         </div>
 
+        <svg className="auth-flow auth-flow-down" viewBox="0 0 360 64" fill="none">
+          <path d="M180 0 L180 60" className="flow-line" style={{ animationDelay: "0.45s" }} />
+          <path d="M180 0 C180 34, 90 30, 90 60" className="flow-line" style={{ animationDelay: "1.35s" }} />
+          <path d="M180 0 C180 34, 270 30, 270 60" className="flow-line" style={{ animationDelay: "2.25s" }} />
+        </svg>
+
         <div className="auth-report">
           <div className="auth-report-head">
             <span className="auth-report-title">Your venue</span>

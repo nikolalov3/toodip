@@ -38,6 +38,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
           </span>
         </div>
 
+        <div className="cs-reveal flex w-full flex-col items-center">
         <span className="mt-9 inline-flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.28em] text-white/50 sm:mt-12 sm:text-[11px]">
           <span className="relative flex size-1.5">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#f6a94a] opacity-70" />
@@ -109,6 +110,7 @@ export function ComingSoon({ locale = "en" }: { locale?: string }) {
         <p className="mt-7 text-[11px] tracking-wide text-white/25 sm:mt-8">
           © 2026 toodip
         </p>
+        </div>
       </div>
     </main>
   );
