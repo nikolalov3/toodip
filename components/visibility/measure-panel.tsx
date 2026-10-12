@@ -477,7 +477,7 @@ export function MeasurePanel({
         if (outcome.mentionedOwn) state.mentioned += 1;
         if (outcome.costUsd) state.costUsd += outcome.costUsd;
         setProgress({ ...state });
-        if (!outcome.ok && outcome.error?.includes("OPENAI_API_KEY")) {
+        if (!outcome.ok && outcome.error?.includes("engine key")) {
           stopRef.current = true;
           toast.error(outcome.error);
         }
@@ -502,7 +502,7 @@ export function MeasurePanel({
         description={
           hasKey
             ? "Each question is asked on ChatGPT with web search on, as many times as you set. Results land below the moment the loop finishes."
-            : "Needs OPENAI_API_KEY in the environment. Add it and reload; the battery is ready to go."
+            : "Needs a measurement engine key (OPENAI_API_KEY or OPENROUTER_API_KEY) on the server. Add it and reload; the battery is ready to go."
         }
         action={
           <Button

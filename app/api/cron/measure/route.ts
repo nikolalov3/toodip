@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { PLANS, type BillingPlan } from "@/lib/billing";
 import { getServiceClient } from "@/lib/supabase/server";
 import { effectivePlanFrom } from "@/services/billing";
-import { executeRunForTenant } from "@/services/measurement";
+import { executeRunForTenant, resolveEngine } from "@/services/measurement";
 
 /**
  * The monthly report runner: one job per client, served in fair slices.
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   const dry = request.nextUrl.searchParams.get("dry") === "1";
   const service = getServiceClient();
   const month = monthStart();
-  const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  const engine = resolveEngine();
   const startedAt = Date.now();
   const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS;
 
@@ -234,10 +234,10 @@ export async function GET(request: NextRequest) {
     if (dry) {
       return { tenant: tenant.name, status: job.status, attempted, planned, wouldRunNow: wouldRun };
     }
-    if (!apiKey) {
+    if (!engine) {
       // A platform problem, not the client's: wait, never fail the report.
-      await release({ status: "pending", error: "OPENAI_API_KEY is not set." });
-      return { tenant: tenant.name, status: "waiting", reason: "no OPENAI_API_KEY" };
+      await release({ status: "pending", error: "No measurement engine key (OPENAI_API_KEY or OPENROUTER_API_KEY)." });
+      return { tenant: tenant.name, status: "waiting", reason: "no engine key" };
     }
 
     const profile = await service
@@ -257,7 +257,7 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < wouldRun && !outOfTime(); i += 1) {
       const prompt = prompts[Math.floor(attempted / REPS) % prompts.length];
       const outcome = await executeRunForTenant(
-        { tenantId: tenant.id, venueName, runsLimit: limit, planName: PLANS[plan].name, apiKey, supabase: service },
+        { tenantId: tenant.id, venueName, runsLimit: limit, planName: PLANS[plan].name, engine, supabase: service },
         prompt.id,
       );
       executed += 1;

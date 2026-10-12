@@ -28,6 +28,69 @@ const OPENAI_BASE = () =>
 const RUN_TIMEOUT_MS = 50_000;
 
 /**
+ * Which provider answers the customer question with web search. OpenAI's
+ * Responses API with the web_search tool is the reference; OpenRouter runs
+ * OpenAI's search-preview model through one key shared with the battery
+ * generator, so a deployment with only OPENROUTER_API_KEY can still measure.
+ * Picked once per run context, never per call.
+ */
+export interface MeasurementEngine {
+  provider: "openai" | "openrouter";
+  apiKey: string;
+}
+
+export function resolveEngine(): MeasurementEngine | null {
+  const openai = process.env.OPENAI_API_KEY?.trim();
+  if (openai) return { provider: "openai", apiKey: openai };
+  const openrouter = process.env.OPENROUTER_API_KEY?.trim();
+  if (openrouter) return { provider: "openrouter", apiKey: openrouter };
+  return null;
+}
+
+/**
+ * ":online" adds OpenRouter's web plugin to any model, so the answer is built
+ * from live search results with url citations, the closest thing to what a
+ * ChatGPT user sees. "perplexity/sonar" measures Perplexity itself.
+ */
+const OPENROUTER_SEARCH_MODEL = () =>
+  process.env.OPENROUTER_SEARCH_MODEL?.trim() || "openai/gpt-4o-mini:online";
+
+/** Which measured platform a model stands for, for the runs ledger. */
+export function platformForModel(model: string): "chatgpt" | "perplexity" | "google_aio" | "other" {
+  if (/perplexity|sonar/i.test(model)) return "perplexity";
+  if (/google|gemini/i.test(model)) return "google_aio";
+  if (/openai|gpt/i.test(model)) return "chatgpt";
+  return "other";
+}
+const OPENROUTER_EXTRACT_MODEL = () =>
+  process.env.OPENROUTER_EXTRACT_MODEL?.trim() || "deepseek/deepseek-v3.2";
+
+async function callOpenRouter(body: unknown, apiKey: string): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+        "http-referer": "https://www.toodip.com",
+        "x-title": "toodip",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`OpenRouter ${response.status}: ${detail.slice(0, 200)}`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * Per-run cost model, in USD. Defaults are gpt-4.1-mini list prices plus the
  * web_search tool call; override via env when the model or pricing changes.
  * The numbers land on every run (raw + typed columns) so the admin view shows
@@ -46,7 +109,7 @@ export function runCostUsd(tokensIn: number, tokensOut: number, webSearches: num
 }
 
 export function measurementConfigured(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+  return resolveEngine() !== null;
 }
 
 /** Words too generic to identify a venue by. */
@@ -93,6 +156,8 @@ async function callOpenAi(
 }
 
 interface SearchAnswer {
+  /** Provider-reported cost in USD when available (OpenRouter), else undefined. */
+  costUsd?: number;
   text: string;
   model: string;
   citations: string[];
@@ -103,7 +168,9 @@ interface SearchAnswer {
 }
 
 /** Asks the model with web search on, and collects the cited URLs. */
-async function askWithSearch(prompt: string, apiKey: string): Promise<SearchAnswer> {
+async function askWithSearch(prompt: string, engine: MeasurementEngine): Promise<SearchAnswer> {
+  if (engine.provider === "openrouter") return askWithSearchOpenRouter(prompt, engine.apiKey);
+  const apiKey = engine.apiKey;
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini";
   const data = await callOpenAi(
     "/responses",
@@ -143,6 +210,31 @@ async function askWithSearch(prompt: string, apiKey: string): Promise<SearchAnsw
   };
 }
 
+/** The same question through OpenRouter's search-preview model: web search is built in, sources arrive as url_citation annotations. */
+async function askWithSearchOpenRouter(prompt: string, apiKey: string): Promise<SearchAnswer> {
+  const model = OPENROUTER_SEARCH_MODEL();
+  const data = await callOpenRouter({ model, messages: [{ role: "user", content: prompt }] }, apiKey);
+  const choice = ((data.choices as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+  const message = (choice.message ?? {}) as Record<string, unknown>;
+  const text = typeof message.content === "string" ? message.content : "";
+  const citations: string[] = [];
+  for (const annotation of (message.annotations ?? []) as Array<Record<string, unknown>>) {
+    const cite = annotation.url_citation as Record<string, unknown> | undefined;
+    if (cite && typeof cite.url === "string") citations.push(cite.url);
+  }
+  const usage = (data.usage ?? {}) as Record<string, unknown>;
+  return {
+    text: text.trim(),
+    model: typeof data.model === "string" ? data.model : model,
+    citations: [...new Set(citations)],
+    usedSearch: citations.length > 0,
+    webSearches: 1,
+    tokensIn: Number(usage.prompt_tokens ?? 0) || 0,
+    tokensOut: Number(usage.completion_tokens ?? 0) || 0,
+    costUsd: typeof usage.cost === "number" ? usage.cost : undefined,
+  };
+}
+
 interface Extraction {
   venues: string[];
   tokensIn: number;
@@ -150,13 +242,11 @@ interface Extraction {
 }
 
 /** Pulls the venue names out of an answer, in order of appearance. */
-async function extractVenues(answer: string, apiKey: string): Promise<Extraction> {
+async function extractVenues(answer: string, engine: MeasurementEngine): Promise<Extraction> {
   if (!answer.trim()) return { venues: [], tokensIn: 0, tokensOut: 0 };
   try {
-    const data = await callOpenAi(
-      "/chat/completions",
-      {
-        model: "gpt-4.1-mini",
+    const body = {
+        model: engine.provider === "openrouter" ? OPENROUTER_EXTRACT_MODEL() : "gpt-4.1-mini",
         response_format: { type: "json_object" },
         messages: [
           {
@@ -166,13 +256,17 @@ async function extractVenues(answer: string, apiKey: string): Promise<Extraction
           },
           { role: "user", content: answer.slice(0, 6000) },
         ],
-      },
-      apiKey,
-    );
+      };
+    const data =
+      engine.provider === "openrouter"
+        ? await callOpenRouter(body, engine.apiKey)
+        : await callOpenAi("/chat/completions", body, engine.apiKey);
     const content =
       ((data.choices as Array<Record<string, unknown>>)?.[0]?.message as Record<string, unknown>)
         ?.content;
-    const parsed = JSON.parse(String(content ?? "{}")) as { venues?: unknown };
+    // DeepSeek sometimes wraps JSON in a code fence; strip it.
+    const raw = String(content ?? "{}").replace(/^```(?:json)?\s*|\s*```$/g, "");
+    const parsed = JSON.parse(raw) as { venues?: unknown };
     const usage = (data.usage ?? {}) as Record<string, unknown>;
     return {
       venues: Array.isArray(parsed.venues)
@@ -207,7 +301,7 @@ export interface RunContext {
   /** Monthly allowance of the tenant's plan. */
   runsLimit: number;
   planName: string;
-  apiKey: string;
+  engine: MeasurementEngine;
   /** A user client (RLS) from the panel, or the service client from the cron. */
   supabase: SupabaseClient;
 }
@@ -269,20 +363,24 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
   const ownPattern = ownNamePattern(ctx.venueName);
 
   try {
-    const answer = await askWithSearch(promptResult.data.text as string, ctx.apiKey);
-    const extracted = await extractVenues(answer.text, ctx.apiKey);
+    const answer = await askWithSearch(promptResult.data.text as string, ctx.engine);
+    const extracted = await extractVenues(answer.text, ctx.engine);
     const venues = extracted.venues;
 
     const tokensIn = answer.tokensIn + extracted.tokensIn;
     const tokensOut = answer.tokensOut + extracted.tokensOut;
-    const costUsd = runCostUsd(tokensIn, tokensOut, answer.webSearches);
+    // OpenRouter reports the exact charge; OpenAI is priced from the model.
+    const costUsd =
+      answer.costUsd !== undefined
+        ? answer.costUsd + runCostUsd(extracted.tokensIn, extracted.tokensOut, 0)
+        : runCostUsd(tokensIn, tokensOut, answer.webSearches);
 
     const run = await supabase
       .from("visibility_runs")
       .insert({
         tenant_id: ctx.tenantId,
         prompt_id: promptId,
-        platform: "chatgpt",
+        platform: platformForModel(answer.model),
         model_version: answer.model,
         source: "toodip",
         executed_on: new Date().toISOString().slice(0, 10),
@@ -373,8 +471,8 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
   const session = await requireSession();
   if (!canEditSettings(session.role)) return failed("Only admins can run measurements.");
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return failed("OPENAI_API_KEY is not set.");
+  const engine = resolveEngine();
+  if (!engine) return failed("No measurement engine key is set (OPENAI_API_KEY or OPENROUTER_API_KEY).");
 
   // Each run is a web_search call, the most expensive request in the app.
   const billing = await getBillingSnapshot();
@@ -399,7 +497,7 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
       venueName: (profileResult.data as { name: string } | null)?.name ?? session.tenantName,
       runsLimit: plan.monthlyRuns,
       planName: plan.name,
-      apiKey,
+      engine,
       supabase,
     },
     promptId,
