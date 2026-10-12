@@ -215,14 +215,10 @@ export async function GET(request: NextRequest) {
       .limit(500);
     const prompts = (promptsResult.data ?? []) as Array<{ id: string }>;
     if (prompts.length === 0) {
-      if (!dry) {
-        await release({
-          status: "failed",
-          error: "No active questions in the battery.",
-          finished_at: new Date().toISOString(),
-        });
-      }
-      return { tenant: tenant.name, status: "failed", reason: "no battery" };
+      // Not final: the client may write a battery later this month. The job
+      // waits with a note and is looked at again next tick, after the others.
+      if (!dry) await release({ status: "pending", error: "No active questions in the battery." });
+      return { tenant: tenant.name, status: "waiting", reason: "no battery" };
     }
 
     const planned = Math.min(prompts.length * REPS, limit);
@@ -239,8 +235,9 @@ export async function GET(request: NextRequest) {
       return { tenant: tenant.name, status: job.status, attempted, planned, wouldRunNow: wouldRun };
     }
     if (!apiKey) {
-      await release({ status: "failed", error: "OPENAI_API_KEY is not set.", finished_at: new Date().toISOString() });
-      return { tenant: tenant.name, status: "failed", reason: "no OPENAI_API_KEY" };
+      // A platform problem, not the client's: wait, never fail the report.
+      await release({ status: "pending", error: "OPENAI_API_KEY is not set." });
+      return { tenant: tenant.name, status: "waiting", reason: "no OPENAI_API_KEY" };
     }
 
     const profile = await service
