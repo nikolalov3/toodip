@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { EmptyState, PageHeader, Panel, PanelHeader } from "@/components/common/surfaces";
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { PlanSelect } from "@/components/clients/plan-select";
+import { TrackerSnippet } from "@/components/clients/tracker-snippet";
 import { WorkspacePicker } from "@/components/layout/workspace-picker";
 import { requirePlatformAdmin } from "@/lib/auth/session";
 import { PLANS, type BillingPlan } from "@/lib/billing";
@@ -58,11 +59,12 @@ const JOB_STYLES: Record<JobSummary["status"], string> = {
 async function loadUsage(): Promise<{
   usage: Map<string, Usage>;
   jobs: Map<string, JobSummary>;
+  sites: Map<string, { id: string; domain: string | null }>;
 }> {
   const service = getServiceClient();
   const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
 
-  const [runsResult, jobsResult] = await Promise.all([
+  const [runsResult, jobsResult, sitesResult] = await Promise.all([
     // Aggregated in the database (one row per tenant), never by fetching runs:
     // PostgREST caps a row fetch at 1000, which would miscount silently.
     service
@@ -74,6 +76,7 @@ async function loadUsage(): Promise<{
       .from("measurement_jobs")
       .select("tenant_id, status, runs_done, runs_planned, runs_failed, error")
       .eq("scheduled_for", monthStart),
+    service.from("stats_websites").select("id, tenant_id, domain").not("tenant_id", "is", null).limit(10000),
   ]);
 
   const usage = new Map<string, Usage>();
@@ -85,20 +88,26 @@ async function loadUsage(): Promise<{
     usage.set(row.tenant_id, { runs: Number(row.runs) || 0, costUsd: Number(row.cost_usd ?? 0) || 0 });
   }
 
+  const sites = new Map<string, { id: string; domain: string | null }>();
+  if (!sitesResult.error) {
+    for (const site of (sitesResult.data ?? []) as Array<{ id: string; tenant_id: string; domain: string | null }>) {
+      sites.set(site.tenant_id, { id: site.id, domain: site.domain });
+    }
+  }
   const jobs = new Map<string, JobSummary>();
   if (!jobsResult.error) {
     for (const job of (jobsResult.data ?? []) as Array<JobSummary & { tenant_id: string }>) {
       jobs.set(job.tenant_id, job);
     }
   }
-  return { usage, jobs };
+  return { usage, jobs, sites };
 }
 
 export default async function ClientsPage() {
   const session = await requirePlatformAdmin();
   const supabase = await getUserClient();
 
-  const [{ data }, { usage, jobs }] = await Promise.all([
+  const [{ data }, { usage, jobs, sites }] = await Promise.all([
     supabase
       .from("tenants")
       .select(
@@ -166,6 +175,7 @@ export default async function ClientsPage() {
                     const limit = PLANS[effective].monthlyRuns;
                     const used = usage.get(tenant.id) ?? { runs: 0, costUsd: 0 };
                     const job = jobs.get(tenant.id);
+                    const site = sites.get(tenant.id);
                     return (
                       <tr key={tenant.id} className="border-b border-border/70 last:border-b-0">
                         <td className="px-4 py-3">
@@ -178,6 +188,11 @@ export default async function ClientsPage() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground">{tenant.slug}</p>
+                          {site ? (
+                            <TrackerSnippet siteId={site.id} domain={site.domain} />
+                          ) : (
+                            <p className="mt-1 text-[11px] text-muted-foreground">no traffic site linked</p>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">
                           {profile

@@ -36,6 +36,12 @@ const schema = z.object({
   city: z.string().trim().min(2, "City is required."),
   district: z.string().trim().optional(),
   ownerName: z.string().trim().min(2, "Who is the contact person?"),
+  website: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
   ownerEmail: z.string().trim().email("That does not look like an email."),
   password: z
     .string()
@@ -75,6 +81,7 @@ export async function createClientWorkspaceAction(
     city: formData.get("city"),
     district: formData.get("district") ?? "",
     ownerName: formData.get("ownerName"),
+    website: formData.get("website") ?? "",
     ownerEmail: formData.get("ownerEmail"),
     password: formData.get("password"),
   });
@@ -178,6 +185,11 @@ export async function createClientWorkspaceAction(
     return cleanupTenant(
       `Creating the business profile: ${businessProfile.error.message}`,
     );
+
+  // The traffic site (toodip stats) for this client: an existing site with
+  // the same domain or name is adopted, otherwise one is created. From here
+  // on the workspace and the site are one record for the people inside.
+  await linkStatsWebsite(admin, tenantId, data.businessName, data.website);
   }
 
   await admin.from("activity_logs").insert({
@@ -228,4 +240,39 @@ export async function setClientPlanAction(
   if (result.error) return { ok: false, message: result.error.message };
   revalidatePath("/clients");
   return { ok: true, message: `Plan set to ${PLANS[plan].name}.` };
+}
+
+function hostOf(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value.includes("://") ? value : `https://${value}`).hostname
+      .replace(/^www\./, "")
+      .toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+async function linkStatsWebsite(
+  admin: ReturnType<typeof getServiceClient>,
+  tenantId: string,
+  name: string,
+  website: string | undefined,
+): Promise<void> {
+  const domain = hostOf(website);
+  const existing = await admin
+    .from("stats_websites")
+    .select("id, name, domain, tenant_id")
+    .is("tenant_id", null)
+    .limit(200);
+  if (existing.error) return; // stats tables not deployed here: nothing to link
+  const rows = (existing.data ?? []) as Array<{ id: string; name: string; domain: string | null }>;
+  const match =
+    (domain && rows.find((row) => (row.domain ?? "").replace(/^www\./, "").toLowerCase() === domain)) ||
+    rows.find((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase());
+  if (match) {
+    await admin.from("stats_websites").update({ tenant_id: tenantId }).eq("id", match.id);
+    return;
+  }
+  await admin.from("stats_websites").insert({ tenant_id: tenantId, name, domain, user_id: null });
 }

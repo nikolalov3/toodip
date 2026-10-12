@@ -128,6 +128,12 @@ export function AddClientForm({ initialPassword }: { initialPassword: string }) 
         </div>
 
         <div className="flex flex-col gap-1.5">
+          <Label htmlFor="website" className="text-xs">
+            Website
+          </Label>
+          <Input id="website" name="website" placeholder="brukcafe.pl" />
+        </div>
+        <div className="flex flex-col gap-1.5">
           <Label htmlFor="district" className="text-xs">
             District
           </Label>
