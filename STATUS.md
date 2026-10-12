@@ -197,3 +197,19 @@ Do 100 użytkowników można działać przed weryfikacją OAuth. Przy pierwszych
 1. **Import opinii z Google.** Dopóki go nie ma, ktoś przepisuje opinie ręcznie i cała oszczędność czasu jest połowiczna.
 2. **Włączenie OpenAI.** Silnik regułowy pilnuje higieny odpowiedzi, ale nie napisze zdania, które brzmi jak żywy człowiek. To jedno popołudnie pracy.
 3. **Reset hasła przez e-mail.** Drobiazg, który przy kilku klientach zamienia się w stały telefon do Ciebie.
+
+---
+
+## Stan na 12 października 2026
+
+**Produkcja (main = gałąź panelu, jedna wersja):** strona waitlist z animowaną pinezką, nagłówek pisany na żywo, logowanie jako panel z dołu; nowy panel Visibility (4 metryki, bateria 50 pytań z DeepSeek, metering kosztu, plan Visibility 199 €/100 pomiarów), cron codzienny 04:00 UTC (limit planu Hobby w Vercelu), /clients z kosztem AI. Obie migracje (metering, measurement_jobs) wgrane. Stripe: produkt, cena, webhook, portal gotowe; na Vercelu brakuje `STRIPE_PRICE_VISIBILITY` i `STRIPE_WEBHOOK_SECRET`, w Stripe Tax brak rejestracji VAT.
+
+**Audyt gotowości na 10 000 klientów (12.10.2026): NIE jest gotowe.** Do zrobienia przed onboardingiem obcych klientów:
+
+1. 🔴 Eskalacja do platform_admin: polityka `members: admin manage` pozwala adminowi lokalu zmienić własną rolę; `/sign-up` nadal publiczny. Zablokować kolumnę `role` i wyłączyć sign-up.
+2. 🔴 Widok `v_tenant_usage_monthly` czytelny kluczem anon (brak `security_invoker`).
+3. 🔴 Admin lokalu może kasować własne `visibility_runs` i zerować limit; brak atomowej rezerwacji pomiaru; brak globalnego limitu wydatków na AI.
+4. 🔴 Cron: 1 tick dziennie × 300 s ≈ 17 pomiarów/dzień ≈ 5 klientów miesięcznie. Potrzebna kolejka i równoległe workery (lub plan Pro w Vercelu).
+5. 🟠 Zapytania ucięte na 1000 wierszach (lista tenantów w sesji admina, /clients, cron, listReviews), brakujące indeksy, brak paginacji.
+6. 🟠 SSRF przez pole website URL w generatorze baterii; brak rate limitu na waitlist i generowanie baterii; rate limiter in-memory.
+7. 🟠 Brak Sentry/logów/health, brak testów i CI.
