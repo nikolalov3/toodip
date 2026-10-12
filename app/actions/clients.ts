@@ -185,12 +185,12 @@ export async function createClientWorkspaceAction(
     return cleanupTenant(
       `Creating the business profile: ${businessProfile.error.message}`,
     );
+  }
 
   // The traffic site (toodip stats) for this client: an existing site with
   // the same domain or name is adopted, otherwise one is created. From here
   // on the workspace and the site are one record for the people inside.
   await linkStatsWebsite(admin, tenantId, data.businessName, data.website);
-  }
 
   await admin.from("activity_logs").insert({
     tenant_id: tenantId,
