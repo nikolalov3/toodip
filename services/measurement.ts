@@ -158,6 +158,8 @@ async function callOpenAi(
 interface SearchAnswer {
   /** Provider-reported cost in USD when available (OpenRouter), else undefined. */
   costUsd?: number;
+  /** Where in the text each citation applies (character offsets), when the provider says. */
+  citationSpans?: Array<{ url: string; start: number; end: number }>;
   text: string;
   model: string;
   citations: string[];
@@ -218,9 +220,15 @@ async function askWithSearchOpenRouter(prompt: string, apiKey: string): Promise<
   const message = (choice.message ?? {}) as Record<string, unknown>;
   const text = typeof message.content === "string" ? message.content : "";
   const citations: string[] = [];
+  const citationSpans: Array<{ url: string; start: number; end: number }> = [];
   for (const annotation of (message.annotations ?? []) as Array<Record<string, unknown>>) {
     const cite = annotation.url_citation as Record<string, unknown> | undefined;
-    if (cite && typeof cite.url === "string") citations.push(cite.url);
+    if (cite && typeof cite.url === "string") {
+      citations.push(cite.url);
+      if (typeof cite.start_index === "number" && typeof cite.end_index === "number") {
+        citationSpans.push({ url: cite.url, start: cite.start_index, end: cite.end_index });
+      }
+    }
   }
   const usage = (data.usage ?? {}) as Record<string, unknown>;
   return {
@@ -232,6 +240,7 @@ async function askWithSearchOpenRouter(prompt: string, apiKey: string): Promise<
     tokensIn: Number(usage.prompt_tokens ?? 0) || 0,
     tokensOut: Number(usage.completion_tokens ?? 0) || 0,
     costUsd: typeof usage.cost === "number" ? usage.cost : undefined,
+    citationSpans,
   };
 }
 
@@ -396,6 +405,9 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
           tokens_in: tokensIn,
           tokens_out: tokensOut,
           cost_usd: costUsd,
+          // Character offsets per citation: lets a later pass say which source
+          // backed the sentence that named the venue, not just the answer.
+          citation_spans: answer.citationSpans ?? [],
         },
       })
       .select("id")

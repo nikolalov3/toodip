@@ -612,7 +612,7 @@ export default async function VisibilityPage() {
       <Section
         step={4}
         question="What are the AIs reading?"
-        blurb="The websites AI answers are built from. If you are not on these, AI has nothing to recommend you with."
+        blurb="The websites AI answers are built from. If you are not on these, AI has nothing to recommend you with. The right-hand count says how often an answer citing that site also named you; it does not mean the site itself wrote about you."
       >
         <Panel className="overflow-hidden">
           <ul className="flex flex-col gap-1 p-4">
@@ -630,14 +630,17 @@ export default async function VisibilityPage() {
                     style={{ width: `${(domain.total / maxDomainTotal) * 100}%` }}
                   />
                 </span>
-                <span className="w-28 text-right text-xs">
+                <span
+                  className="w-36 text-right text-xs"
+                  title={`Cited in ${domain.total} answers; ${domain.runsWithOwnMention} of those answers also named you. Co-occurrence, not proof the site wrote about you.`}
+                >
                   {domain.runsWithOwnMention > 0 ? (
                     <span className="text-positive">
-                      mentions you {domain.runsWithOwnMention}×
+                      {domain.runsWithOwnMention} of {domain.total} answers name you
                     </span>
                   ) : (
                     <span className="text-muted-foreground">
-                      never mentions you
+                      {domain.total} answers, none name you
                     </span>
                   )}
                 </span>
