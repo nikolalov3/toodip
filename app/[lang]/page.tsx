@@ -37,6 +37,6 @@ export default async function LocalizedLanding({
   const { lang } = await params;
   if (!isMarketingLocale(lang) || lang === "en") notFound();
   const session = await getSession();
-  if (session) redirect("/dashboard");
+  if (session) redirect("/overview");
   return <ComingSoon locale={lang} />;
 }

@@ -78,7 +78,7 @@ export function ModulePlaceholder({
 
       <p className="mt-4 text-xs text-muted-foreground">
         Working modules live under{" "}
-        <Link href="/dashboard" className="text-brand hover:underline">
+        <Link href="/overview" className="text-brand hover:underline">
           Operations
         </Link>
         .

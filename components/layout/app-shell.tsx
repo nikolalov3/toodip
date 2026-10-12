@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { LogoMark } from "@/components/brand/logo";
+import { PinMark } from "@/components/brand/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { SidebarNav } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -12,29 +12,31 @@ import type { BusinessProfile } from "@/types/domain";
 export function AppShell({
   session,
   profile,
+  siteDomain,
   children,
 }: {
   session: Session;
   profile: BusinessProfile | null;
+  /** The linked traffic site's domain, shown under the workspace name. */
+  siteDomain?: string | null;
   children: ReactNode;
 }) {
   const location = profile
     ? [profile.district, profile.city].filter(Boolean).join(", ")
-    : "Setup not finished";
+    : "Konfiguracja w toku";
 
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
-          <LogoMark size={28} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-tight">
-              {session.tenantName}
-            </p>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground">
-              {location}
-            </p>
-          </div>
+        <div className="flex h-14 items-center gap-2 px-4">
+          <PinMark size={18} className="text-foreground" />
+          <span className="text-[15px] font-semibold tracking-tight">toodip</span>
+        </div>
+        <div className="mx-3 mb-2 rounded-[4px] border border-brand/60 bg-card px-3 py-2">
+          <p className="truncate text-sm font-semibold leading-tight">{session.tenantName}</p>
+          <p className="truncate text-[11px] leading-tight text-muted-foreground">
+            {siteDomain ?? location}
+          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -48,14 +50,12 @@ export function AppShell({
           <div className="border-t border-sidebar-border px-3 py-3">
             <div className="rounded-md border border-border bg-card px-2.5 py-2">
               <p className="text-[11px] font-medium">
-                {session.isPlatformAdmin
-                  ? "Operations console"
-                  : "Setup not finished"}
+                {session.isPlatformAdmin ? "Konsola platformy" : "Konfiguracja w toku"}
               </p>
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
                 {session.isPlatformAdmin
-                  ? "This workspace is not a venue, so the review screens are hidden. Open a client workspace to get them back."
-                  : "Finish the setup wizard and the review screens appear."}
+                  ? "Ten workspace nie jest lokalem, więc moduły pomiaru są ukryte. Otwórz workspace klienta."
+                  : "Dokończ konfigurację, a moduły pomiaru się pojawią."}
               </p>
             </div>
           </div>
@@ -64,14 +64,14 @@ export function AppShell({
         {session.isPlatformAdmin && session.workspaces.length > 1 && (
           <div className="border-t border-sidebar-border px-3 py-3">
             <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">
-              Operating in
+              Pracujesz w
             </p>
             <Link
               href="/clients"
               className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-xs transition-colors hover:bg-accent"
             >
               <span className="truncate font-medium">{session.tenantName}</span>
-              <span className="shrink-0 text-muted-foreground">switch</span>
+              <span className="shrink-0 text-muted-foreground">zmień</span>
             </Link>
           </div>
         )}
@@ -87,7 +87,7 @@ export function AppShell({
             />
           </div>
 
-          <Link href="/dashboard" className="text-sm font-medium lg:hidden">
+          <Link href="/overview" className="text-sm font-medium lg:hidden">
             {session.tenantName}
           </Link>
 

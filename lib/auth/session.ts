@@ -139,7 +139,7 @@ export async function requireSession(): Promise<Session> {
 
 export async function requirePlatformAdmin(): Promise<Session> {
   const session = await requireSession();
-  if (!session.isPlatformAdmin) redirect("/dashboard");
+  if (!session.isPlatformAdmin) redirect("/overview");
   return session;
 }
 

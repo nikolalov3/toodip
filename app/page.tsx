@@ -17,6 +17,6 @@ export default async function RootPage() {
   // Existing clients and the agency still land in the panel; the public sees
   // the pre-launch page. The real landing is kept in the repo for launch.
   const session = await getSession();
-  if (session) redirect("/dashboard");
+  if (session) redirect("/overview");
   return <ComingSoon locale="en" />;
 }

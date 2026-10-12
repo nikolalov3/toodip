@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { requireSession } from "@/lib/auth/session";
 import { getRepository } from "@/lib/repositories";
+import { getStatsSite } from "@/services/stats";
 import { PATHNAME_HEADER } from "@/proxy";
 import type { BusinessProfile } from "@/types/domain";
 
@@ -46,8 +47,10 @@ export default async function WorkspaceLayout({ children }: LayoutProps<"/">) {
     }
   }
 
+  const site = profile ? await getStatsSite() : null;
+
   return (
-    <AppShell session={session} profile={profile}>
+    <AppShell session={session} profile={profile} siteDomain={site?.domain ?? null}>
       {children}
     </AppShell>
   );

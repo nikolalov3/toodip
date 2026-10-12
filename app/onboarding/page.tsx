@@ -42,7 +42,7 @@ export default async function OnboardingPage() {
 
       <p className="mt-6 text-xs text-muted-foreground">
         Prefer to do this later?{" "}
-        <Link href="/dashboard" className="text-brand hover:underline">
+        <Link href="/overview" className="text-brand hover:underline">
           Skip to the dashboard
         </Link>
         . The same fields live in brand settings.

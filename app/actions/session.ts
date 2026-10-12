@@ -42,8 +42,8 @@ export async function signInAction(
   }
 
   // Only a path on this site: one leading slash, so "//evil.com" is refused.
-  const next = String(formData.get("next") ?? "/dashboard");
-  redirect(/^\/(?![\/\\])/.test(next) ? next : "/dashboard");
+  const next = String(formData.get("next") ?? "/overview");
+  redirect(/^\/(?![\/\\])/.test(next) ? next : "/overview");
 }
 
 export async function signOutAction() {

@@ -67,7 +67,7 @@ export function OnboardingWizard({ profile }: { profile: BusinessProfile }) {
     if (!state) return;
     if (state.ok) {
       toast.success("Setup saved. The workspace is ready.");
-      router.push("/dashboard");
+      router.push("/overview");
     } else {
       toast.error(state.message);
     }
