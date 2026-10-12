@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requirePlatformAdmin } from "@/lib/auth/session";
+import { PLANS, type BillingPlan } from "@/lib/billing";
 import { getServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -201,4 +202,30 @@ export async function createClientWorkspaceAction(
       workspace: data.businessName,
     },
   };
+}
+
+/**
+ * Assigns a plan by hand: for invited clients, agency-managed workspaces and
+ * tests. Stripe keeps writing the paid plans it sells; this is the platform
+ * admin's override, written with the service role because the billing
+ * columns are locked for everyone else.
+ */
+export async function setClientPlanAction(
+  tenantId: string,
+  plan: BillingPlan,
+): Promise<{ ok: boolean; message: string }> {
+  await requirePlatformAdmin();
+  if (!z.string().uuid().safeParse(tenantId).success || !(plan in PLANS)) {
+    return { ok: false, message: "Unknown workspace or plan." };
+  }
+  const result = await getServiceClient()
+    .from("tenants")
+    .update({
+      billing_plan: plan,
+      billing_status: plan === "free" ? "none" : "active",
+    })
+    .eq("id", tenantId);
+  if (result.error) return { ok: false, message: result.error.message };
+  revalidatePath("/clients");
+  return { ok: true, message: `Plan set to ${PLANS[plan].name}.` };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Play, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { FileUp, Pencil, Play, Plus, Sparkles, Square, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import type { PromptProposal } from "@/services/measurement";
 export interface BatteryPrompt {
   id: string;
   text: string;
+  language: string;
   intent: string;
   isBranded: boolean;
 }
@@ -113,6 +114,10 @@ export function MeasurePanel({
 
   // Setup mode state. Rows start as the deterministic templates; "Generate"
   // replaces them with the agent's proposals. Every cell stays editable.
+  // "Edit questions" reopens the table for a workspace that already has a
+  // battery, prefilled with what is saved. Saving then replaces the battery:
+  // lines removed here stop being asked, lines kept keep their history.
+  const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<PromptProposal[]>(suggestions);
   const [generated, setGenerated] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -178,7 +183,9 @@ export function MeasurePanel({
     );
   }
 
-  if (prompts.length === 0) {
+  const setup = prompts.length === 0 || editing;
+
+  if (setup) {
     const defaultLang = rows[0]?.language ?? "en";
     const invalid = rows.filter(
       (row) =>
@@ -221,10 +228,12 @@ export function MeasurePanel({
           intent: row.intent.trim(),
           language: row.language.trim().toLowerCase(),
         })),
+        { replace: editing },
       );
       setSaving(false);
       if (result.ok) {
         toast.success(result.message);
+        setEditing(false);
         router.refresh();
       } else {
         toast.error(result.message);
@@ -234,8 +243,19 @@ export function MeasurePanel({
     return (
       <Panel>
         <PanelHeader
-          title="Set up your question battery"
-          description="The questions your customers ask AI assistants before choosing. Edit any line, add your own, remove what does not fit — nothing runs until you save."
+          title={editing ? "Edit your question battery" : "Set up your question battery"}
+          description={
+            editing
+              ? "Change, add or import questions. Lines you remove stop being asked from the next measurement; saved history stays."
+              : "The questions your customers ask AI assistants before choosing. Edit any line, add your own, remove what does not fit. Nothing runs until you save."
+          }
+          action={
+            editing ? (
+              <Button size="sm" variant="ghost" disabled={saving} onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            ) : undefined
+          }
         />
 
         {canGenerate && (
@@ -483,6 +503,27 @@ export function MeasurePanel({
           hasKey
             ? "Each question is asked on ChatGPT with web search on, as many times as you set. Results land below the moment the loop finishes."
             : "Needs OPENAI_API_KEY in the environment. Add it and reload; the battery is ready to go."
+        }
+        action={
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={running}
+            onClick={() => {
+              setRows(
+                prompts.map((p) => ({
+                  text: p.text,
+                  intent: p.intent,
+                  language: p.language,
+                  isBranded: p.isBranded,
+                })),
+              );
+              setEditing(true);
+            }}
+          >
+            <Pencil className="size-3.5" />
+            Edit questions
+          </Button>
         }
       />
       <div className="flex flex-col gap-3 p-4">

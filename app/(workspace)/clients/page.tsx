@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { EmptyState, PageHeader, Panel, PanelHeader } from "@/components/common/surfaces";
 import { AddClientForm } from "@/components/clients/add-client-form";
+import { PlanSelect } from "@/components/clients/plan-select";
 import { WorkspacePicker } from "@/components/layout/workspace-picker";
 import { requirePlatformAdmin } from "@/lib/auth/session";
 import { PLANS, type BillingPlan } from "@/lib/billing";
@@ -184,7 +185,7 @@ export default async function ClientsPage() {
                             : "not set"}
                         </td>
                         <td className="px-3 py-3">
-                          <span className="text-muted-foreground">{PLANS[effective].name}</span>
+                          <PlanSelect tenantId={tenant.id} plan={tenant.billing_plan} />
                           {effective !== tenant.billing_plan && (
                             <span className="ml-1.5 text-[11px] text-caution" title="Paid plan without a live subscription">
                               lapsed

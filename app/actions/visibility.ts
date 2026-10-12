@@ -50,9 +50,14 @@ export interface SaveBatteryResult {
   message: string;
 }
 
-/** Saves the reviewed prompt battery for a venue that had none. */
+/**
+ * Saves the reviewed prompt battery. With `replace`, questions not in the
+ * list are deactivated (never deleted: their runs stay in the ledger), so an
+ * edit is exactly what the table shows.
+ */
 export async function saveBatteryAction(
   proposals: unknown,
+  options?: { replace?: boolean },
 ): Promise<SaveBatteryResult> {
   const session = await requireSession();
   if (!canEditSettings(session.role)) {
@@ -88,10 +93,31 @@ export async function saveBatteryAction(
         intent_id: intent.data.id,
         text: proposal.text,
         language: proposal.language,
+        active: true,
       },
       { onConflict: "tenant_id,text" },
     );
     if (prompt.error) return { ok: false, message: prompt.error.message };
+  }
+
+  if (options?.replace) {
+    const keep = new Set(parsed.data.map((p) => p.text));
+    const active = await supabase
+      .from("visibility_prompts")
+      .select("id, text")
+      .eq("tenant_id", session.tenantId)
+      .eq("active", true)
+      .limit(1000);
+    const retire = ((active.data ?? []) as Array<{ id: string; text: string }>)
+      .filter((row) => !keep.has(row.text))
+      .map((row) => row.id);
+    if (retire.length) {
+      const retired = await supabase
+        .from("visibility_prompts")
+        .update({ active: false })
+        .in("id", retire);
+      if (retired.error) return { ok: false, message: retired.error.message };
+    }
   }
 
   revalidatePath("/visibility");

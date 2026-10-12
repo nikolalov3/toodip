@@ -237,16 +237,18 @@ export default async function VisibilityPage() {
     const supabase = await getUserClient();
     const promptRows = await supabase
       .from("visibility_prompts")
-      .select("id, text, active, intents(name, is_branded)")
+      .select("id, text, language, active, intents(name, is_branded)")
       .eq("tenant_id", session.tenantId)
       .eq("active", true);
     batteryPrompts = ((promptRows.data ?? []) as unknown as Array<{
       id: string;
       text: string;
+      language: string | null;
       intents: { name: string; is_branded: boolean } | null;
     }>).map((row) => ({
       id: row.id,
       text: row.text,
+      language: row.language ?? "en",
       intent: row.intents?.name ?? "unknown",
       isBranded: row.intents?.is_branded ?? false,
     }));
