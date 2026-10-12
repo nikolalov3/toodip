@@ -1,0 +1,23 @@
+# Calls the measurement runner every ten minutes. Vercel's Hobby plan allows
+# a cron once a day; this workflow is the frequent heartbeat instead, free on
+# GitHub. Needs two repository secrets: APP_URL (https://www.toodip.com) and
+# CRON_SECRET (the same value as on Vercel). Each tick is bounded by the
+# runner's own time budget, so overlapping ticks only mean more workers, and
+# the queue's leases keep them off each other's jobs.
+name: measurement tick
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: call the runner
+        run: |
+          code=$(curl -sS -o /tmp/tick.json -w '%{http_code}' --max-time 320 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/measure")
+          echo "HTTP $code"; cat /tmp/tick.json; echo
+          test "$code" = "200"
