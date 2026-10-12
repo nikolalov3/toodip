@@ -361,8 +361,9 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       brandCounts.set(key, entry);
     }
   }
+  // Ties break by name, so a rank never depends on the order rows arrived in.
   const leaderboard: LeaderboardRow[] = [...brandCounts.values()]
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.count - a.count || a.display.localeCompare(b.display))
     .slice(0, 15)
     .map((entry) => ({
       name: entry.display,
@@ -388,7 +389,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     0,
   );
   const ownRankIndex = [...brandCounts.values()]
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.count - a.count || a.display.localeCompare(b.display))
     .findIndex((entry) => entry.isOwn);
 
   const ownTokens = ownPresenceTokens(

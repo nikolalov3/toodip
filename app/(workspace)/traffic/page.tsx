@@ -4,24 +4,24 @@ import { PageHeader } from "@/components/common/surfaces";
 import { Bars, Card, NoSite, QHead } from "@/components/stats/blocks";
 import { getStatsSnapshot } from "@/services/stats";
 
-export const metadata: Metadata = { title: "Ruch z AI" };
+export const metadata: Metadata = { title: "AI Traffic" };
 
 export default async function TrafficPage() {
   const s = await getStatsSnapshot();
   return (
     <>
-      <PageHeader title="Ruch z AI" description="Kto realnie przysyła Ci ludzi z asystentów AI." />
+      <PageHeader title="AI Traffic" description="Which assistants actually send people to your site." />
       {!s.site ? (
         <NoSite />
       ) : (
         <>
-          <QHead step={1} title="Który asystent mnie odsyła?" sub="Wejścia z AI wg asystenta." hint="Rozbicie wejść z AI według asystenta (ChatGPT, Perplexity, Gemini, Claude…)." />
+          <QHead step={1} title="Which assistant refers me?" sub="Visits from AI, by assistant." hint="Visits from AI split by assistant (ChatGPT, Perplexity, Gemini, Claude…)." />
           <Card>
-            <Bars items={s.assistants} empty="Jeszcze zero. Gdy ChatGPT, Perplexity lub Gemini zaczną odsyłać, pojawią się tu." />
+            <Bars items={s.assistants} empty="Zero so far. When ChatGPT, Perplexity or Gemini start referring, they show up here." />
           </Card>
-          <QHead step={2} title="Skąd w ogóle biorą się wejścia?" sub="Cały ruch wg kanału." hint="Podział całego ruchu na kanały: AI, wyszukiwarki, social, bezpośrednie i inne. Rozpoznawane po źródle wejścia." />
+          <QHead step={2} title="Where does traffic come from at all?" sub="All traffic by channel." hint="AI, search engines, social, direct and other, recognised by the referrer." />
           <Card>
-            <Bars items={s.channels} pct empty="Brak danych." />
+            <Bars items={s.channels} pct empty="No data." />
           </Card>
         </>
       )}

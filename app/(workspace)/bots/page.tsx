@@ -5,23 +5,23 @@ import { Bars, Card, NoSite, QHead } from "@/components/stats/blocks";
 import { formatDate } from "@/lib/format";
 import { getStatsSnapshot } from "@/services/stats";
 
-export const metadata: Metadata = { title: "Boty AI" };
+export const metadata: Metadata = { title: "AI Bots" };
 
 export default async function BotsPage() {
   const s = await getStatsSnapshot();
   const lastByLabel = new Map(s.bots.map((b) => [b.label, b.last]));
   return (
     <>
-      <PageHeader title="Boty AI" description="Czy roboty asystentów pobierają Twoją stronę." />
+      <PageHeader title="AI Bots" description="Whether the assistants' crawlers fetch your site." />
       {!s.site ? (
         <NoSite />
       ) : (
         <>
-          <QHead step={1} title="Czy AI w ogóle czyta moją stronę?" sub="Roboty AI pobierające Twoją stronę i kiedy ostatnio." hint="GPTBot, ClaudeBot, PerplexityBot, Google-Extended… liczone po stronie serwera (middleware). Brak botów = AI nie zbiera jeszcze Twoich treści." />
+          <QHead step={1} title="Does AI read my site at all?" sub="AI crawlers fetching your site, and when they last did." hint="GPTBot, ClaudeBot, PerplexityBot, Google-Extended… counted server-side (middleware). No bots = AI is not collecting your content yet." />
           <Card>
             <Bars
               items={s.bots}
-              empty="Jeszcze brak wizyt botów AI. Sygnał ruszy po wpięciu middleware na stronie klienta."
+              empty="No AI bot visits yet. The signal starts once the middleware is installed on the site."
               suffix={(item) => {
                 const last = lastByLabel.get(item.label);
                 return last ? <span className="ml-1 font-normal text-muted-foreground">· {formatDate(last)}</span> : null;

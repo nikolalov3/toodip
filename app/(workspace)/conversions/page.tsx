@@ -4,24 +4,24 @@ import { PageHeader } from "@/components/common/surfaces";
 import { Bars, Card, NoSite, QHead } from "@/components/stats/blocks";
 import { getStatsSnapshot } from "@/services/stats";
 
-export const metadata: Metadata = { title: "Konwersje" };
+export const metadata: Metadata = { title: "Conversions" };
 
 export default async function ConversionsPage() {
   const s = await getStatsSnapshot();
   return (
     <>
-      <PageHeader title="Konwersje" description="Co ruch robi na stronie: telefon, dojazd, rezerwacja." />
+      <PageHeader title="Conversions" description="What traffic does on the site: phone, directions, reservation." />
       {!s.site ? (
         <NoSite />
       ) : (
         <>
-          <QHead step={1} title="Co robi ruch na stronie?" sub="Kliknięcia, które prowadzą do wizyty albo kontaktu." hint="Skrypt łapie je automatycznie z linków (tel:, mapy, Instagram, Facebook). Dodatkowe można oznaczyć atrybutem data-toodip lub wywołać toodip('nazwa')." />
+          <QHead step={1} title="What does traffic do on the site?" sub="Clicks that lead to a visit or a contact." hint="Captured automatically from links (tel:, maps, Instagram, Facebook). Extra ones via the data-toodip attribute or toodip('name')." />
           <Card>
-            <Bars items={s.conversionsByKind} pct empty="Brak jeszcze konwersji. Liczymy klik w telefon, mapy, IG i Facebooka." />
+            <Bars items={s.conversionsByKind} pct empty="No conversions yet. We count clicks on phone, maps, Instagram and Facebook." />
           </Card>
-          <QHead step={2} title="Dokąd ludzie dochodzą na stronie?" sub="Sekcje, do których ruch przewija. Nie liczą się jako konwersje." hint="Jedno zdarzenie na sekcję na odsłonę. To zaangażowanie, nie konwersja." />
+          <QHead step={2} title="How far do people get on the page?" sub="Sections the traffic scrolls to. Not counted as conversions." hint="One event per section per page view. Engagement, not conversion." />
           <Card>
-            <Bars items={s.engagement} muted empty="Strona nie wysyła jeszcze zdarzeń sekcji. Opcjonalne: toodip('see_nazwa') przy dojściu do sekcji." />
+            <Bars items={s.engagement} muted empty="The site does not send section events yet. Optional: toodip('see_name') when a section comes into view." />
           </Card>
         </>
       )}

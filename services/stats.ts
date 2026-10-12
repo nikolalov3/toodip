@@ -69,20 +69,20 @@ const TREND_DAYS = 14;
 
 const CHANNEL_LABEL: Record<string, string> = {
   ai: "AI",
-  search: "Wyszukiwarki",
+  search: "Search engines",
   social: "Social",
-  direct: "Bezpośrednie",
-  other: "Inne",
+  direct: "Direct",
+  other: "Other",
 };
 
 const CONVERSION_LABEL: Record<string, string> = {
-  phone: "Telefon",
-  directions: "Mapy / dojazd",
+  phone: "Phone",
+  directions: "Maps / directions",
   instagram: "Instagram",
   facebook: "Facebook",
-  email: "E-mail",
+  email: "Email",
   whatsapp: "WhatsApp",
-  rezerwacja: "Rezerwacja",
+  rezerwacja: "Reservation",
   menu: "Menu",
 };
 
@@ -93,18 +93,18 @@ export function isEngagement(name: string | null): boolean {
 
 export function conversionLabel(name: string | null): string {
   if (name && CONVERSION_LABEL[name]) return CONVERSION_LABEL[name];
-  const s = (name ?? "zdarzenie").replace(/^main_/, "");
-  if (/google_maps/.test(s)) return "Mapy / dojazd (Google)";
-  if (/apple_maps/.test(s)) return "Mapy / dojazd (Apple)";
-  if (/dojazd/.test(s)) return "Dojazd (przycisk)";
-  if (/^lang$/.test(s)) return "Zmiana języka";
+  const s = (name ?? "event").replace(/^main_/, "");
+  if (/google_maps/.test(s)) return "Maps / directions (Google)";
+  if (/apple_maps/.test(s)) return "Maps / directions (Apple)";
+  if (/dojazd/.test(s)) return "Directions (button)";
+  if (/^lang$/.test(s)) return "Language switch";
   if (/_cta$/.test(s)) return `${s.replace(/_cta$/, "").replace(/_/g, " ")} (CTA)`;
   return s.replace(/_/g, " ");
 }
 
 function engagementLabel(name: string | null): string {
   const s = (name ?? "").replace(/^main_/, "").replace(/^see_/, "").replace(/_/g, " ");
-  return s || "sekcja";
+  return s || "section";
 }
 
 function groupBy<T>(rows: T[], key: (row: T) => string | null): BarItem[] {
@@ -217,7 +217,7 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
       views.filter((v) => v.source === "ai"),
       (v) => v.ai_name || "AI",
     ),
-    channels: groupBy(views, (v) => CHANNEL_LABEL[v.source ?? ""] ?? "Bezpośrednie"),
+    channels: groupBy(views, (v) => CHANNEL_LABEL[v.source ?? ""] ?? "Direct"),
     conversionsByKind: groupBy(conversions, (e) => conversionLabel(e.name)),
     engagement: groupBy(engagements, (e) => engagementLabel(e.name)),
     bots: groupBy(botRows, (h) => h.bot ?? "?").map((item) => ({

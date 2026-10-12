@@ -27,7 +27,7 @@ export function CopyBlock({ text }: { text: string }) {
         }}
       >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-        {copied ? "Skopiowano" : "Kopiuj"}
+        {copied ? "Copied" : "Copy"}
       </Button>
     </div>
   );

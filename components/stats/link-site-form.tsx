@@ -26,9 +26,9 @@ export function LinkSiteForm() {
         });
       }}
     >
-      <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="np. brukcafe.pl" className="sm:max-w-xs" />
+      <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. brukcafe.pl" className="sm:max-w-xs" />
       <Button type="submit" disabled={pending || domain.trim().length < 3}>
-        {pending ? "Podpinam…" : "Podepnij stronę"}
+        {pending ? "Linking…" : "Link website"}
       </Button>
     </form>
   );

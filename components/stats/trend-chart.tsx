@@ -82,20 +82,20 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
           }}
         >
           <div className="font-semibold">{hovered.day}</div>
-          Odsłony: <b className="text-numeric">{hovered.total}</b>
+          Views: <b className="text-numeric">{hovered.total}</b>
           <br />
           <span className="text-brand">
-            z AI: <b className="text-numeric">{hovered.ai}</b>
+            from AI: <b className="text-numeric">{hovered.ai}</b>
           </span>{" "}
-          · reszta: <b className="text-numeric">{hovered.total - hovered.ai}</b>
+          · rest: <b className="text-numeric">{hovered.total - hovered.ai}</b>
         </div>
       )}
       <div className="mt-2 flex gap-4 text-[12px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block size-2.5 rounded-[2px] bg-brand" /> z AI
+          <i className="inline-block size-2.5 rounded-[2px] bg-brand" /> from AI
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <i className="inline-block size-2.5 rounded-[2px] bg-chart-5" /> reszta
+          <i className="inline-block size-2.5 rounded-[2px] bg-chart-5" /> rest
         </span>
       </div>
     </div>

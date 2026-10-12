@@ -1,48 +1,36 @@
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  FlaskConical,
-  Lock,
-  Minus,
-  Radar,
-} from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Lock, Minus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
 
-import {
-  EmptyState,
-  MetricCard,
-  PageHeader,
-  Panel,
-  PanelHeader,
-} from "@/components/common/surfaces";
+import { EmptyState, PageHeader, Panel } from "@/components/common/surfaces";
+import { Bars, Card, Hint, Kpi, Kpis, QHead } from "@/components/stats/blocks";
+import { Donut } from "@/components/stats/donut";
 import { buttonVariants } from "@/components/ui/button";
-import {
-  MeasurePanel,
-  type BatteryPrompt,
-} from "@/components/visibility/measure-panel";
+import { MeasurePanel, type BatteryPrompt } from "@/components/visibility/measure-panel";
 import { ScoreTrend } from "@/components/visibility/score-trend";
+import { VisibilitySubNav } from "@/components/visibility/sub-nav";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { PLANS } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
 import { getUserClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { getBillingSnapshot } from "@/services/billing";
 import {
   batteryGenerationConfigured,
   measurementConfigured,
   suggestPromptBattery,
 } from "@/services/measurement";
-import { getBillingSnapshot } from "@/services/billing";
+import { getStatsSnapshot } from "@/services/stats";
 import {
   getVisibilityOverview,
   type IntentSummary,
   type Platform,
   type PlatformSummary,
+  type SourceCategory,
 } from "@/services/visibility";
 
-export const metadata: Metadata = { title: "Visibility" };
+export const metadata: Metadata = { title: "AI Visibility" };
 
 /** Measurement runs live inside server actions invoked from this route. */
 export const maxDuration = 60;
@@ -68,7 +56,7 @@ const PLATFORM_PRESCRIPTIONS: Record<Platform, string> = {
   perplexity:
     "Cites Instagram, Facebook, blogs and venue websites. Absent here means no social activity and nothing on the venue's own site worth citing.",
   chatgpt:
-    "Cites English-language guides and lists indexed by Bing. Absent here means the venue is missing from tourist guides, Wanderlog lists and Bing's index.",
+    "Cites guides, lists and structured venue pages found by web search. Absent here means the venue is missing from guides and has no structured facts (menu, hours, district) on its own site.",
   other: "",
 };
 
@@ -79,14 +67,14 @@ const PLATFORM_ACTIONS: Record<Platform, string> = {
   perplexity:
     "Post regularly on Instagram and Facebook, and put content worth citing on your own website.",
   chatgpt:
-    "Get listed in English-language city guides and traveler lists (Wanderlog, food guides) so Bing indexes you.",
+    "Put structured facts on your own site (menu with prices, hours, district, FAQ) and get listed in city guides and traveler lists.",
   other: "",
 };
 
 const STATUS_STYLES: Record<IntentSummary["status"], string> = {
-  none: "border-critical/30 bg-critical-soft text-critical",
-  flicker: "border-caution/30 bg-caution-soft text-caution",
-  present: "border-positive/30 bg-positive-soft text-positive",
+  none: "bg-critical-soft text-critical",
+  flicker: "bg-caution-soft text-caution",
+  present: "bg-positive-soft text-positive",
 };
 
 const STATUS_LABELS: Record<IntentSummary["status"], string> = {
@@ -95,11 +83,7 @@ const STATUS_LABELS: Record<IntentSummary["status"], string> = {
   present: "Present",
 };
 
-const STATUS_ORDER: Record<IntentSummary["status"], number> = {
-  none: 0,
-  flicker: 1,
-  present: 2,
-};
+const STATUS_ORDER: Record<IntentSummary["status"], number> = { none: 0, flicker: 1, present: 2 };
 
 const KIND_LABELS: Record<string, string> = {
   record_update: "Google record",
@@ -110,55 +94,39 @@ const KIND_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+const CATEGORY_SHORT: Record<SourceCategory, string> = {
+  Google: "Google",
+  Social: "Social",
+  "Guides & blogs": "Guides",
+  "Travel aggregators": "Travel",
+  Reddit: "Reddit",
+  "Other & venue sites": "Venue sites",
+};
+
+const CATEGORY_COLOR: Record<SourceCategory, string> = {
+  Google: "#34d399",
+  Social: "#a78bfa",
+  "Guides & blogs": "#3b82f6",
+  "Travel aggregators": "#fbbf24",
+  Reddit: "#fb7185",
+  "Other & venue sites": "#6b7280",
+};
+
 /** "0%" must mean zero; a tiny nonzero share reads as "<1%" instead. */
 function pct(rate: number): string {
   if (rate > 0 && rate < 0.005) return "<1%";
   return `${Math.round(rate * 100)}%`;
 }
 
-/**
- * Numbered section shell. The page reads as a list of the owner's own
- * questions, each answered by one block, so every heading is a question and
- * every blurb says in one sentence what the block is for.
- */
-function Section({
-  step,
-  question,
-  blurb,
-  id,
-  children,
-}: {
-  step: number;
-  question: string;
-  blurb: string;
-  id?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section id={id} className="mt-8 scroll-mt-6">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand">
-          {step}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold tracking-tight">{question}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">{blurb}</p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function OnboardingSteps({ canMeasure }: { canMeasure: boolean }) {
-  const steps: Array<{ title: string; body: string }> = [
+function GettingStarted({ canMeasure }: { canMeasure: boolean }) {
+  const steps = [
     {
       title: "Save your question set",
-      body: "Below is a proposed list of questions your customers ask AI assistants. Review it and save the ones that fit.",
+      body: "A proposed list of questions your customers ask AI assistants. Review, edit, import your own, then save.",
     },
     {
       title: "Run the first measurement",
-      body: "One click asks every question several times and records whether the AI mentions your venue. Takes a few minutes.",
+      body: "Every question is asked with web search on, twice, and the answers are kept as evidence. A few minutes.",
     },
     {
       title: "Come back in a week",
@@ -166,29 +134,25 @@ function OnboardingSteps({ canMeasure }: { canMeasure: boolean }) {
     },
   ];
   return (
-    <Panel>
-      <PanelHeader
-        title="Getting started"
-        description={
-          canMeasure
-            ? "Three steps to your first visibility score."
-            : "How a workspace gets its first visibility score."
-        }
-      />
+    <Card className="p-0">
+      <div className="border-b border-border px-4 py-3">
+        <p className="text-[13px] font-semibold">Getting started</p>
+        <p className="text-[12px] text-muted-foreground">
+          {canMeasure ? "Three steps to your first visibility score." : "How a workspace gets its first visibility score."}
+        </p>
+      </div>
       <ol className="grid gap-px bg-border sm:grid-cols-3">
         {steps.map((step, index) => (
           <li key={step.title} className="bg-card p-4">
             <span className="flex size-6 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand">
               {index + 1}
             </span>
-            <p className="mt-2.5 text-sm font-medium">{step.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              {step.body}
-            </p>
+            <p className="mt-2.5 text-[13.5px] font-medium">{step.title}</p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{step.body}</p>
           </li>
         ))}
       </ol>
-    </Panel>
+    </Card>
   );
 }
 
@@ -196,9 +160,6 @@ export default async function VisibilityPage() {
   const session = await requireSession();
   const profile = await requireBusinessProfile();
 
-  // The module is what the Visibility plans sell. Below Pro the page is a
-  // pitch, not a dashboard; Pro reads the dashboard but cannot run
-  // measurements. Agency workspaces see everything.
   const billing = await getBillingSnapshot();
   const planDef = PLANS[billing.effectivePlan];
   const canRead = planDef.monthlyRuns > 0 || billing.effectivePlan === "pro";
@@ -207,19 +168,16 @@ export default async function VisibilityPage() {
   if (!canRead) {
     return (
       <>
-        <PageHeader
-          title="Visibility"
-          description="See how often AI assistants like ChatGPT recommend your venue, and what to fix so they do."
-        />
+        <PageHeader title="AI Visibility" description="Whether AI assistants recommend your venue when customers ask, and what to fix so they do." />
         <Panel>
           <EmptyState
             icon={Lock}
-            title="Part of the Visibility plans"
-            description="Measure whether ChatGPT, Google AI Overviews and Perplexity recommend this venue, see which sources they cite, and track the score as you fix things. Available on the Visibility and Unlimited plans; the Pro plan includes the read-only dashboard."
+            title="Part of the Visibility plan"
+            description="Measure whether ChatGPT, Google AI Overviews and Perplexity recommend this venue, see which sources they cite, and track the score as you fix things."
           />
           <div className="flex justify-center pb-6">
             <Link href="/billing" className={buttonVariants({ size: "sm" })}>
-              See plans on the Billing page
+              See plans
             </Link>
           </div>
         </Panel>
@@ -227,7 +185,7 @@ export default async function VisibilityPage() {
     );
   }
 
-  const overview = await getVisibilityOverview();
+  const [overview, traffic] = await Promise.all([getVisibilityOverview(), getStatsSnapshot()]);
 
   // The measurement panel needs the saved battery, grouped by intent.
   const isAdmin = canEditSettings(session.role) && canMeasure;
@@ -252,9 +210,6 @@ export default async function VisibilityPage() {
       intent: row.intents?.name ?? "unknown",
       isBranded: row.intents?.is_branded ?? false,
     }));
-
-    // The same counter the runner reserves against, so the panel's estimate
-    // and the server's limit never disagree.
     const used = await supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId });
     runsUsed = typeof used.data === "number" ? used.data : 0;
   }
@@ -275,16 +230,11 @@ export default async function VisibilityPage() {
       runsLimit={planDef.monthlyRuns}
     />
   ) : !canMeasure && canEditSettings(session.role) ? (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand-soft px-4 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-[4px] border border-brand/30 bg-brand-soft px-4 py-3">
       <p className="text-xs">
-        <span className="font-medium">Dashboard is read only on Pro.</span>{" "}
-        Running your own measurements from the panel is part of the Visibility
-        plan.
+        <span className="font-medium">Dashboard is read only on Pro.</span> Running measurements is part of the Visibility plan.
       </p>
-      <Link
-        href="/billing"
-        className={buttonVariants({ size: "sm", variant: "outline" })}
-      >
+      <Link href="/billing" className={buttonVariants({ size: "sm", variant: "outline" })}>
         Upgrade
       </Link>
     </div>
@@ -293,43 +243,34 @@ export default async function VisibilityPage() {
   if (!overview.hasData) {
     return (
       <>
-        <PageHeader
-          title="Visibility"
-          description="See how often AI assistants like ChatGPT recommend your venue, and what to fix so they do."
-        />
+        <PageHeader title="AI Visibility" description="Whether AI assistants recommend your venue when customers ask, and what to fix so they do." />
+        <VisibilitySubNav />
         <div className="flex flex-col gap-4">
-          <OnboardingSteps canMeasure={canMeasure} />
+          <GettingStarted canMeasure={canMeasure} />
           {measurePanel ?? (
-            <Panel>
-              <EmptyState
-                icon={Radar}
-                title="No measurements yet"
-                description="Once the first measurement runs, this page shows your visibility score, who AI assistants recommend instead, and what to fix."
-              />
-            </Panel>
+            <Card>
+              <p className="text-[13px] text-muted-foreground">
+                No measurements yet. Once the first one runs, this page shows your score, who the assistants recommend instead, and what to fix.
+              </p>
+            </Card>
           )}
         </div>
       </>
     );
   }
 
-  // ── Hero numbers: last measurement day, delta vs the day before ────────────
+  // ── Headline numbers: latest measurement day, delta vs the previous one ───
   const last = overview.timeline[overview.timeline.length - 1];
-  const prev =
-    overview.timeline.length > 1
-      ? overview.timeline[overview.timeline.length - 2]
-      : undefined;
+  const prev = overview.timeline.length > 1 ? overview.timeline[overview.timeline.length - 2] : undefined;
   const score = last ? Math.round(last.score * 100) : 0;
   const delta = prev ? score - Math.round(prev.score * 100) : null;
+  const lastDate = overview.dates[overview.dates.length - 1];
 
-  // The next step comes straight from the platform diagnosis: the platform
-  // with the lowest mention rate names the surface to go fix.
   const rankedPlatforms = overview.platforms
-    .filter((platform) => platform.runs > 0)
-    .sort(
-      (a, b) => a.ownMentions / a.runs - b.ownMentions / b.runs,
-    );
+    .filter((p) => p.runs > 0)
+    .sort((a, b) => a.ownMentions / a.runs - b.ownMentions / b.runs);
   const weakest: PlatformSummary | undefined = rankedPlatforms[0];
+  const platformsUsed = overview.platforms.filter((p) => p.runs > 0).map((p) => PLATFORM_LABELS[p.platform]);
 
   const sortedIntents = [...overview.intents].sort(
     (a, b) =>
@@ -338,553 +279,358 @@ export default async function VisibilityPage() {
       a.name.localeCompare(b.name),
   );
 
-  const firstDate = overview.dates[0];
-  const lastDate = overview.dates[overview.dates.length - 1];
-  const maxLeaderShare = Math.max(...overview.leaderboard.map((row) => row.share), 0.01);
-  const topDomains = overview.domains.slice(0, 8);
-  const maxDomainTotal = Math.max(...topDomains.map((row) => row.total), 1);
+  const domains = overview.domains;
+  const byCategory = new Map<SourceCategory, number>();
+  for (const d of domains) byCategory.set(d.category, (byCategory.get(d.category) ?? 0) + d.total);
+  const ownCited = overview.metrics.ownCitedSources.length > 0;
+  const ownRank = overview.metrics.sovRank;
 
   return (
     <>
       <PageHeader
-        title="Visibility"
-        description={`How often AI assistants recommend ${profile.name} when customers ask, measured ${
-          firstDate === lastDate
-            ? `on ${formatDate(`${firstDate}T00:00:00.000Z`)}`
-            : `between ${formatDate(`${firstDate}T00:00:00.000Z`)} and ${formatDate(`${lastDate}T00:00:00.000Z`)}`
-        }.`}
+        title="AI Visibility"
+        description="Whether AI assistants recommend your venue when customers ask, and what to fix so they do."
       />
+      <VisibilitySubNav />
 
-      {/* ── The one number, in plain words, with the one thing to do next ──── */}
-      <Panel className="overflow-hidden">
-        <div className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <div className="p-6">
-            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              AI visibility score
-            </p>
-            <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-2">
-              <span className="text-6xl font-semibold tracking-tight text-numeric">
-                {score}
-                <span className="text-3xl text-muted-foreground">%</span>
-              </span>
-              {delta !== null ? (
+      {/* Context line, like the stats panel: engine · date · questions · category */}
+      <p className="mb-4 text-[13px] text-muted-foreground">
+        {platformsUsed.join(", ")} · {formatDate(`${lastDate}T00:00:00.000Z`)} ·{" "}
+        <span className="text-numeric">{last?.runs ?? 0}</span> answers ·{" "}
+        <span className="font-medium text-foreground">{profile.category}</span>
+        {profile.district || profile.city ? ` in ${[profile.district, profile.city].filter(Boolean).join(", ")}` : ""}
+      </p>
+
+      <Kpis>
+        <Kpi
+          label="AI share of voice"
+          value={pct(overview.metrics.shareOfVoice)}
+          highlight
+          hint="Your slice of all venue mentions across the answers. Moves when rivals gain or lose, not only when you do."
+        />
+        <Kpi
+          label={
+            <>
+              Recommended
+              {delta !== null && (
                 <span
                   className={cn(
-                    "mb-1.5 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
-                    delta > 0
-                      ? "border-positive/30 bg-positive-soft text-positive"
-                      : delta < 0
-                        ? "border-critical/30 bg-critical-soft text-critical"
-                        : "border-border bg-muted text-muted-foreground",
+                    "ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium",
+                    delta > 0 ? "text-positive" : delta < 0 ? "text-critical" : "text-muted-foreground",
                   )}
                 >
-                  {delta > 0 ? (
-                    <ArrowUpRight className="size-3.5" />
-                  ) : delta < 0 ? (
-                    <ArrowDownRight className="size-3.5" />
-                  ) : (
-                    <Minus className="size-3.5" />
-                  )}
-                  {delta > 0 ? `+${delta}` : delta} pts since{" "}
-                  {formatDate(`${prev!.date}T00:00:00.000Z`)}
-                </span>
-              ) : (
-                <span className="mb-1.5 inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                  First measurement — this is your baseline
+                  {delta > 0 ? <ArrowUpRight className="size-3" /> : delta < 0 ? <ArrowDownRight className="size-3" /> : <Minus className="size-3" />}
+                  {delta > 0 ? "+" : ""}
+                  {delta} pts
                 </span>
               )}
-            </div>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-              {last ? (
-                <>
-                  AI assistants mentioned{" "}
-                  <span className="font-medium text-foreground">
-                    {profile.name}
-                  </span>{" "}
-                  in {last.ownMentions} of {last.runs} customer questions asked
-                  on {formatDate(`${last.date}T00:00:00.000Z`)}.
-                </>
-              ) : (
-                <>
-                  AI assistants mentioned {profile.name} in{" "}
-                  {overview.categoryOwnMentions} of {overview.categoryRuns}{" "}
-                  customer questions.
-                </>
-              )}{" "}
-              Questions that name the venue directly are counted separately and
-              never inflate this number.
-            </p>
-          </div>
-          {weakest && (
-            <div className="border-t border-border bg-muted/40 p-6 lg:border-t-0 lg:border-l">
-              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Recommended next step
+            </>
+          }
+          value={`${score}%`}
+          hint="Share of answers on the latest measurement day that name you. Questions naming you directly are excluded."
+        />
+        <Kpi
+          label="Rank"
+          value={
+            ownRank ? (
+              <>
+                #{ownRank}
+                <span className="text-[16px] font-medium text-muted-foreground">/{overview.metrics.sovBrands}</span>
+              </>
+            ) : (
+              "—"
+            )
+          }
+          hint="Your position among every venue the assistants name for the same questions."
+        />
+        <Kpi
+          label="Your site cited"
+          value={<span className={ownCited ? "text-positive" : "text-critical"}>{ownCited ? "Yes" : "No"}</span>}
+          hint={
+            ownCited
+              ? `Cited in ${pct(overview.metrics.citationRate)} of answers: ${overview.metrics.ownCitedSources.slice(0, 3).join(", ")}`
+              : "No answer cites your website or profiles as a source. The assistants describe you from other people's pages."
+          }
+        />
+      </Kpis>
+
+      {/* Next step and trend side by side */}
+      <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+        <Card>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recommended next step</p>
+          {weakest ? (
+            <>
+              <p className="mt-2 text-[14px] font-semibold">
+                Weakest platform: {PLATFORM_LABELS[weakest.platform]} · named in {weakest.ownMentions} of {weakest.runs} answers
               </p>
-              <p className="mt-2 text-sm font-medium">
-                Weakest platform: {PLATFORM_LABELS[weakest.platform]} —
-                mentioned in {weakest.ownMentions} of {weakest.runs} answers
-              </p>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {PLATFORM_ACTIONS[weakest.platform]}
-              </p>
-              <Link
-                href="#playbook"
-                className="mt-3 inline-block text-xs font-medium text-brand hover:underline"
-              >
-                See the full plan below ↓
-              </Link>
-            </div>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{PLATFORM_ACTIONS[weakest.platform]}</p>
+              <a href="#plan" className="mt-3 inline-block text-[12.5px] text-brand hover:underline">
+                See the full plan ↓
+              </a>
+            </>
+          ) : (
+            <p className="mt-2 text-[13px] text-muted-foreground">Run a measurement to get a recommendation.</p>
           )}
-        </div>
-      </Panel>
-
-      {measurePanel && <div className="mt-4">{measurePanel}</div>}
-
-      <Section
-        step={1}
-        question="Am I visible?"
-        blurb="The four standard AI-visibility metrics, then your score after each measurement. Fix things, measure again, and these should climb."
-      >
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            label="Brand mentions"
-            value={pct(overview.metrics.brandMentionRate)}
-            hint={`Answers naming ${profile.name} — this is the score above`}
-          />
-          <MetricCard
-            label="Share of voice"
-            value={pct(overview.metrics.shareOfVoice)}
-            hint={
-              overview.metrics.sovRank
-                ? `of all recommendations — #${overview.metrics.sovRank} of ${overview.metrics.sovBrands} venues AI names`
-                : `of all recommendations across ${overview.metrics.sovBrands} venues AI names`
-            }
-          />
-          <MetricCard
-            label="Citation rate"
-            value={pct(overview.metrics.citationRate)}
-            hint={
-              overview.metrics.ownCitedSources.length > 0
-                ? `Answers citing your site or profiles (${overview.metrics.ownCitedSources
-                    .slice(0, 2)
-                    .join(", ")})`
-                : "AI never cites your website or social profiles yet"
-            }
-          />
-          <MetricCard
-            label="AI referral traffic"
-            value="—"
-            hint="Visitors your website gets from ChatGPT & co. Needs analytics on the venue's site — on the roadmap."
-          />
-        </div>
-        {overview.timeline.length > 1 ? (
-          <Panel>
-            <ScoreTrend timeline={overview.timeline} />
-          </Panel>
-        ) : (
-          <Panel>
-            <p className="px-4 py-6 text-sm text-muted-foreground">
-              One measurement so far — the {score}% above is your starting
-              point. Run the battery again in about a week and a trend line
-              will appear here.
+        </Card>
+        <Card>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Score over time
+            <Hint text="Share of answers naming you, one point per measurement day." />
+          </p>
+          {overview.timeline.length > 1 ? (
+            <div className="mt-2">
+              <ScoreTrend timeline={overview.timeline} />
+            </div>
+          ) : (
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              One measurement so far: {score}% on {formatDate(`${lastDate}T00:00:00.000Z`)} is your baseline. The next measurement draws the trend here.
             </p>
-          </Panel>
-        )}
-      </Section>
+          )}
+        </Card>
+      </div>
 
-      <Section
-        step={2}
-        question="Who is taking my spot?"
-        blurb="The venues AI assistants name for the same customer questions. This is your real competition."
-      >
-        <Panel>
-          <ul className="flex flex-col gap-1 p-4">
-            {overview.leaderboard.map((row, index) => (
-              <li
-                key={row.name}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-2 py-1.5 text-sm",
-                  row.isOwn && "bg-brand-soft",
-                )}
-              >
-                <span className="w-5 text-right text-numeric text-xs text-muted-foreground">
-                  {index + 1}.
-                </span>
-                <span
-                  className={cn(
-                    "w-44 truncate",
-                    row.isOwn && "font-semibold text-brand",
-                  )}
-                  title={row.name}
-                >
-                  {row.name}
-                  {row.isOwn && " (you)"}
-                </span>
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <span
-                    className={cn(
-                      "block h-full rounded-full",
-                      row.isOwn ? "bg-brand" : "bg-chart-5",
-                    )}
-                    style={{ width: `${(row.share / maxLeaderShare) * 100}%` }}
-                  />
-                </span>
-                <span className="w-24 text-right text-numeric text-xs text-muted-foreground">
-                  {Math.round(row.share * 100)}% of answers
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      </Section>
+      {measurePanel && <div className="mt-3">{measurePanel}</div>}
 
-      <Section
-        step={3}
-        question="Where exactly am I missing?"
-        blurb="Each row is one type of customer question. Absent means AI never mentions you there; Flickering means sometimes; Present means reliably."
-      >
-        <Panel className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+      <QHead step={1} title="Who is taking my spot?" sub="Share of AI recommendations. Your venue highlighted." hint="Venues the assistants name for the same customer questions. Share = answers naming the venue / all answers. This is your real competition in AI, not necessarily the one on Google." />
+      <Card>
+        <Donut
+          slices={overview.leaderboard.map((row) => ({ label: row.name, value: row.runsMentioned, own: row.isOwn, note: pct(row.share) }))}
+          center={pct(overview.metrics.shareOfVoice)}
+          centerLabel="your share"
+          maxSlices={9}
+        />
+        <div className="mt-4 border-t border-border pt-3 text-[12.5px] text-muted-foreground">
+          <Link href="/visibility/share" className="text-brand hover:underline">
+            Share of voice in depth →
+          </Link>{" "}
+          trend per rival, per question type, per platform, head to head.
+        </div>
+      </Card>
+
+      <QHead step={2} title="What are the AIs reading?" sub="The sources behind the answers, and whether yours is among them." hint="If your domain is not here, the assistants have nothing of yours to recommend you with. The count on the right is how many answers citing that site also named you: co-occurrence, not proof the site wrote about you." />
+      <Card>
+        <div className="flex flex-col gap-6 md:flex-row">
+          <div className="shrink-0">
+            <Donut
+              slices={[...byCategory.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label: CATEGORY_SHORT[label], value }))}
+              center={String(overview.totalCitations)}
+              centerLabel="citations"
+              maxSlices={6}
+              size={150}
+              className="md:flex-col md:items-start"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <table className="w-full text-[13px]">
               <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground">
-                    Customer question type
-                  </th>
-                  <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                    Your venue
-                  </th>
-                  <th className="px-4 py-2 text-xs font-medium text-muted-foreground">
-                    Who AI names instead
-                  </th>
+                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="py-2 font-medium">Domain</th>
+                  <th className="py-2 font-medium">Type</th>
+                  <th className="py-2 pr-2 font-medium"> </th>
+                  <th className="py-2 text-right font-medium">Cited</th>
+                  <th className="py-2 pl-3 text-right font-medium">Names you</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedIntents.map((intent) => (
-                  <tr
-                    key={intent.name}
-                    className="border-b border-border/70 align-top last:border-b-0"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{intent.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {intent.isBranded
-                          ? "People asking about you by name — not counted in the score"
-                          : `Asked ${intent.runs} times in ${intent.language.toUpperCase()}`}
-                      </p>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-xs font-medium",
-                          STATUS_STYLES[intent.status],
-                        )}
-                      >
-                        {STATUS_LABELS[intent.status]}
-                        <span className="text-numeric opacity-70">
-                          {intent.ownMentions}/{intent.runs}
+                {domains.slice(0, 10).map((d) => {
+                  const max = domains[0]?.total ?? 1;
+                  const isOwn = overview.metrics.ownCitedSources.some((s) => s.includes(d.domain));
+                  return (
+                    <tr key={d.domain} className={cn("border-b border-border/60 last:border-b-0", isOwn && "text-brand")}>
+                      <td className="max-w-[180px] truncate py-2 font-medium" title={d.domain}>
+                        {d.domain}
+                        {isOwn && <span className="ml-1.5 text-[10px] uppercase tracking-wide">you</span>}
+                      </td>
+                      <td className="py-2">
+                        <span className="whitespace-nowrap rounded-[3px] px-1.5 py-0.5 text-[11px]" style={{ background: `${CATEGORY_COLOR[d.category]}22`, color: CATEGORY_COLOR[d.category] }} title={d.category}>
+                          {CATEGORY_SHORT[d.category]}
                         </span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {intent.owners.slice(0, 4).map((owner) => (
-                          <span
-                            key={owner.name}
-                            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-xs"
-                          >
-                            {owner.name}
-                            <span className="text-numeric text-muted-foreground">
-                              {Math.round(owner.share * 100)}%
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="w-[28%] py-2 pr-2">
+                        <span className="block h-[5px] overflow-hidden rounded-[2px] bg-muted">
+                          <i className="block h-full rounded-[2px]" style={{ width: `${Math.round((d.total / max) * 100)}%`, background: CATEGORY_COLOR[d.category] }} />
+                        </span>
+                      </td>
+                      <td className="text-numeric py-2 text-right font-semibold">{d.total}</td>
+                      <td className={cn("text-numeric py-2 pl-3 text-right", d.runsWithOwnMention > 0 ? "text-positive" : "text-muted-foreground")}>
+                        {d.runsWithOwnMention > 0 ? `${d.runsWithOwnMention}×` : "never"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </Panel>
-      </Section>
+        </div>
+      </Card>
 
-      <Section
-        step={4}
-        question="What are the AIs reading?"
-        blurb="The websites AI answers are built from. If you are not on these, AI has nothing to recommend you with. The right-hand count says how often an answer citing that site also named you; it does not mean the site itself wrote about you."
-      >
-        <Panel className="overflow-hidden">
-          <ul className="flex flex-col gap-1 p-4">
-            {topDomains.map((domain) => (
-              <li key={domain.domain} className="flex items-center gap-3 text-sm">
-                <span className="w-44 truncate font-medium" title={domain.domain}>
-                  {domain.domain}
-                </span>
-                <span className="w-32 shrink-0 text-xs text-muted-foreground">
-                  {domain.category}
-                </span>
-                <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <span
-                    className="block h-full rounded-full bg-chart-5"
-                    style={{ width: `${(domain.total / maxDomainTotal) * 100}%` }}
-                  />
-                </span>
-                <span
-                  className="w-36 text-right text-xs"
-                  title={`Cited in ${domain.total} answers; ${domain.runsWithOwnMention} of those answers also named you. Co-occurrence, not proof the site wrote about you.`}
-                >
-                  {domain.runsWithOwnMention > 0 ? (
-                    <span className="text-positive">
-                      {domain.runsWithOwnMention} of {domain.total} answers name you
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      {domain.total} answers, none name you
-                    </span>
-                  )}
-                </span>
+      <QHead step={3} title="Where exactly am I missing?" sub="Each row is one type of customer question, with your status per platform." hint="Absent = never named for this type. Flickering = sometimes (we ask each question twice for exactly this reason). Present = reliably named. Flickering rows are the cheapest wins." />
+      <Card className="overflow-hidden p-0">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-4 py-2.5 font-medium">Question type</th>
+              <th className="px-3 py-2.5 text-right font-medium">Answers</th>
+              <th className="px-3 py-2.5 text-right font-medium">Named</th>
+              <th className="px-3 py-2.5 font-medium">Status</th>
+              <th className="px-4 py-2.5 font-medium">Who owns it</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedIntents.map((intent) => (
+              <tr key={intent.name} className={cn("border-b border-border/60 last:border-b-0", intent.isBranded && "text-muted-foreground")}>
+                <td className="px-4 py-2.5 font-medium">
+                  {intent.name}
+                  <span className="ml-2 text-[11px] uppercase text-muted-foreground">{intent.language}</span>
+                  {intent.isBranded && <span className="ml-2 rounded-[3px] bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">branded</span>}
+                </td>
+                <td className="text-numeric px-3 py-2.5 text-right text-muted-foreground">{intent.runs}</td>
+                <td className="text-numeric px-3 py-2.5 text-right">{intent.ownMentions}</td>
+                <td className="px-3 py-2.5">
+                  <span className={cn("rounded-[3px] px-2 py-0.5 text-[11px] font-medium", STATUS_STYLES[intent.status])}>{STATUS_LABELS[intent.status]}</span>
+                </td>
+                <td className="px-4 py-2.5 text-muted-foreground">
+                  {intent.owners.slice(0, 3).map((o) => `${o.name} ${pct(o.share)}`).join(" · ") || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      <QHead step={4} title="How does each assistant see me?" sub="Named rate per platform and what that platform reads." />
+      <Card className="p-0">
+        <div className="grid gap-px bg-border sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+          {overview.platforms
+            .filter((p) => p.runs > 0)
+            .map((p) => (
+              <div key={p.platform} className="bg-card p-4">
+                <p className="text-[13px] font-semibold">{PLATFORM_LABELS[p.platform]}</p>
+                <p className="text-numeric mt-1 text-[24px] font-semibold tracking-tight">{pct(p.ownMentions / p.runs)}</p>
+                <p className="text-[12px] text-muted-foreground">named in {p.ownMentions} of {p.runs} answers</p>
+                <div className="mt-3">
+                  <Bars items={p.topDomains.slice(0, 4).map((d) => ({ label: d.domain, value: d.count }))} empty="No citations." muted />
+                </div>
+              </div>
+            ))}
+        </div>
+      </Card>
+
+      <section id="plan" className="scroll-mt-6">
+        <QHead step={5} title="What do I do about it?" sub="Each assistant reads a different part of the internet, so each one has its own fix. Start with the weakest." />
+        <div className="grid gap-3 md:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+          {rankedPlatforms.map((p, index) => (
+            <Card key={p.platform} className={cn(index === 0 && "border-brand/50")}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-[13.5px] font-semibold">{PLATFORM_LABELS[p.platform]}</p>
+                {index === 0 && <span className="rounded-[3px] bg-brand-soft px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand">Start here</span>}
+              </div>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                named in {p.ownMentions} of {p.runs} answers ({pct(p.ownMentions / p.runs)})
+              </p>
+              <p className="mt-3 text-[13px] leading-relaxed">{PLATFORM_ACTIONS[p.platform]}</p>
+              <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">Why: {PLATFORM_PRESCRIPTIONS[p.platform]}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <QHead step={6} title="Is AI sending people to the site?" sub="Visits from assistants, from the traffic module." hint="Needs the tracker on the venue's website (Install). Counts visits whose referrer is an AI assistant." />
+      <Card>
+        {traffic.site ? (
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+            <p>
+              <span className="text-numeric text-[24px] font-semibold tracking-tight">{traffic.fromAi}</span>
+              <span className="ml-2 text-[13px] text-muted-foreground">visits from AI in {traffic.days} days · {traffic.fromAiPct}% of {traffic.pageviews}</span>
+            </p>
+            <Link href="/traffic" className="text-[12.5px] text-brand hover:underline">
+              AI traffic →
+            </Link>
+          </div>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">
+            No traffic site linked yet. <Link href="/install" className="text-brand hover:underline">Install the tracker</Link> and referral visits from AI show up here.
+          </p>
+        )}
+      </Card>
+
+      <QHead step={7} title="What have I changed so far?" sub="Every fix logged with its date, so score movement can be traced back to what you did." />
+      <Card className="p-0">
+        {overview.interventions.length === 0 ? (
+          <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">Nothing logged yet.</p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {overview.interventions.map((i) => (
+              <li key={i.id} className="px-4 py-2.5">
+                <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <span className="rounded-[3px] border border-border px-1.5 py-0.5">{KIND_LABELS[i.kind] ?? i.kind}</span>
+                  <span>{formatDate(`${i.performedOn}T00:00:00.000Z`)}</span>
+                </div>
+                <p className="mt-1 text-[13px]">{i.description}</p>
               </li>
             ))}
           </ul>
-          <details className="border-t border-border">
-            <summary className="cursor-pointer px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground">
-              Full source table by platform
-            </summary>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-t border-border text-left">
-                    <th className="px-4 py-2 text-xs font-medium text-muted-foreground">
-                      Domain
-                    </th>
-                    <th className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                      Type
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      ChatGPT
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Google AIO
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Perplexity
-                    </th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Total
-                    </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">
-                      With this venue
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overview.domains.map((domain) => (
-                    <tr
-                      key={domain.domain}
-                      className="border-b border-border/70 last:border-b-0"
-                    >
-                      <td className="max-w-56 truncate px-4 py-2 font-medium">
-                        {domain.domain}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {domain.category}
-                      </td>
-                      <td className="px-3 py-2 text-right text-numeric text-muted-foreground">
-                        {domain.byPlatform.chatgpt || ""}
-                      </td>
-                      <td className="px-3 py-2 text-right text-numeric text-muted-foreground">
-                        {domain.byPlatform.google_aio || ""}
-                      </td>
-                      <td className="px-3 py-2 text-right text-numeric text-muted-foreground">
-                        {domain.byPlatform.perplexity || ""}
-                      </td>
-                      <td className="px-3 py-2 text-right text-numeric font-medium">
-                        {domain.total}
-                      </td>
-                      <td className="px-4 py-2 text-right text-numeric">
-                        {domain.runsWithOwnMention > 0 ? (
-                          <span className="text-positive">
-                            {domain.runsWithOwnMention}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">0</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
-        </Panel>
-      </Section>
+        )}
+      </Card>
 
-      <Section
-        step={5}
-        id="playbook"
-        question="What do I do about it?"
-        blurb="Each AI assistant reads a different part of the internet, so each one has its own fix. Start with the weakest."
-      >
-        <Panel>
-          <div className="grid gap-px bg-border lg:grid-cols-3">
-            {rankedPlatforms.map((platform, index) => {
-              const rate =
-                platform.runs > 0
-                  ? Math.round((platform.ownMentions / platform.runs) * 100)
-                  : 0;
-              return (
-                <div key={platform.platform} className="bg-card p-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">
-                      {PLATFORM_LABELS[platform.platform]}
-                    </h3>
-                    {index === 0 && (
-                      <span className="rounded-md border border-brand/30 bg-brand-soft px-1.5 py-0.5 text-[11px] font-medium text-brand">
-                        Start here
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    Mentions you in {platform.ownMentions} of {platform.runs}{" "}
-                    answers ({rate}%)
-                  </p>
-                  <p className="mt-3 text-sm leading-relaxed">
-                    {PLATFORM_ACTIONS[platform.platform]}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    Why: {PLATFORM_PRESCRIPTIONS[platform.platform]}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-      </Section>
-
-      <Section
-        step={6}
-        question="What have I changed so far?"
-        blurb="Every fix gets logged with its date, so score movement can be traced back to what you actually did."
-      >
-        <Panel>
-          <PanelHeader
-            title={
-              <span className="flex items-center gap-1.5">
-                <FlaskConical className="size-3.5 text-brand" />
-                Change log
-              </span>
-            }
-          />
-          {overview.interventions.length === 0 ? (
-            <p className="px-4 py-8 text-center text-xs text-muted-foreground">
-              Nothing logged yet. Publishing a review reply records itself here
-              automatically.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {overview.interventions.map((intervention) => (
-                <li key={intervention.id} className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                      {KIND_LABELS[intervention.kind] ?? intervention.kind}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(`${intervention.performedOn}T00:00:00.000Z`)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm">{intervention.description}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
-      </Section>
-
-      {/* ── Evidence for the curious; everything above is derived from this ── */}
       <details className="mt-8">
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-          Measurement details — every question asked and every raw AI answer
+        <summary className="cursor-pointer text-[13px] font-medium text-muted-foreground hover:text-foreground">
+          Measurement details: every question asked and every raw AI answer
         </summary>
-        <div className="mt-3 grid gap-4 lg:grid-cols-2">
-          <Panel className="overflow-hidden">
-            <PanelHeader
-              title="Questions asked"
-              description="Every question in the battery, with where it ran and whether this venue came up."
-            />
-            <ul className="max-h-[480px] divide-y divide-border overflow-y-auto">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <Card className="p-0">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-[13px] font-semibold">Questions asked</p>
+              <p className="text-[12px] text-muted-foreground">Every question in the battery, where it ran and whether you came up.</p>
+            </div>
+            <ul className="max-h-[480px] divide-y divide-border/60 overflow-y-auto">
               {overview.prompts.map((prompt) => (
                 <li key={prompt.text} className="px-4 py-2.5">
-                  <p className="text-sm">{prompt.text}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <p className="text-[13px]">{prompt.text}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
                     <span>{prompt.intent}</span>
                     <span>·</span>
-                    <span>
-                      {prompt.platforms.map((p) => PLATFORM_SHORT[p]).join(", ")}
-                    </span>
+                    <span>{prompt.platforms.map((p) => PLATFORM_SHORT[p]).join(", ")}</span>
                     <span>·</span>
-                    <span
-                      className={cn(
-                        "text-numeric",
-                        prompt.ownMentions > 0 ? "font-medium text-positive" : "",
-                      )}
-                    >
-                      {prompt.ownMentions}/{prompt.runs} mentioned
+                    <span className={cn("text-numeric", prompt.ownMentions > 0 && "font-medium text-positive")}>
+                      {prompt.ownMentions}/{prompt.runs} named
                     </span>
-                    {prompt.isBranded && (
-                      <span className="text-caution">branded</span>
-                    )}
+                    {prompt.isBranded && <span className="text-caution">branded</span>}
                   </p>
                 </li>
               ))}
             </ul>
-          </Panel>
-
-          <Panel className="overflow-hidden">
-            <PanelHeader
-              title="Raw answers"
-              description="The evidence itself. Answers that named this venue float to the top."
-            />
-            <ul className="max-h-[480px] divide-y divide-border overflow-y-auto">
+          </Card>
+          <Card className="p-0">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-[13px] font-semibold">Raw answers</p>
+              <p className="text-[12px] text-muted-foreground">The evidence itself. Answers that named you float to the top.</p>
+            </div>
+            <ul className="max-h-[480px] divide-y divide-border/60 overflow-y-auto">
               {overview.recentRuns.map((run) => (
                 <li key={run.id} className="px-4 py-2.5">
                   <details>
-                    <summary className="cursor-pointer text-sm marker:text-muted-foreground">
-                      <span
-                        className={cn(
-                          "mr-2 inline-block rounded-md border px-1.5 py-0.5 text-[11px]",
-                          run.mentionedOwn
-                            ? "border-positive/30 bg-positive-soft text-positive"
-                            : "border-border text-muted-foreground",
-                        )}
-                      >
-                        {run.mentionedOwn ? "mentioned" : "absent"}
+                    <summary className="cursor-pointer text-[13px] marker:text-muted-foreground">
+                      <span className={cn("mr-2 inline-block rounded-[3px] px-1.5 py-0.5 text-[11px]", run.mentionedOwn ? "bg-positive-soft text-positive" : "bg-muted text-muted-foreground")}>
+                        {run.mentionedOwn ? "named" : "absent"}
                       </span>
                       {run.prompt}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {PLATFORM_SHORT[run.platform]}
-                      </span>
+                      <span className="ml-2 text-[12px] text-muted-foreground">{PLATFORM_SHORT[run.platform]}</span>
                     </summary>
-                    <div className="mt-2 rounded-md border border-border bg-muted/40 p-3">
+                    <div className="mt-2 rounded-[4px] border border-border bg-muted/40 p-3">
                       {run.mentions.length > 0 && (
-                        <p className="mb-2 text-xs text-muted-foreground">
-                          Mentions: {run.mentions.join(", ")}
-                        </p>
+                        <p className="mb-2 text-[12px] text-muted-foreground">Venues named: {run.mentions.join(", ")}</p>
                       )}
+                      <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed">{run.responseText ?? "(no text recorded)"}</p>
                       {run.citations.length > 0 && (
-                        <p className="mb-2 text-xs text-muted-foreground">
-                          Cites: {run.citations.join(", ")}
-                        </p>
+                        <p className="mt-2 text-[12px] text-muted-foreground">Sources: {run.citations.slice(0, 8).join(", ")}</p>
                       )}
-                      <p className="whitespace-pre-line text-xs leading-relaxed">
-                        {run.responseText ?? "No response text stored."}
-                      </p>
                     </div>
                   </details>
                 </li>
               ))}
             </ul>
-          </Panel>
+          </Card>
         </div>
       </details>
     </>

@@ -23,7 +23,7 @@ export function AppShell({
 }) {
   const location = profile
     ? [profile.district, profile.city].filter(Boolean).join(", ")
-    : "Konfiguracja w toku";
+    : "Setup not finished";
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,12 +50,12 @@ export function AppShell({
           <div className="border-t border-sidebar-border px-3 py-3">
             <div className="rounded-md border border-border bg-card px-2.5 py-2">
               <p className="text-[11px] font-medium">
-                {session.isPlatformAdmin ? "Konsola platformy" : "Konfiguracja w toku"}
+                {session.isPlatformAdmin ? "Platform console" : "Setup not finished"}
               </p>
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
                 {session.isPlatformAdmin
-                  ? "Ten workspace nie jest lokalem, więc moduły pomiaru są ukryte. Otwórz workspace klienta."
-                  : "Dokończ konfigurację, a moduły pomiaru się pojawią."}
+                  ? "This workspace is not a venue, so the measurement modules are hidden. Open a client workspace."
+                  : "Finish the setup and the measurement modules appear."}
               </p>
             </div>
           </div>
@@ -64,14 +64,14 @@ export function AppShell({
         {session.isPlatformAdmin && session.workspaces.length > 1 && (
           <div className="border-t border-sidebar-border px-3 py-3">
             <p className="px-1 pb-1.5 text-[11px] font-medium text-muted-foreground">
-              Pracujesz w
+              Working in
             </p>
             <Link
               href="/clients"
               className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-xs transition-colors hover:bg-accent"
             >
               <span className="truncate font-medium">{session.tenantName}</span>
-              <span className="shrink-0 text-muted-foreground">zmień</span>
+              <span className="shrink-0 text-muted-foreground">switch</span>
             </Link>
           </div>
         )}
@@ -105,7 +105,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="panel-in mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );

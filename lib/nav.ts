@@ -36,30 +36,30 @@ export interface NavGroup {
  */
 export const navGroups: NavGroup[] = [
   {
-    label: "Pomiar",
+    label: "Measure",
     items: [
-      { href: "/overview", label: "Przegląd", icon: LayoutGrid, status: "live", needsBusinessProfile: true },
+      { href: "/overview", label: "Overview", icon: LayoutGrid, status: "live", needsBusinessProfile: true },
       {
         href: "/visibility",
-        label: "Widoczność w AI",
+        label: "AI Visibility",
         icon: Eye,
         status: "live",
         needsBusinessProfile: true,
-        description: "Czy asystenci polecają Twój lokal, gdy klient o niego pyta.",
+        description: "Whether AI assistants recommend your venue when customers ask.",
       },
-      { href: "/traffic", label: "Ruch z AI", icon: TrendingUp, status: "live", needsBusinessProfile: true },
-      { href: "/conversions", label: "Konwersje", icon: Target, status: "live", needsBusinessProfile: true },
-      { href: "/bots", label: "Boty AI", icon: Bot, status: "live", needsBusinessProfile: true },
-      { href: "/install", label: "Instalacja", icon: Code2, status: "live", needsBusinessProfile: true },
+      { href: "/traffic", label: "AI Traffic", icon: TrendingUp, status: "live", needsBusinessProfile: true },
+      { href: "/conversions", label: "Conversions", icon: Target, status: "live", needsBusinessProfile: true },
+      { href: "/bots", label: "AI Bots", icon: Bot, status: "live", needsBusinessProfile: true },
+      { href: "/install", label: "Install", icon: Code2, status: "live", needsBusinessProfile: true },
     ],
   },
   {
-    label: "Konto",
+    label: "Account",
     items: [
-      { href: "/team", label: "Zespół", icon: Users, status: "live" },
-      { href: "/account", label: "Konto", icon: UserCog, status: "live" },
-      { href: "/billing", label: "Rozliczenia", icon: CreditCard, status: "live" },
-      { href: "/clients", label: "Klienci", icon: Building2, status: "live", platformOnly: true },
+      { href: "/team", label: "Team", icon: Users, status: "live" },
+      { href: "/account", label: "Account", icon: UserCog, status: "live" },
+      { href: "/billing", label: "Billing", icon: CreditCard, status: "live" },
+      { href: "/clients", label: "Clients", icon: Building2, status: "live", platformOnly: true },
     ],
   },
 ];

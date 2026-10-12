@@ -14,21 +14,21 @@ import { getServiceClient } from "@/lib/supabase/server";
  */
 export async function linkSiteAction(input: unknown): Promise<{ ok: boolean; message: string }> {
   const session = await requireSession();
-  if (!canEditSettings(session.role)) return { ok: false, message: "Tylko administrator może podpiąć stronę." };
+  if (!canEditSettings(session.role)) return { ok: false, message: "Only an admin can link a website." };
   const parsed = z.object({ domain: z.string().trim().min(3).max(200) }).safeParse(input);
-  if (!parsed.success) return { ok: false, message: "Podaj adres strony, np. brukcafe.pl." };
+  if (!parsed.success) return { ok: false, message: "Enter the website address, e.g. brukcafe.pl." };
   let domain: string;
   try {
     const raw = parsed.data.domain;
     domain = new URL(raw.includes("://") ? raw : `https://${raw}`).hostname.replace(/^www\./, "").toLowerCase();
   } catch {
-    return { ok: false, message: "To nie wygląda na adres strony." };
+    return { ok: false, message: "That does not look like a website address." };
   }
 
   const admin = getServiceClient();
   const mine = await admin.from("stats_websites").select("id").eq("tenant_id", session.tenantId).limit(1);
-  if (mine.error) return { ok: false, message: "Tabela stron nie jest jeszcze gotowa (migracja stats_link)." };
-  if ((mine.data ?? []).length > 0) return { ok: false, message: "Ten workspace ma już podpiętą stronę." };
+  if (mine.error) return { ok: false, message: "The sites table is not ready yet (stats_link migration)." };
+  if ((mine.data ?? []).length > 0) return { ok: false, message: "This workspace already has a linked website." };
 
   const unlinked = await admin
     .from("stats_websites")
@@ -43,5 +43,5 @@ export async function linkSiteAction(input: unknown): Promise<{ ok: boolean; mes
     : await admin.from("stats_websites").insert({ tenant_id: session.tenantId, name: session.tenantName, domain, user_id: null });
   if (result.error) return { ok: false, message: result.error.message };
   for (const path of ["/install", "/overview", "/traffic", "/conversions", "/bots"]) revalidatePath(path);
-  return { ok: true, message: match ? "Strona podpięta. Dane z dotychczasowych pomiarów są już widoczne." : "Strona dodana. Wklej skrypt i wejdź na stronę." };
+  return { ok: true, message: match ? "Website linked. Its existing data is visible now." : "Website added. Paste the tracker and open the site." };
 }

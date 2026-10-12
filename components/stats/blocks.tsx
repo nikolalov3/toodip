@@ -143,8 +143,8 @@ export function NoSite() {
   return (
     <Card>
       <p className="text-[13px] text-muted-foreground">
-        Ten workspace nie ma jeszcze podpiętej strony. Podaj jej adres w zakładce Instalacja,
-        wklej skrypt, a dane pojawią się po pierwszych wejściach.
+        No website is linked to this workspace yet. Add its address under Install, paste the
+        tracker, and data appears with the first visits.
       </p>
     </Card>
   );
