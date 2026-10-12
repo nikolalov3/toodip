@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { FileUp, Play, Plus, Sparkles, Square, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -48,6 +48,33 @@ const FIELD =
  * three in flight at a time; the queue is capped at the plan's remaining
  * monthly allowance and the estimate shows runs, cost and time up front.
  */
+/** Minimal RFC 4180 reader: quotes, escaped quotes, comma or semicolon. */
+function parseCsv(text: string): string[][] {
+  const delimiter = (text.match(/;/g)?.length ?? 0) > (text.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i += 1; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === delimiter) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(cell); cell = "";
+      if (row.some((c) => c.trim())) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((c) => c.trim())) rows.push(row);
+  return rows;
+}
+
 export function MeasurePanel({
   prompts,
   suggestions,
@@ -92,6 +119,58 @@ export function MeasurePanel({
   const [count, setCount] = useState(50);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Imports questions from a CSV the client prepared. One question per line;
+   * optional columns for intent, language and a branded flag, in any order
+   * when a header names them, or in that order without one. Comma or
+   * semicolon separated, quotes honoured. Imported rows join the table and
+   * stay editable; nothing is saved until "Save battery".
+   */
+  async function importCsv(file: File) {
+    const defaultLang = rows[0]?.language ?? "en";
+    const text = await file.text();
+    const parsed = parseCsv(text);
+    if (parsed.length === 0) {
+      toast.error("No questions found in that file.");
+      return;
+    }
+    const header = parsed[0].map((cell) => cell.trim().toLowerCase());
+    const col = (names: string[]) => header.findIndex((h) => names.includes(h));
+    const hasHeader =
+      col(["question", "prompt", "text", "pytanie"]) >= 0 ||
+      col(["intent", "intencja"]) >= 0 ||
+      col(["language", "lang", "język", "jezyk"]) >= 0;
+    const qi = hasHeader ? col(["question", "prompt", "text", "pytanie"]) : 0;
+    const ii = hasHeader ? col(["intent", "intencja"]) : 1;
+    const li = hasHeader ? col(["language", "lang", "język", "jezyk"]) : 2;
+    const bi = hasHeader ? col(["branded", "brand", "brandowe"]) : 3;
+    const body = hasHeader ? parsed.slice(1) : parsed;
+    const existing = new Set(rows.map((row) => row.text.trim().toLowerCase()));
+    const imported: PromptProposal[] = [];
+    for (const cells of body) {
+      const textCell = (qi >= 0 ? cells[qi] : cells[0])?.trim() ?? "";
+      if (textCell.length < 8) continue;
+      if (existing.has(textCell.toLowerCase())) continue;
+      existing.add(textCell.toLowerCase());
+      const lang = (li >= 0 ? cells[li] : "")?.trim().toLowerCase() ?? "";
+      const branded = (bi >= 0 ? cells[bi] : "")?.trim().toLowerCase() ?? "";
+      imported.push({
+        text: textCell.slice(0, 300),
+        intent: (ii >= 0 ? cells[ii] : "")?.trim().slice(0, 60) || "",
+        language: LANG_RE.test(lang) ? lang : defaultLang,
+        isBranded: ["1", "true", "yes", "tak", "y", "x"].includes(branded),
+      });
+    }
+    if (imported.length === 0) {
+      toast.error("Every line was empty, too short, or already in the table.");
+      return;
+    }
+    setRows((current) => [...current, ...imported]);
+    toast.success(`${imported.length} question${imported.length === 1 ? "" : "s"} imported. Check intents, then save.`);
+  }
 
   function updateRow(index: number, patch: Partial<PromptProposal>) {
     setRows((current) =>
@@ -308,6 +387,27 @@ export function MeasurePanel({
             >
               <Plus className="size-3.5" />
               Add question
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCsv(file);
+                event.target.value = "";
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving}
+              onClick={() => fileRef.current?.click()}
+              title="CSV with one question per line; optional columns: intent, language, branded"
+            >
+              <FileUp className="size-3.5" />
+              Import CSV
             </Button>
             <p className="text-xs text-muted-foreground">
               {rows.length} question{rows.length === 1 ? "" : "s"}
