@@ -213,3 +213,7 @@ Do 100 użytkowników można działać przed weryfikacją OAuth. Przy pierwszych
 5. 🟠 Zapytania ucięte na 1000 wierszach (lista tenantów w sesji admina, /clients, cron, listReviews), brakujące indeksy, brak paginacji.
 6. 🟠 SSRF przez pole website URL w generatorze baterii; brak rate limitu na waitlist i generowanie baterii; rate limiter in-memory.
 7. 🟠 Brak Sentry/logów/health, brak testów i CI.
+
+## Stan na 12 października 2026, wieczór: jeden panel
+
+Decyzja: aplikacja toodip jest jedynym panelem, wygląd = stats.toodip.com, moduł odpowiedzi na opinie wycofany. Zrobione: nawigacja po polsku (Przegląd, Widoczność w AI, Ruch z AI, Konwersje, Boty AI, Instalacja + Konto), pięć modułów analityki przeniesionych ze stats (czytają stats_* przez członkostwo w workspace), stare ekrany przekierowują na /overview. Migracja stats_link wgrana; Cafe Belmont i COPPA mają workspace'y (plan agency, Kraków) z podpiętymi stronami; Bruk Cafe podpina stronę w Instalacji. Następne: Widoczność w AI w stylu stats, tłumaczenie reszty ekranów, usunięcie kodu modułu opinii, przekierowanie stats.toodip.com, silniki per klient.
