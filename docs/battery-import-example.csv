@@ -1,0 +1,4 @@
+question,intent,language,branded
+"Where can I get good specialty coffee in Warsaw?",discovery,en,no
+"Najlepsze tiramisu w Warszawie?",discovery,pl,no
+"Czy COPPA ma miejsca na zewnątrz?",venue,pl,yes
