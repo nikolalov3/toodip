@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse, type NextRequest } from "next/server";
 
 import { PLANS, type BillingPlan } from "@/lib/billing";
@@ -6,30 +8,41 @@ import { effectivePlanFrom } from "@/services/billing";
 import { executeRunForTenant } from "@/services/measurement";
 
 /**
- * The monthly report runner. Vercel Cron calls this once a day (the Hobby
- * plan allows no more; on Pro the schedule in vercel.json can be tightened)
- * with `Authorization: Bearer $CRON_SECRET`. Each call does a bounded slice
- * of work, by count and by wall clock, so it always finishes inside the
- * function's time cap:
+ * The monthly report runner: one job per client, served in fair slices.
  *
- *   1. every tenant on a plan with measurements gets one job per month
- *      (unique per tenant+month, so a duplicate tick cannot create two);
- *   2. pending/running jobs advance by a few executions, progress persisted
- *      after every run — a tick that dies mid-way just resumes next time;
- *   3. a job completes when every active question has been asked REPS times
- *      or the plan's allowance is reached.
+ * Every tick (Vercel Cron once a day on Hobby, or the GitHub Actions
+ * workflow every ten minutes; both carry `Authorization: Bearer $CRON_SECRET`):
  *
- * `?dry=1` reports what would happen without executing anything — the safe
- * way to verify scheduling in any environment.
+ *   1. ensure_measurement_jobs() creates this month's job for every entitled
+ *      tenant in one statement (idempotent: unique per tenant + month);
+ *   2. claim_measurement_jobs() hands this worker a few open jobs, least
+ *      recently served first, and leases them, so a second worker running at
+ *      the same time gets different ones (SKIP LOCKED) and a worker that died
+ *      loses its lease after a minute;
+ *   3. each claimed job advances by a small slice of runs, progress written
+ *      after every run, then the lease is released and the next batch is
+ *      claimed, until the tick's time budget is spent.
+ *
+ * So ten thousand tenants do not wait for the first one to finish: each pass
+ * moves every open job a little. Transient provider errors (rate limits,
+ * timeouts) end the slice without counting as attempts, so an outage never
+ * burns a client's report.
+ *
+ * `?dry=1` reports what would happen without executing anything.
  */
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const RUNS_PER_TICK = Math.max(1, Number(process.env.CRON_RUNS_PER_TICK ?? 60));
+const REPS = Math.max(1, Number(process.env.MONTHLY_REPORT_REPS ?? 2));
+/** Jobs claimed per pass and runs per job per pass. */
+const JOBS_PER_PASS = Math.max(1, Number(process.env.CRON_JOBS_PER_PASS ?? 5));
+const SLICE_RUNS = Math.max(1, Number(process.env.CRON_SLICE_RUNS ?? 2));
+const LEASE_SECONDS = 90;
 /** Stop starting new runs once this much of the tick has elapsed. */
 const TIME_BUDGET_MS = Math.max(10_000, Number(process.env.CRON_TIME_BUDGET_MS ?? 260_000));
-const REPS = Math.max(1, Number(process.env.MONTHLY_REPORT_REPS ?? 2));
+/** Hard ceiling on executions per tick, whatever the clock says. */
+const MAX_RUNS_PER_TICK = Math.max(1, Number(process.env.CRON_RUNS_PER_TICK ?? 60));
 
 type JobStatus = "pending" | "running" | "done" | "failed";
 
@@ -53,14 +66,24 @@ interface TenantRow {
 function authorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) return false;
-  return (
-    request.headers.get("authorization") === `Bearer ${secret}` ||
-    request.headers.get("x-cron-secret") === secret
-  );
+  const given =
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+    request.headers.get("x-cron-secret") ??
+    "";
+  const a = Buffer.from(given);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function monthStart(): string {
   return `${new Date().toISOString().slice(0, 7)}-01`;
+}
+
+/** Errors that say "not now", not "never": the slice ends, nothing is counted. */
+function transient(error: string | undefined): boolean {
+  return /429|rate limit|timed? ?out|aborted|5\d\d|ECONNRESET|fetch failed|daily AI budget/i.test(
+    error ?? "",
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -68,123 +91,156 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const dry = request.nextUrl.searchParams.get("dry") === "1";
-  const startedAt = Date.now();
-  const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS;
   const service = getServiceClient();
   const month = monthStart();
   const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  const startedAt = Date.now();
+  const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS;
 
-  // 1) Who is entitled to a report this month.
-  const tenantsResult = await service
-    .from("tenants")
-    .select("id, name, billing_plan, billing_status");
-  if (tenantsResult.error) {
-    return NextResponse.json({ error: tenantsResult.error.message }, { status: 500 });
-  }
-  const eligible = ((tenantsResult.data ?? []) as TenantRow[])
-    .map((row) => {
-      const plan = effectivePlanFrom(row);
-      return { ...row, plan, limit: PLANS[plan].monthlyRuns, planName: PLANS[plan].name };
-    })
-    .filter((row) => row.limit > 0);
-
-  // 2) One job per eligible tenant per month.
-  const jobsResult = await service
-    .from("measurement_jobs")
-    .select("id, tenant_id, status, runs_planned, runs_done, runs_failed, cost_usd")
-    .eq("scheduled_for", month);
-  if (jobsResult.error) {
-    return NextResponse.json(
-      {
-        error: "measurement_jobs is not available in this environment",
-        detail: jobsResult.error.message,
-        hint: "Apply supabase/migrations/20261009120000_measurement_jobs.sql",
-      },
-      { status: 503 },
-    );
-  }
-  const jobs = new Map<string, JobRow>();
-  for (const job of (jobsResult.data ?? []) as JobRow[]) jobs.set(job.tenant_id, job);
-
-  const created: string[] = [];
-  for (const tenant of eligible) {
-    if (jobs.has(tenant.id)) continue;
-    if (dry) {
-      created.push(tenant.name);
-      continue;
+  // 1) One job per entitled tenant, in one statement.
+  let created = 0;
+  if (!dry) {
+    const ensured = await service.rpc("ensure_measurement_jobs", { p_month: month });
+    if (ensured.error) {
+      return NextResponse.json(
+        {
+          error: "The measurement queue is not available in this environment",
+          detail: ensured.error.message,
+          hint: "Apply supabase/migrations/20261012120000_hardening.sql",
+        },
+        { status: 503 },
+      );
     }
-    const inserted = await service
-      .from("measurement_jobs")
-      .insert({ tenant_id: tenant.id, scheduled_for: month, status: "pending" })
-      .select("id, tenant_id, status, runs_planned, runs_done, runs_failed, cost_usd")
-      .single();
-    if (!inserted.error && inserted.data) {
-      jobs.set(tenant.id, inserted.data as JobRow);
-      created.push(tenant.name);
-    }
+    created = Number(ensured.data ?? 0);
   }
 
-  // 3) Advance open jobs, a bounded number of executions per tick.
-  let budget = RUNS_PER_TICK;
+  // 2) + 3) Claim, serve a slice, release; repeat while there is time.
   const processed: Array<Record<string, unknown>> = [];
+  const served = new Set<string>();
+  let executed = 0;
+  let passes = 0;
+  let stopReason = "queue drained";
 
-  for (const tenant of eligible) {
-    const job = jobs.get(tenant.id);
-    if (!job || job.status === "done" || job.status === "failed") continue;
+  while (!outOfTime() && executed < MAX_RUNS_PER_TICK) {
+    passes += 1;
+    const claimed = await service.rpc("claim_measurement_jobs", {
+      p_month: month,
+      p_limit: JOBS_PER_PASS,
+      p_lease_seconds: LEASE_SECONDS,
+    });
+    if (claimed.error) {
+      return NextResponse.json(
+        {
+          error: "The measurement queue is not available in this environment",
+          detail: claimed.error.message,
+          hint: "Apply supabase/migrations/20261012120000_hardening.sql",
+        },
+        { status: 503 },
+      );
+    }
+    const jobs = ((claimed.data ?? []) as JobRow[]).filter((job) => !served.has(job.id));
+    if (jobs.length === 0) break;
+
+    for (const job of jobs) {
+      served.add(job.id);
+      const result = await serveSlice(job);
+      processed.push(result);
+      if (outOfTime() || executed >= MAX_RUNS_PER_TICK) {
+        stopReason = outOfTime() ? "time budget" : "run ceiling";
+        break;
+      }
+    }
+    // In dry mode a claim changes nothing we want to keep; release the leases
+    // so the next real tick sees the queue as it was.
+    if (dry) {
+      await service
+        .from("measurement_jobs")
+        .update({ status: "pending", lease_until: null, started_at: null })
+        .in("id", jobs.map((j) => j.id))
+        .eq("runs_done", 0)
+        .eq("runs_failed", 0);
+      await service
+        .from("measurement_jobs")
+        .update({ lease_until: null })
+        .in("id", jobs.map((j) => j.id));
+      if (passes >= 3) break;
+    }
+  }
+
+  return NextResponse.json({
+    month,
+    dry,
+    repsPerQuestion: REPS,
+    jobsPerPass: JOBS_PER_PASS,
+    sliceRuns: SLICE_RUNS,
+    jobsCreated: created,
+    passes,
+    runsExecuted: executed,
+    elapsedMs: Date.now() - startedAt,
+    stopReason,
+    processed,
+  });
+
+  /** Advances one claimed job by at most SLICE_RUNS, then releases its lease. */
+  async function serveSlice(job: JobRow): Promise<Record<string, unknown>> {
+    const release = (patch: Record<string, unknown>) =>
+      service
+        .from("measurement_jobs")
+        .update({ ...patch, lease_until: null, last_served_at: new Date().toISOString() })
+        .eq("id", job.id);
+
+    const tenantResult = await service
+      .from("tenants")
+      .select("id, name, billing_plan, billing_status")
+      .eq("id", job.tenant_id)
+      .maybeSingle();
+    const tenant = tenantResult.data as TenantRow | null;
+    if (!tenant) {
+      if (!dry) await release({ status: "failed", error: "Tenant no longer exists." });
+      return { job: job.id, status: "failed", reason: "no tenant" };
+    }
+    const plan = effectivePlanFrom(tenant);
+    const limit = PLANS[plan].monthlyRuns;
+    if (limit <= 0) {
+      if (!dry) await release({ status: "failed", error: "The plan no longer includes measurements." });
+      return { tenant: tenant.name, status: "failed", reason: "plan lapsed" };
+    }
 
     const promptsResult = await service
       .from("visibility_prompts")
       .select("id")
       .eq("tenant_id", tenant.id)
       .eq("active", true)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(500);
     const prompts = (promptsResult.data ?? []) as Array<{ id: string }>;
-
     if (prompts.length === 0) {
       if (!dry) {
-        await service
-          .from("measurement_jobs")
-          .update({ status: "failed", error: "No active questions in the battery.", finished_at: new Date().toISOString() })
-          .eq("id", job.id);
+        await release({
+          status: "failed",
+          error: "No active questions in the battery.",
+          finished_at: new Date().toISOString(),
+        });
       }
-      processed.push({ tenant: tenant.name, status: "failed", reason: "no battery" });
-      continue;
+      return { tenant: tenant.name, status: "failed", reason: "no battery" };
     }
 
-    const planned = Math.min(prompts.length * REPS, tenant.limit);
+    const planned = Math.min(prompts.length * REPS, limit);
     let attempted = job.runs_done + job.runs_failed;
-
     if (attempted >= planned) {
       if (!dry) {
-        await service
-          .from("measurement_jobs")
-          .update({ status: "done", runs_planned: planned, finished_at: new Date().toISOString() })
-          .eq("id", job.id);
+        await release({ status: "done", runs_planned: planned, finished_at: new Date().toISOString() });
       }
-      processed.push({ tenant: tenant.name, status: "done", attempted, planned });
-      continue;
+      return { tenant: tenant.name, status: "done", attempted, planned };
     }
 
+    const wouldRun = Math.min(SLICE_RUNS, planned - attempted, MAX_RUNS_PER_TICK - executed);
     if (dry) {
-      processed.push({
-        tenant: tenant.name,
-        status: job.status,
-        attempted,
-        planned,
-        wouldRunNow: Math.min(budget, planned - attempted),
-      });
-      budget -= Math.min(budget, planned - attempted);
-      if (budget <= 0) break;
-      continue;
+      return { tenant: tenant.name, status: job.status, attempted, planned, wouldRunNow: wouldRun };
     }
-
     if (!apiKey) {
-      await service
-        .from("measurement_jobs")
-        .update({ status: "failed", error: "OPENAI_API_KEY is not set.", finished_at: new Date().toISOString() })
-        .eq("id", job.id);
-      processed.push({ tenant: tenant.name, status: "failed", reason: "no OPENAI_API_KEY" });
-      continue;
+      await release({ status: "failed", error: "OPENAI_API_KEY is not set.", finished_at: new Date().toISOString() });
+      return { tenant: tenant.name, status: "failed", reason: "no OPENAI_API_KEY" };
     }
 
     const profile = await service
@@ -195,74 +251,55 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     const venueName = (profile.data as { name: string } | null)?.name ?? tenant.name;
 
-    if (job.status === "pending") {
-      await service
-        .from("measurement_jobs")
-        .update({ status: "running", runs_planned: planned, started_at: new Date().toISOString() })
-        .eq("id", job.id);
-    }
-
     let done = job.runs_done;
     let failedRuns = job.runs_failed;
     let cost = Number(job.cost_usd) || 0;
+    let lastError: string | null = null;
+    let paused = false;
 
-    while (budget > 0 && attempted < planned && !outOfTime()) {
-      const prompt = prompts[Math.floor(attempted / REPS)];
+    for (let i = 0; i < wouldRun && !outOfTime(); i += 1) {
+      const prompt = prompts[Math.floor(attempted / REPS) % prompts.length];
       const outcome = await executeRunForTenant(
-        {
-          tenantId: tenant.id,
-          venueName,
-          runsLimit: tenant.limit,
-          planName: tenant.planName,
-          apiKey,
-          supabase: service,
-        },
+        { tenantId: tenant.id, venueName, runsLimit: limit, planName: PLANS[plan].name, apiKey, supabase: service },
         prompt.id,
       );
-      attempted += 1;
-      budget -= 1;
+      executed += 1;
       if (outcome.ok) {
+        attempted += 1;
         done += 1;
         cost += outcome.costUsd ?? 0;
+        lastError = null;
+      } else if (transient(outcome.error)) {
+        // Not this client's fault and not this question's: try again next tick.
+        lastError = outcome.error ?? "transient error";
+        paused = true;
+        break;
       } else {
+        attempted += 1;
         failedRuns += 1;
+        lastError = outcome.error ?? null;
       }
-      // Persist after every run so a dying tick loses at most one execution.
       await service
         .from("measurement_jobs")
-        .update({ runs_done: done, runs_failed: failedRuns, cost_usd: cost, error: outcome.ok ? null : outcome.error ?? null })
+        .update({ runs_done: done, runs_failed: failedRuns, cost_usd: cost, runs_planned: planned, error: lastError })
         .eq("id", job.id);
     }
 
     const finished = attempted >= planned;
-    if (finished) {
-      await service
-        .from("measurement_jobs")
-        .update({ status: "done", finished_at: new Date().toISOString() })
-        .eq("id", job.id);
-    }
-    processed.push({
+    await release(
+      finished
+        ? { status: "done", finished_at: new Date().toISOString() }
+        : { status: "running" },
+    );
+    return {
       tenant: tenant.name,
-      status: finished ? "done" : "running",
+      status: finished ? "done" : paused ? "paused" : "running",
       attempted,
       planned,
       done,
       failed: failedRuns,
       costUsd: Math.round(cost * 100) / 100,
-    });
-    if (budget <= 0 || outOfTime()) break;
+      ...(lastError ? { error: lastError } : {}),
+    };
   }
-
-  return NextResponse.json({
-    month,
-    dry,
-    repsPerQuestion: REPS,
-    runsPerTick: RUNS_PER_TICK,
-    timeBudgetMs: TIME_BUDGET_MS,
-    elapsedMs: Date.now() - startedAt,
-    eligible: eligible.map((t) => ({ tenant: t.name, plan: t.plan, limit: t.limit })),
-    jobsCreated: created,
-    processed,
-    runsExecuted: RUNS_PER_TICK - budget,
-  });
 }

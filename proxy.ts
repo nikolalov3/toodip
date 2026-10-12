@@ -14,7 +14,6 @@ export const PATHNAME_HEADER = "x-toodip-pathname";
 
 const PUBLIC_PATHS = [
   "/sign-in",
-  "/sign-up",
   "/auth/confirm",
   "/terms",
   "/pricing",

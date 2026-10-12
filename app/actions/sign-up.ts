@@ -61,6 +61,10 @@ export async function signUpAction(
   _prev: SignUpResult | null,
   formData: FormData,
 ): Promise<SignUpResult> {
+  if (process.env.ALLOW_PUBLIC_SIGNUP !== "1") {
+    return { ok: false, message: "Access is by invitation. Join the waitlist on the home page." };
+  }
+
   const parsed = schema.safeParse({
     businessName: formData.get("businessName"),
     category: formData.get("category"),

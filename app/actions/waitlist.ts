@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 import { z } from "zod";
 
-import { getUserClient } from "@/lib/supabase/server";
+import { checkSharedRateLimit, rateLimitKey } from "@/lib/rate-limit";
+import { getServiceClient } from "@/lib/supabase/server";
 import { TERMS_VERSION } from "@/lib/waitlist";
 
 const schema = z.object({
@@ -21,9 +22,10 @@ export interface WaitlistResult {
 /**
  * Records one pre-launch waitlist signup from the public coming-soon page.
  *
- * Public on purpose: no session is required, so the insert runs as the anon
- * role and is gated by the RLS policy (terms accepted). Duplicate addresses are
- * a success from the visitor's side, not an error. The table is created by the
+ * Public on purpose: no session is required. The insert runs with the service
+ * role because anon has no direct write to the table any more; the brake is a
+ * shared rate limit per address, so a script cannot flood the list. Duplicate
+ * addresses are a success from the visitor's side, not an error. The table is created by the
  * waitlist migration; until that migration is applied to the environment the
  * action fails soft with a clear message instead of a stack trace.
  */
@@ -41,8 +43,17 @@ export async function joinWaitlistAction(input: unknown): Promise<WaitlistResult
     };
   }
 
-  const supabase = await getUserClient();
-  const userAgent = (await headers()).get("user-agent")?.slice(0, 300) ?? null;
+  const supabase = getServiceClient();
+  const requestHeaders = await headers();
+  const userAgent = requestHeaders.get("user-agent")?.slice(0, 300) ?? null;
+  const ip =
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    requestHeaders.get("x-real-ip") ||
+    "unknown";
+  const allowed = await checkSharedRateLimit(supabase, rateLimitKey("waitlist", ip), 5, 3600);
+  if (!allowed) {
+    return { ok: false, message: "Too many attempts from this connection. Try again in an hour." };
+  }
 
   const result = await supabase.from("waitlist_signups").insert({
     email: parsed.data.email,

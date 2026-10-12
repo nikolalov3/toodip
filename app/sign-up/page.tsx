@@ -1,5 +1,6 @@
 import { BadgeCheck, Check, Sparkles, Star } from "lucide-react";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { DM_Mono, Instrument_Serif, Manrope } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
@@ -11,6 +12,9 @@ import { cn } from "@/lib/utils";
 import "@/app/auth.css";
 
 export const metadata: Metadata = { title: "Start free" };
+
+/** Public sign-up is closed while access is by invitation. */
+const SIGNUP_OPEN = process.env.ALLOW_PUBLIC_SIGNUP === "1";
 
 const manrope = Manrope({
   subsets: ["latin", "latin-ext"],
@@ -35,6 +39,8 @@ const TEASER_PLANS = [PLANS.free, PLANS.starter, PLANS.pro];
  * a picture; the right half is the form. Plan facts come from lib/billing.
  */
 export default function SignUpPage() {
+  if (!SIGNUP_OPEN) redirect("/");
+
   return (
     <div
       className={cn(

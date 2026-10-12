@@ -5,7 +5,10 @@ import { z } from "zod";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
+import { PLANS } from "@/lib/billing";
+import { checkSharedRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { getUserClient } from "@/lib/supabase/server";
+import { getBillingSnapshot } from "@/services/billing";
 import {
   executeVisibilityRun,
   generatePromptBattery,
@@ -138,6 +141,32 @@ export async function generateBatteryAction(
       proposals: [],
       source: "templates",
       message: "Check the website address and the number of questions.",
+    };
+  }
+
+  // The generator calls a paid model, so it is for plans that measure, and at
+  // a pace no human would exceed.
+  const billing = await getBillingSnapshot();
+  if (PLANS[billing.effectivePlan].monthlyRuns <= 0) {
+    return {
+      ok: false,
+      proposals: [],
+      source: "templates",
+      message: "The question battery is part of the Visibility plan. Upgrade on the Billing page.",
+    };
+  }
+  const allowed = await checkSharedRateLimit(
+    await getUserClient(),
+    rateLimitKey("battery", session.tenantId),
+    10,
+    3600,
+  );
+  if (!allowed) {
+    return {
+      ok: false,
+      proposals: [],
+      source: "templates",
+      message: "That is enough generations for this hour. Edit the list you have, or try again later.",
     };
   }
 

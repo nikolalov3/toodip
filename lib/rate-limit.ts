@@ -1,5 +1,8 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * Small in process limiter for anything that costs money per call.
  *
@@ -57,4 +60,38 @@ export function checkRateLimit(
 export function generationRateLimit(): number {
   const configured = Number(process.env.GENERATION_RATE_LIMIT_PER_HOUR);
   return Number.isFinite(configured) && configured > 0 ? configured : 60;
+}
+
+/**
+ * The shared limiter: one fixed window per key, counted in Postgres through
+ * the rate_limit_hit RPC, so every serverless instance sees the same number.
+ * A database error other than "no such function" fails closed, because
+ * everything it guards costs money or invites junk. A missing function means
+ * the hardening migration is not applied yet: the call is allowed and a
+ * warning is logged, so the public waitlist keeps working in the meantime.
+ */
+export async function checkSharedRateLimit(
+  client: SupabaseClient,
+  key: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<boolean> {
+  const result = await client.rpc("rate_limit_hit", {
+    p_key: key,
+    p_limit: limit,
+    p_window_seconds: windowSeconds,
+  });
+  if (result.error) {
+    if (/does not exist|PGRST202|schema cache/i.test(result.error.message)) {
+      console.warn("[rate-limit] rate_limit_hit missing; apply 20261012120000_hardening.sql");
+      return true;
+    }
+    return false;
+  }
+  return result.data === true;
+}
+
+/** Keys never carry raw addresses or emails; they carry a short hash. */
+export function rateLimitKey(scope: string, value: string): string {
+  return `${scope}:${createHash("sha256").update(value).digest("hex").slice(0, 24)}`;
 }

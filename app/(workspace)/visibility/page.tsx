@@ -251,16 +251,10 @@ export default async function VisibilityPage() {
       isBranded: row.intents?.is_branded ?? false,
     }));
 
-    // Same count the runner enforces: this month's own executions only, so
-    // the panel's estimate and the server's limit never disagree.
-    const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
-    const used = await supabase
-      .from("visibility_runs")
-      .select("id", { count: "exact", head: true })
-      .eq("tenant_id", session.tenantId)
-      .eq("source", "toodip")
-      .gte("executed_on", monthStart);
-    runsUsed = used.count ?? 0;
+    // The same counter the runner reserves against, so the panel's estimate
+    // and the server's limit never disagree.
+    const used = await supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId });
+    runsUsed = typeof used.data === "number" ? used.data : 0;
   }
 
   const measurePanel = isAdmin ? (

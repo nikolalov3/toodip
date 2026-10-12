@@ -50,10 +50,9 @@ const JOB_STYLES: Record<JobSummary["status"], string> = {
 /**
  * This month's usage and report status per tenant. Read with the service role:
  * the platform admin is not a member of every workspace, and RLS on runs is
- * member-scoped. Cost comes from the typed column when present and from raw
- * otherwise, so the view is correct before and after the metering migration.
- * The jobs table may not exist yet in an environment; that just hides the
- * report column's content.
+ * member-scoped. Runs and cost come from the monthly usage view, aggregated
+ * in SQL. The jobs table may not exist yet in an environment; that just hides
+ * the report column's content.
  */
 async function loadUsage(): Promise<{
   usage: Map<string, Usage>;
@@ -63,12 +62,13 @@ async function loadUsage(): Promise<{
   const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
 
   const [runsResult, jobsResult] = await Promise.all([
+    // Aggregated in the database (one row per tenant), never by fetching runs:
+    // PostgREST caps a row fetch at 1000, which would miscount silently.
     service
-      .from("visibility_runs")
-      .select("tenant_id, cost_usd, raw")
-      .eq("source", "toodip")
-      .gte("executed_on", monthStart)
-      .limit(5000),
+      .from("v_tenant_usage_monthly")
+      .select("tenant_id, runs, cost_usd")
+      .eq("month", monthStart)
+      .limit(10000),
     service
       .from("measurement_jobs")
       .select("tenant_id, status, runs_done, runs_planned, runs_failed, error")
@@ -78,14 +78,10 @@ async function loadUsage(): Promise<{
   const usage = new Map<string, Usage>();
   for (const row of (runsResult.data ?? []) as Array<{
     tenant_id: string;
+    runs: number | string;
     cost_usd: number | string | null;
-    raw: { cost_usd?: number } | null;
   }>) {
-    const entry = usage.get(row.tenant_id) ?? { runs: 0, costUsd: 0 };
-    entry.runs += 1;
-    const typed = row.cost_usd === null || row.cost_usd === undefined ? null : Number(row.cost_usd);
-    entry.costUsd += typed ?? Number(row.raw?.cost_usd ?? 0) ?? 0;
-    usage.set(row.tenant_id, entry);
+    usage.set(row.tenant_id, { runs: Number(row.runs) || 0, costUsd: Number(row.cost_usd ?? 0) || 0 });
   }
 
   const jobs = new Map<string, JobSummary>();

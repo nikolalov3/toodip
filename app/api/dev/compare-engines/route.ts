@@ -1,5 +1,4 @@
 import { fail, handleError, ok, requireApiSession } from "@/lib/api";
-import { canSeeDebugTools } from "@/lib/auth/session";
 import { getRepository } from "@/lib/repositories";
 import { buildPrompt } from "@/prompts/builder";
 import { PROMPT_VERSION } from "@/prompts/system";
@@ -19,8 +18,8 @@ export async function GET(request: Request) {
   const auth = await requireApiSession();
   if ("response" in auth) return auth.response;
 
-  // Same audience as Prompt Studio: the people allowed to see how replies are made.
-  if (!canSeeDebugTools(auth.session.role)) {
+  // Platform admin only: a run here is paid for by the platform, not a plan.
+  if (auth.session.role !== "platform_admin") {
     return fail("Engine comparison is not available for this role.", 403);
   }
   if (process.env.NODE_ENV === "production" && !process.env.ALLOW_ENGINE_COMPARE) {

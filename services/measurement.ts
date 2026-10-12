@@ -3,7 +3,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { canEditSettings, requireSession } from "@/lib/auth/session";
-import { PLANS } from "@/lib/billing";
+import { PLANS, RUN_COST_ESTIMATE_USD } from "@/lib/billing";
+import { isPublicHost } from "@/lib/net";
 import { getUserClient } from "@/lib/supabase/server";
 import { getBillingSnapshot } from "@/services/billing";
 import { classifyDomain } from "@/services/visibility";
@@ -223,20 +224,36 @@ function failed(error: string): RunOutcome {
 export async function executeRunForTenant(ctx: RunContext, promptId: string): Promise<RunOutcome> {
   const { supabase } = ctx;
 
-  // Runs are budgeted per plan and counted from the runs table itself, source
-  // "toodip" only, so imported baselines never eat the budget.
-  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
-  const usedResult = await supabase
-    .from("visibility_runs")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", ctx.tenantId)
-    .eq("source", "toodip")
-    .gte("executed_on", monthStart);
-  if ((usedResult.count ?? 0) >= ctx.runsLimit) {
+  // Two atomic reservations before any money is spent: the platform's daily
+  // cap (one number for every tenant together) and this tenant's monthly
+  // allowance. Both are single conditional updates in Postgres, so parallel
+  // calls cannot overshoot, and deleting ledger rows refills nothing.
+  const spend = await supabase.rpc("reserve_platform_spend", {
+    p_estimate: RUN_COST_ESTIMATE_USD,
+    p_cap: dailySpendCapUsd(),
+  });
+  if (spend.error) return failed(rpcMissing(spend.error.message));
+  if (spend.data !== true) {
+    return failed("The platform's daily AI budget is used up. Measurements resume tomorrow.");
+  }
+
+  const reserved = await supabase.rpc("reserve_visibility_run", {
+    p_tenant: ctx.tenantId,
+    p_limit: ctx.runsLimit,
+  });
+  if (reserved.error) return failed(rpcMissing(reserved.error.message));
+  if (reserved.data !== true) {
     return failed(
       `The ${ctx.planName} plan includes ${ctx.runsLimit} measurements a month and this workspace has used them.`,
     );
   }
+
+  const settle = (succeeded: boolean, cost: number) =>
+    supabase.rpc("settle_visibility_run", {
+      p_tenant: ctx.tenantId,
+      p_succeeded: succeeded,
+      p_cost: cost,
+    });
 
   const promptResult = await supabase
     .from("visibility_prompts")
@@ -245,6 +262,7 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
     .eq("tenant_id", ctx.tenantId)
     .maybeSingle();
   if (promptResult.error || !promptResult.data) {
+    await settle(false, 0);
     return failed("Prompt not found in this workspace.");
   }
 
@@ -269,8 +287,11 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
         source: "toodip",
         executed_on: new Date().toISOString().slice(0, 10),
         response_text: answer.text,
-        // Metering lives in raw too, so cost is recorded even before the typed
-        // columns from the run_metering migration exist in an environment.
+        tokens_in: tokensIn,
+        tokens_out: tokensOut,
+        cost_usd: costUsd,
+        // Metering lives in raw too: one place to read it from alongside the
+        // search flags, whatever the columns do later.
         raw: {
           used_search: answer.usedSearch,
           web_searches: answer.webSearches,
@@ -282,14 +303,7 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
       .select("id")
       .single();
     if (run.error) throw new Error(run.error.message);
-
-    // Typed metering columns (run_metering migration). supabase-js reports a
-    // missing column as an error value, not a throw, so a pre-migration
-    // environment just keeps the numbers in raw.
-    await supabase
-      .from("visibility_runs")
-      .update({ tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd })
-      .eq("id", run.data.id);
+    await settle(true, costUsd);
 
     // The extractor plus a direct pattern check: if the model named the venue
     // but the extractor missed it, the run still counts as a mention.
@@ -335,8 +349,23 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
       costUsd,
     };
   } catch (error) {
+    // Nothing was recorded, so the reservation goes back to the tenant. The
+    // platform's estimate stays booked: a failed provider call is not free.
+    await settle(false, 0);
     return failed((error as Error).message);
   }
+}
+
+/** Platform-wide ceiling on AI spend per UTC day, in USD. */
+export function dailySpendCapUsd(): number {
+  const configured = Number(process.env.AI_DAILY_SPEND_CAP_USD);
+  return Number.isFinite(configured) && configured > 0 ? configured : 25;
+}
+
+function rpcMissing(message: string): string {
+  return /function .* does not exist|PGRST202|schema cache/i.test(message)
+    ? "Measurements are paused: the hardening migration is not applied yet (supabase/migrations/20261012120000_hardening.sql)."
+    : message;
 }
 
 /** One execution of one prompt from the panel, under the signed-in user. */
@@ -617,13 +646,18 @@ async function fetchSiteContext(url: string | null | undefined): Promise<string>
     return "";
   }
   if (target.protocol !== "http:" && target.protocol !== "https:") return "";
+  if (target.port && target.port !== "80" && target.port !== "443") return "";
+  // The server fetches on the user's word, so the destination must be a public
+  // site: no loopback, private ranges or cloud metadata, and no redirects
+  // that could land there after the check.
+  if (!(await isPublicHost(target.hostname))) return "";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
     const response = await fetch(target.toString(), {
       signal: controller.signal,
       headers: { "user-agent": "toodip-battery-agent/1.0 (+https://toodip.com)" },
-      redirect: "follow",
+      redirect: "manual",
     });
     if (!response.ok) return "";
     const html = (await response.text()).slice(0, 400_000);

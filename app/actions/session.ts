@@ -41,8 +41,9 @@ export async function signInAction(
     return { ok: false, message: "Wrong email or password." };
   }
 
+  // Only a path on this site: one leading slash, so "//evil.com" is refused.
   const next = String(formData.get("next") ?? "/dashboard");
-  redirect(next.startsWith("/") ? next : "/dashboard");
+  redirect(/^\/(?![\/\\])/.test(next) ? next : "/dashboard");
 }
 
 export async function signOutAction() {
