@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { requireSession } from "@/lib/auth/session";
-import { getRepository } from "@/lib/repositories";
+import { loadBusinessProfile } from "@/lib/auth/workspace";
 import { getStatsSite } from "@/services/stats";
 import { PATHNAME_HEADER } from "@/proxy";
 import type { BusinessProfile } from "@/types/domain";
@@ -28,13 +28,7 @@ const WORKS_WITHOUT_PROFILE = ["/clients", "/account", "/team", "/billing"];
 export default async function WorkspaceLayout({ children }: LayoutProps<"/">) {
   const session = await requireSession();
 
-  let profile: BusinessProfile | null = null;
-  try {
-    const repo = await getRepository();
-    profile = await repo.getBusinessProfile();
-  } catch {
-    profile = null;
-  }
+  const profile: BusinessProfile | null = await loadBusinessProfile();
 
   if (!profile) {
     const headerList = await headers();

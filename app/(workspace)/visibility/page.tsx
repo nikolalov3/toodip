@@ -160,7 +160,20 @@ export default async function VisibilityPage() {
   const session = await requireSession();
   const profile = await requireBusinessProfile();
 
-  const billing = await getBillingSnapshot();
+  // One wave of queries: plan, measurements, traffic and the saved battery
+  // all at once, instead of one after another.
+  const supabase = await getUserClient();
+  const [billing, overview, traffic, promptRows, used] = await Promise.all([
+    getBillingSnapshot(),
+    getVisibilityOverview(),
+    getStatsSnapshot(),
+    supabase
+      .from("visibility_prompts")
+      .select("id, text, language, active, intents(name, is_branded)")
+      .eq("tenant_id", session.tenantId)
+      .eq("active", true),
+    supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId }),
+  ]);
   const planDef = PLANS[billing.effectivePlan];
   const canRead = planDef.monthlyRuns > 0 || billing.effectivePlan === "pro";
   const canMeasure = planDef.monthlyRuns > 0;
@@ -185,19 +198,11 @@ export default async function VisibilityPage() {
     );
   }
 
-  const [overview, traffic] = await Promise.all([getVisibilityOverview(), getStatsSnapshot()]);
-
   // The measurement panel needs the saved battery, grouped by intent.
   const isAdmin = canEditSettings(session.role) && canMeasure;
   let batteryPrompts: BatteryPrompt[] = [];
   let runsUsed = 0;
   if (isAdmin) {
-    const supabase = await getUserClient();
-    const promptRows = await supabase
-      .from("visibility_prompts")
-      .select("id, text, language, active, intents(name, is_branded)")
-      .eq("tenant_id", session.tenantId)
-      .eq("active", true);
     batteryPrompts = ((promptRows.data ?? []) as unknown as Array<{
       id: string;
       text: string;
@@ -210,7 +215,6 @@ export default async function VisibilityPage() {
       intent: row.intents?.name ?? "unknown",
       isBranded: row.intents?.is_branded ?? false,
     }));
-    const used = await supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId });
     runsUsed = typeof used.data === "number" ? used.data : 0;
   }
 

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { requireSession } from "@/lib/auth/session";
 import {
   FAIR_USE_CAP,
@@ -76,7 +78,7 @@ export async function getTenantEffectivePlan(
   return effectivePlanFrom(data as { billing_plan: BillingPlan; billing_status: string });
 }
 
-export async function getBillingSnapshot(): Promise<BillingSnapshot> {
+export const getBillingSnapshot = cache(async function getBillingSnapshot(): Promise<BillingSnapshot> {
   const session = await requireSession();
   const supabase = await getUserClient();
 
@@ -131,7 +133,7 @@ export async function getBillingSnapshot(): Promise<BillingSnapshot> {
     stripeCustomerId: row.stripe_customer_id,
     renewsAt: row.plan_renews_at,
   };
-}
+});
 
 /**
  * Confirms a finished checkout with Stripe and mirrors it onto the tenant.

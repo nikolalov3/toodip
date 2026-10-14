@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
 import { getRepository } from "@/lib/repositories";
@@ -19,11 +20,18 @@ import type { BusinessProfile } from "@/types/domain";
  * unfinished is sent to the wizard.
  */
 export async function requireBusinessProfile(): Promise<BusinessProfile> {
-  const repo = await getRepository();
+  const profile = await loadBusinessProfile();
+  if (profile) return profile;
+  const session = await requireSession();
+  redirect(session.isPlatformAdmin ? "/clients" : "/onboarding");
+}
+
+/** The active workspace's profile, or null. One query per request. */
+export const loadBusinessProfile = cache(async function loadBusinessProfile(): Promise<BusinessProfile | null> {
   try {
+    const repo = await getRepository();
     return await repo.getBusinessProfile();
   } catch {
-    const session = await requireSession();
-    redirect(session.isPlatformAdmin ? "/clients" : "/onboarding");
+    return null;
   }
-}
+});

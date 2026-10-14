@@ -3,6 +3,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 /**
  * Two Supabase clients, with a deliberate split.
@@ -34,8 +35,12 @@ export function supabaseConfigured(): boolean {
   );
 }
 
-/** Request scoped, reads and writes the auth cookies. */
-export async function getUserClient(): Promise<SupabaseClient> {
+/**
+ * Request scoped, reads and writes the auth cookies. Memoized per request
+ * with React cache: the layout, the page and every service share one client
+ * instead of each building their own.
+ */
+export const getUserClient = cache(async function getUserClient(): Promise<SupabaseClient> {
   const { url, anonKey } = requireEnv();
   const cookieStore = await cookies();
 
@@ -56,7 +61,7 @@ export async function getUserClient(): Promise<SupabaseClient> {
       },
     },
   });
-}
+});
 
 let serviceClient: SupabaseClient | null = null;
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { getUserClient } from "@/lib/supabase/server";
 import type { MemberRole } from "@/types/domain";
@@ -49,12 +50,14 @@ interface MembershipRow {
 
 /**
  * Resolves who is signed in and which workspace they are operating in.
+ * Memoized per request (React cache): a page and its layout and services call
+ * this many times, the network is asked once.
  *
  * Everything here runs through the user scoped client, so row level security is
  * what decides which workspaces come back. A client sees exactly one. A platform
  * admin sees all of them and can switch.
  */
-export async function getSession(): Promise<Session | null> {
+export const getSession = cache(async function getSession(): Promise<Session | null> {
   const supabase = await getUserClient();
   const {
     data: { user },
@@ -120,7 +123,7 @@ export async function getSession(): Promise<Session | null> {
     jobTitle: membershipHere?.job_title ?? null,
     workspaces,
   };
-}
+});
 
 export async function requireSession(): Promise<Session> {
   let session: Session | null = null;

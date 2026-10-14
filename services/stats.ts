@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { requireSession } from "@/lib/auth/session";
 import { getUserClient } from "@/lib/supabase/server";
 
@@ -119,7 +121,7 @@ function groupBy<T>(rows: T[], key: (row: T) => string | null): BarItem[] {
     .sort((a, b) => b.value - a.value);
 }
 
-export async function getStatsSite(): Promise<StatsSite | null> {
+export const getStatsSite = cache(async function getStatsSite(): Promise<StatsSite | null> {
   const session = await requireSession();
   const supabase = await getUserClient();
   const result = await supabase
@@ -130,7 +132,7 @@ export async function getStatsSite(): Promise<StatsSite | null> {
     .maybeSingle();
   if (result.error) return null;
   return (result.data as StatsSite | null) ?? null;
-}
+});
 
 export async function getStatsSnapshot(): Promise<StatsSnapshot> {
   const site = await getStatsSite();

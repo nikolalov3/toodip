@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { requireSession } from "@/lib/auth/session";
 import { getUserClient } from "@/lib/supabase/server";
 
@@ -148,7 +150,6 @@ interface RunRow {
   platform: Platform;
   executed_on: string;
   source: string;
-  response_text: string | null;
   visibility_prompts: {
     text: string;
     language: string;
@@ -221,7 +222,7 @@ function topCounts(
     .map(([domain, count]) => ({ domain, count }));
 }
 
-export async function getVisibilityOverview(): Promise<VisibilityOverview> {
+export const getVisibilityOverview = cache(async function getVisibilityOverview(): Promise<VisibilityOverview> {
   const session = await requireSession();
   const supabase = await getUserClient();
 
@@ -229,7 +230,9 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     supabase
       .from("visibility_runs")
       .select(
-        "id, platform, executed_on, source, response_text, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
+        // No answer texts here: they are the heaviest column by far and only
+        // the thirty previews need them (fetched below by id).
+        "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
       )
       .eq("tenant_id", session.tenantId)
       .order("executed_on", { ascending: false })
@@ -493,14 +496,21 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
   );
 
   // ── Raw responses, own mentions first so the interesting ones surface ─────
-  const recentRuns: RunPreview[] = [...runs]
+  const previewRuns = [...runs]
     .sort(
       (a, b) =>
         Number(b.visibility_mentions.some((m) => m.is_own)) -
         Number(a.visibility_mentions.some((m) => m.is_own)),
     )
-    .slice(0, 30)
-    .map((run) => ({
+    .slice(0, 30);
+  const textsResult = await supabase
+    .from("visibility_runs")
+    .select("id, response_text")
+    .in("id", previewRuns.map((run) => run.id));
+  const texts = new Map(
+    ((textsResult.data ?? []) as Array<{ id: string; response_text: string | null }>).map((row) => [row.id, row.response_text]),
+  );
+  const recentRuns: RunPreview[] = previewRuns.map((run) => ({
       id: run.id,
       platform: run.platform,
       executedOn: run.executed_on,
@@ -509,7 +519,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
       mentionedOwn: run.visibility_mentions.some((m) => m.is_own),
       mentions: run.visibility_mentions.map((m) => m.name),
       citations: [...new Set(run.visibility_citations.map((c) => c.domain))].slice(0, 8),
-      responseText: run.response_text,
+      responseText: texts.get(run.id) ?? null,
     }));
 
   // ── Score per day. Days with a thin battery are kept but flagged by their
@@ -558,7 +568,7 @@ export async function getVisibilityOverview(): Promise<VisibilityOverview> {
     recentRuns,
     interventions,
   };
-}
+});
 
 /**
  * Appends to the interventions ledger. Failures are logged, never thrown: an
