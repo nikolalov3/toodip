@@ -93,6 +93,8 @@ export interface HeadToHead {
 export interface ShareDetail {
   hasData: boolean;
   venueName: string;
+  /** Own mentions / all brand mentions in the latest measurement, 0..1. */
+  shareOfVoice: number;
   categoryRuns: number;
   dates: string[];
   latestDate: string | null;
@@ -224,6 +226,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   const empty: ShareDetail = {
     hasData: false,
     venueName,
+    shareOfVoice: 0,
     categoryRuns: 0,
     dates: [],
     latestDate: null,
@@ -278,8 +281,13 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     // Same tie-break as the overview leaderboard, so the two ranks agree.
     .sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name));
 
-  // ── Timeline: top brands + own, per date ───────────────────────────────────
+  const totalBrandRuns = brands.reduce((sum, b) => sum + b.runs, 0);
   const own = brands.find((b) => b.isOwn);
+  const shareOfVoice = own && totalBrandRuns ? own.runs / totalBrandRuns : 0;
+  /** Lookup key for a brand name in brandsInRun(): the venue lives under OWN_KEY. */
+  const lookupKey = (name: string) => (own && name === own.name ? OWN_KEY : key(name));
+
+  // ── Timeline: top brands + own, per measurement ───────────────────────────
   const timelineBrands = [
     ...brands.filter((b) => !b.isOwn).slice(0, 5).map((b) => b.name),
     ...(own ? [own.name] : []),
@@ -288,7 +296,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     const dayRuns = allRuns.filter((r) => periodOf(r) === period);
     const shares: Record<string, number> = {};
     for (const name of timelineBrands) {
-      const k = key(name);
+      const k = lookupKey(name);
       const n = dayRuns.filter((r) => brandsInRun(r).has(k)).length;
       shares[name] = dayRuns.length ? n / dayRuns.length : 0;
     }
@@ -391,7 +399,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     rivals.find((r) => key(r) === key(rivalParam ?? "")) ?? rivals[0] ?? null;
   let headToHead: HeadToHead | null = null;
   if (rivalName) {
-    const rk = key(rivalName);
+    const rk = lookupKey(rivalName);
     const perIntent = new Map<string, { runs: number; rival: number; own: number }>();
     const rivalDomains = new Map<string, number>();
     const ownDomains = new Map<string, number>();
@@ -445,6 +453,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   return {
     hasData: true,
     venueName,
+    shareOfVoice,
     categoryRuns: runs.length,
     dates,
     latestDate,

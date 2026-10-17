@@ -61,13 +61,13 @@ export default async function SharePage({
       ) : (
         <>
           <Kpis>
-            <Kpi label="Your share" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you." />
-            <Kpi label="Your rank" value={own ? `#${d.brands.indexOf(own) + 1}` : "—"} hint={`Among ${d.brands.length} venues the assistants name for the same questions.`} />
-            <Kpi label="Avg. position" value={own?.avgPosition ?? "—"} hint="When you are named, how far down the answer: 1 is first." />
+            <Kpi label="Named in answers" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you. The same number as Recommended on the Overview." />
+            <Kpi label="Share of voice" value={pct(d.shareOfVoice)} hint="Your mentions as a share of every venue mention in the latest measurement. The same number as on the Overview." />
+            <Kpi label="Your rank" value={own ? `#${d.brands.indexOf(own) + 1}` : "—"} hint={`Among ${d.brands.length} venues the assistants name for the same questions. Avg. position when named: ${own?.avgPosition ?? "—"}.`} />
             <Kpi label="Reliable questions" value={`${d.stabilitySummary.reliable}/${d.stability.length}`} hint="Questions where every repetition named you on the latest day." />
           </Kpis>
 
-          <QHead step={1} title="How is the share moving?" sub="One line per venue, one point per measurement." hint="Share = answers naming the venue / all category answers in that measurement. A monthly report is one point. Top five rivals of the latest measurement plus you." />
+          <QHead step={1} title="How is the share moving?" sub="Share of answers naming each venue, one point per measurement." hint="Answers naming the venue / all category answers in that measurement. A monthly report is one point. Top five rivals of the latest measurement plus you." />
           <Card>
             {d.timeline.length < 2 ? (
               <p className="mb-3 text-[13px] text-muted-foreground">
@@ -77,12 +77,12 @@ export default async function SharePage({
             <ShareLines points={d.timeline} brands={d.timelineBrands} ownName={own?.name ?? null} />
           </Card>
 
-          <QHead step={2} title="Who gets named?" sub="Latest measurement. Your slice highlighted." />
+          <QHead step={2} title="Who gets named?" sub="Share of all venue mentions in the latest measurement. Your slice highlighted." hint="The ring splits every mention between venues, so slices add up to 100%. The number next to each name is that venue's share of voice." />
           <Card>
             <Donut
               slices={d.brands.map((b) => ({ label: b.name, value: b.runs, own: b.isOwn }))}
-              center={own ? pct(own.share) : "0%"}
-              centerLabel="your share"
+              center={pct(d.shareOfVoice)}
+              centerLabel="share of voice"
               maxSlices={9}
             />
           </Card>

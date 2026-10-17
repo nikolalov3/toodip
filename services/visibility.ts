@@ -385,15 +385,18 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
   );
 
   // ── Share of voice across category runs ───────────────────────────────────
+  // Every spelling the extractor flagged as the venue folds into one entry,
+  // so the venue's share is never split the way a rival's might be.
+  const ownDisplay = (profileResult.data as { name: string } | null)?.name;
   const brandCounts = new Map<string, { display: string; count: number; isOwn: boolean }>();
   for (const run of categoryRuns) {
     const seen = new Set<string>();
     for (const mention of run.visibility_mentions) {
-      const key = mention.name.toLowerCase().trim();
+      const key = mention.is_own ? "__own__" : mention.name.toLowerCase().trim();
       if (seen.has(key)) continue;
       seen.add(key);
       const entry =
-        brandCounts.get(key) ?? { display: mention.name, count: 0, isOwn: mention.is_own };
+        brandCounts.get(key) ?? { display: mention.is_own ? (ownDisplay ?? mention.name) : mention.name, count: 0, isOwn: mention.is_own };
       entry.count += 1;
       entry.isOwn = entry.isOwn || mention.is_own;
       brandCounts.set(key, entry);
