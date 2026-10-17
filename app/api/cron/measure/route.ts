@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
   let executed = 0;
   let passes = 0;
   let stopReason = "queue drained";
-  let openJobs = 0;
+  const openJobIds = new Set<string>();
 
   while (!outOfTime() && executed < MAX_RUNS_PER_TICK) {
     passes += 1;
@@ -151,7 +151,8 @@ export async function GET(request: NextRequest) {
       const before = executed;
       const result = await serveSlice(job);
       if (executed > before) progressed = true;
-      if (result.status === "running" || result.status === "paused" || result.status === "waiting") openJobs += 1;
+      if (result.status === "running") openJobIds.add(job.id);
+      else openJobIds.delete(job.id);
       processed.push(result);
       if (outOfTime() || executed >= MAX_RUNS_PER_TICK) {
         stopReason = outOfTime() ? "time budget" : "run ceiling";
@@ -187,7 +188,13 @@ export async function GET(request: NextRequest) {
   // leases keep two chains off the same job, and the hop counter ends a chain
   // that somehow never drains.
   const hop = Number(request.headers.get("x-tick-hop") ?? 0);
-  const chain = !dry && executed > 0 && openJobs > 0 && hop < MAX_CHAIN_HOPS;
+  const openJobs = openJobIds.size;
+  // Chain only when this tick stopped for lack of time or budget with runnable
+  // jobs still open; a tick that drained the queue or found nothing runnable
+  // ends the chain.
+  const chain =
+    !dry && executed > 0 && openJobs > 0 && hop < MAX_CHAIN_HOPS &&
+    (stopReason === "time budget" || stopReason === "run ceiling");
   if (chain) {
     const secret = process.env.CRON_SECRET?.trim() ?? "";
     const base = (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || request.nextUrl.origin);
