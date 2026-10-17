@@ -6,7 +6,16 @@ Stan na 17 października 2026. Fakty z dokumentacji Exa (exa.ai/docs, exa.ai/pri
 
 - OpenRouter uruchamia wyszukiwanie dla modeli bez własnego searcha przez Exa (tryb `auto`). Nasz silnik pomiarowy `openai/gpt-4o-mini:online` to w praktyce **GPT-4o mini czytający 5 wyników z Exa**, nie ChatGPT z Bingiem.
 - Dowód w naszej bazie: w 700 cytowaniach z pomiarów toodip 69 (10%) to adresy `exa.ai/library/places/…`, czyli karty lokali z indeksu Exa Places. Exa jest dziś naszym największym pojedynczym "źródłem".
-- Konsekwencja produktowa: to, czy lokal istnieje w indeksie Exa i jak jest tam opisany, bezpośrednio decyduje, czy nasz pomiar go wymieni. Dla pomiaru "prawdziwego ChatGPT" trzeba użyć natywnego searcha OpenAI (OpenRouter: `engine: native`, model z natywnym wyszukiwaniem), a Exa traktować jako **osobny, trzeci silnik**: "AI z wyszukiwaniem Exa" to dziś realna warstwa pod setkami agentów i asystentów (73 mln zapytań przez OpenRouter, 400+ modeli).
+- Konsekwencja produktowa: to, czy lokal istnieje w indeksie Exa i jak jest tam opisany, bezpośrednio decyduje, czy nasz pomiar go wymieni. Exa trzeba traktować jako **osobny, trzeci silnik**: "AI z wyszukiwaniem Exa" to realna warstwa pod setkami agentów (73 mln zapytań przez OpenRouter, 400+ modeli), a Profound w planie Enterprise śledzi "Exa Search" jako jeden z 9 silników odpowiedzi.
+- Test z 17.10 (OpenRouter, narzędzie `openrouter:web_search`, pytanie "Gdzie napić się dobrej matchy w Krakowie?"):
+
+| Model i silnik | Co cytuje | Koszt |
+|---|---|---|
+| `openai/gpt-4o-mini`, engine native | te same artykuły co Exa (model nie ma własnego searcha, OpenRouter cicho wraca do Exa) | 0,008 $ |
+| `openai/gpt-4o-mini`, engine exa | mjakmalopolska.pl, naszemiasto, tastetown | 0,008 $ |
+| **`openai/gpt-4.1-mini`, engine native** | **karty Google Maps z `utm_source=openai`**: Café Belmont, Mori Matcha, Café Manggha, Karma Coffee, dokładnie tak odpowiada ChatGPT na pytania lokalne | 0,014 $ |
+
+  Wniosek: kolumna "ChatGPT" powinna iść przez `gpt-4.1-mini` z natywnym searchem (prawdziwe zachowanie ChatGPT, w tym poleganie na Google Maps), a dotychczasowy silnik to osobna kolumna "Agents on Exa". Uwaga: OpenRouter oznaczył `:online` i plugin `web` jako przestarzałe; właściwa forma to `tools: [{ type: "openrouter:web_search", engine, max_results }]`.
 
 ## 2. Co Exa oferuje (fakty)
 
@@ -56,11 +65,28 @@ Limity: 10 QPS na search/answer, 5 QPS deep i agent (50 równoległych runów), 
 
 ## 4. Czego Exa nie da i gdzie uważać
 
+- Indeks: 1,4 bln adresów, 100 mld stron, 350 mln publikacji, 1 mld profili osób; odświeżanie "ciągłe", newsy w minutach. Od listopada 2025 wyniki są **domyślnie ograniczone do języka zapytania** i nie ma na to przełącznika: pytanie po polsku dostaje polskie strony, po angielsku angielskie. Dla nas to zaleta (dwujęzyczna bateria mierzy dwa światy), ale trzeba o tym pamiętać przy porównaniach.
+- Brak jakiejkolwiek wzmianki o Google Maps, Instagramie i Facebooku w dokumentacji; crawler respektuje robots.txt i nie wchodzi za logowanie. Recenzje zewnętrzne mówią o słabym pokryciu social i forów. Czyli Exa widzi stronę www lokalu, przewodniki i media, nie widzi Instagrama.
+- Research API wycofane (kwiecień 2026) na rzecz `deep-reasoning`; `findSimilar` przestarzałe; Websets Monitors działają najwyżej raz dziennie; snapshoty stron sięgają 5 miesięcy wstecz.
+
 - Exa to nie ChatGPT ani Google AI Overviews. Pomiar przez Exa mówi "jak widzą Cię agenci korzystający z Exa", nie "jak widzi Cię ChatGPT". W panelu nazywamy to po imieniu.
 - Pokrycie polskiego lokalnego webu i Instagrama nie jest udokumentowane. Trzeba zmierzyć (pkt 6) zanim obiecamy klientom.
 - Karty Places są "budowane per wyszukiwanie i cache'owane krótko": treść bierzemy w tym samym wywołaniu, nie dociągamy później.
 - Websets to osobny abonament i osobne kredyty; opłaca się dopiero przy pracy nad całym miastem, nie dla jednego klienta.
 - Agent `auto`/`ultra` bez `maxCostDollars` może kosztować 5–20 $ za run. Zawsze ustawiamy budżet.
+
+## 4a. Alternatywy (ta sama operacja: wyszukiwanie, ok. 10 wyników)
+
+| API | Cena | Po co nam |
+|---|---|---|
+| Exa auto | 0,007 $ z treścią stron | mapa źródeł, Places, Monitors |
+| Tavily | ok. 0,008 $ (1 kredyt), 1000 kredytów/mies. gratis | zamiennik searcha, bez Places |
+| Brave Search | 0,005 $, 50 QPS | tani search, brak treści stron |
+| SerpAPI | 0,025 $ (spada do 0,002 $ przy wolumenie), silniki Google Maps, **Google AI Mode i AI Overviews** | jedyna droga do pomiaru Google AI Overviews, potrzebna osobno |
+| Perplexity Search / Sonar | 0,005 $ search; Sonar 5–12 $/1000 zapytań + tokeny | już używamy Sonar jako silnika Perplexity |
+| Firecrawl | 2 kredyty za 10 wyników, ok. 0,0064 $ | scrapowanie stron klientów (treść pod GEO) |
+
+Exa jest jedyne z Places i Monitors; SerpAPI jest jedyne z Google AI Overviews. Oba uzupełniają się, nie konkurują.
 
 ## 5. Koszt na klienta i w planie
 
@@ -78,7 +104,7 @@ Przy planie 199 € to nadal poniżej 2% ceny. Przy 100 klientach: ~260 $ miesi�
 ## 6. Plan wdrożenia
 
 1. **Tydzień 1, test pokrycia (0 $, darmowe 10 $ kredytów).** Konto Exa, 50 pytań Belmont przez `search auto` i `answer`, karty Places dla 15 lokali z rankingu. Mierzymy: ile lokali ma kartę, ile polskich domen w wynikach, czy belmont.cafe się pojawia. Decyzja "go" tylko gdy pokrycie > 70% lokali z naszego rankingu.
-2. **Tydzień 2, silnik `exa`.** Nowy provider w `services/measurement.ts` (Answer z `userLocation`), platforma `other`→`exa` w enumie (migracja), trzecia kolumna w panelu, uczciwe etykiety silników.
+2. **Tydzień 2, silniki.** Kolumna ChatGPT przez `openai/gpt-4.1-mini` + natywny search (0,014 $/pomiar, cytuje Google Maps jak prawdziwy ChatGPT); kolumna "Agents on Exa" przez `openrouter:web_search engine: exa` (0,008 $); Perplexity przez Sonar. Platforma `exa` w enumie (migracja), trzy kolumny w panelu, uczciwe etykiety. Migracja z przestarzałego `:online` na `tools`.
 3. **Tydzień 3, moduł "Sources" 2.0.** Mapa podaży źródeł (C) + audyt Places (B) jako nowe sekcje w AI Visibility; zadania w planie działań generowane z różnic.
 4. **Tydzień 4, alerty.** Monitors z webhookiem do `/api/exa/webhook`, zapis do `interventions`/nowej tabeli `signals`, e-mail do właściciela.
 5. **Później.** Websets dla sprzedaży i benchmarku miasta; Agent w onboardingu; Similarweb w rankingu źródeł.
