@@ -268,7 +268,7 @@ export default async function VisibilityPage() {
   const prev = overview.timeline.length > 1 ? overview.timeline[overview.timeline.length - 2] : undefined;
   const score = last ? Math.round(last.score * 100) : 0;
   const delta = prev ? score - Math.round(prev.score * 100) : null;
-  const lastDate = overview.dates[overview.dates.length - 1];
+  const current = overview.current!;
 
   const rankedPlatforms = overview.platforms
     .filter((p) => p.runs > 0)
@@ -299,8 +299,8 @@ export default async function VisibilityPage() {
 
       {/* Context line, like the stats panel: engine · date · questions · category */}
       <p className="mb-4 text-[13px] text-muted-foreground">
-        {platformsUsed.join(", ")} · {formatDate(`${lastDate}T00:00:00.000Z`)} ·{" "}
-        <span className="text-numeric">{last?.runs ?? 0}</span> answers ·{" "}
+        {platformsUsed.join(", ")} · {current.label} ·{" "}
+        <span className="text-numeric">{current.categoryRuns}</span> answers ·{" "}
         <span className="font-medium text-foreground">{profile.category}</span>
         {profile.district || profile.city ? ` in ${[profile.district, profile.city].filter(Boolean).join(", ")}` : ""}
       </p>
@@ -331,7 +331,7 @@ export default async function VisibilityPage() {
             </>
           }
           value={`${score}%`}
-          hint="Share of answers on the latest measurement day that name you. Questions naming you directly are excluded."
+          hint="Share of answers in the latest measurement that name you. A monthly report counts as one measurement. Questions naming you directly are excluded."
         />
         <Kpi
           label="Rank"
@@ -387,7 +387,7 @@ export default async function VisibilityPage() {
             </div>
           ) : (
             <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-              One measurement so far: {score}% on {formatDate(`${lastDate}T00:00:00.000Z`)} is your baseline. The next measurement draws the trend here.
+              One measurement so far: {score}% in {current.label} is your baseline. The next measurement draws the trend here.
             </p>
           )}
         </Card>

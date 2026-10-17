@@ -64,8 +64,14 @@ export function ShareLines({
             {brands.map((name, bi) => (
               <circle key={name} cx={x(i)} cy={y(p.shares[name] ?? 0)} r={name === ownName ? 4 : 2.6} fill={color(name, bi)} />
             ))}
-            <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)">
-              {p.date.slice(5)}
+            <text
+              x={x(i)}
+              y={H - 8}
+              textAnchor={n > 1 && i === 0 ? "start" : n > 1 && i === n - 1 ? "end" : "middle"}
+              fontSize={11}
+              fill="var(--muted-foreground)"
+            >
+              {p.label}
             </text>
             <rect x={x(i) - band / 2} y={0} width={band} height={H} fill="transparent" onMouseEnter={() => setHover(i)} />
           </g>
@@ -77,7 +83,7 @@ export function ShareLines({
           style={{ left: `${Math.max(10, Math.min(90, (x(hover) / W) * 100))}%`, top: 0, transform: "translate(-50%, 0)" }}
         >
           <div className="mb-1 font-semibold">
-            {hovered.date} · {hovered.runs} answers
+            {hovered.label} · {hovered.runs} answers
           </div>
           {brands.map((name, bi) => (
             <div key={name} className="flex items-center gap-2">

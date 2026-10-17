@@ -2,7 +2,7 @@ import "server-only";
 
 import { requireSession } from "@/lib/auth/session";
 import { getUserClient } from "@/lib/supabase/server";
-import { classifyDomain, type Platform, type SourceCategory } from "@/services/visibility";
+import { classifyDomain, periodLabel, periodOf, periodStart, type Platform, type SourceCategory } from "@/services/visibility";
 
 /**
  * Share of voice, in depth. Everything here is counted from the runs ledger
@@ -32,6 +32,7 @@ export interface BrandShare {
 
 export interface ShareTimelinePoint {
   date: string;
+  label: string;
   runs: number;
   /** brand name -> share that day, 0..1 */
   shares: Record<string, number>;
@@ -95,6 +96,8 @@ export interface ShareDetail {
   categoryRuns: number;
   dates: string[];
   latestDate: string | null;
+  latestLabel: string | null;
+  latestRuns: number;
   brands: BrandShare[];
   timeline: ShareTimelinePoint[];
   timelineBrands: string[];
@@ -112,6 +115,7 @@ interface RunRow {
   id: string;
   platform: Platform;
   executed_on: string;
+  source: string;
   visibility_prompts: {
     text: string;
     language: string;
@@ -134,12 +138,23 @@ function key(name: string): string {
   return name.toLowerCase().trim();
 }
 
-/** One entry per brand per run, first position wins. */
+const OWN_KEY = "__own__";
+
+/**
+ * One entry per brand per run, first position wins. Every mention flagged as
+ * the venue itself ("Café Belmont", "Belmont Cafe") folds into one own entry,
+ * so the venue is never split across spellings the way a rival might be.
+ */
 function brandsInRun(run: RunRow): Map<string, { display: string; isOwn: boolean; position: number | null }> {
   const map = new Map<string, { display: string; isOwn: boolean; position: number | null }>();
   for (const m of run.visibility_mentions) {
-    const k = key(m.name);
-    if (!k || map.has(k)) continue;
+    const k = m.is_own ? OWN_KEY : key(m.name);
+    if (!k) continue;
+    const existing = map.get(k);
+    if (existing) {
+      if (m.position && (!existing.position || m.position < existing.position)) existing.position = m.position;
+      continue;
+    }
     map.set(k, { display: m.name, isOwn: m.is_own, position: m.position });
   }
   return map;
@@ -193,7 +208,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     supabase
       .from("visibility_runs")
       .select(
-        "id, platform, executed_on, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
+        "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
       )
       .eq("tenant_id", session.tenantId)
       .order("executed_on", { ascending: true })
@@ -202,8 +217,9 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   ]);
 
   const venueName = (profileResult.data as { name: string } | null)?.name ?? session.tenantName;
+  const displayName = (name: string, isOwn: boolean) => (isOwn ? venueName : name);
   const all = (runsResult.data ?? []) as unknown as RunRow[];
-  const runs = all.filter((run) => !run.visibility_prompts?.intents?.is_branded);
+  let runs = all.filter((run) => !run.visibility_prompts?.intents?.is_branded);
 
   const empty: ShareDetail = {
     hasData: false,
@@ -211,6 +227,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     categoryRuns: 0,
     dates: [],
     latestDate: null,
+    latestLabel: null,
+    latestRuns: 0,
     brands: [],
     timeline: [],
     timelineBrands: [],
@@ -225,10 +243,17 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   };
   if (runs.length === 0) return empty;
 
-  const dates = [...new Set(runs.map((r) => r.executed_on))].sort();
-  const latestDate = dates[dates.length - 1];
+  const allRuns = runs;
+  const periods = [...new Set(allRuns.map(periodOf))].sort((a, b) => periodStart(a).localeCompare(periodStart(b)));
+  const latestPeriod = periods[periods.length - 1];
+  const dates = periods.map(periodStart);
+  const latestDate = periodStart(latestPeriod);
+  // Brands, segments, positions and stability describe the latest measurement
+  // (one monthly report counts as one measurement). The trend and head to head
+  // use the whole history.
+  runs = allRuns.filter((r) => periodOf(r) === latestPeriod);
 
-  // ── Brands overall (all dates) ─────────────────────────────────────────────
+  // ── Brands in the latest measurement ─────────────────────────────────────
   const brandTotals = new Map<string, { display: string; isOwn: boolean; runs: number; posSum: number; posN: number }>();
   for (const run of runs) {
     for (const [k, b] of brandsInRun(run)) {
@@ -244,7 +269,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   }
   const brands: BrandShare[] = [...brandTotals.values()]
     .map((e) => ({
-      name: e.display,
+      name: displayName(e.display, e.isOwn),
       isOwn: e.isOwn,
       runs: e.runs,
       share: e.runs / runs.length,
@@ -259,15 +284,15 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     ...brands.filter((b) => !b.isOwn).slice(0, 5).map((b) => b.name),
     ...(own ? [own.name] : []),
   ];
-  const timeline: ShareTimelinePoint[] = dates.map((date) => {
-    const dayRuns = runs.filter((r) => r.executed_on === date);
+  const timeline: ShareTimelinePoint[] = periods.map((period) => {
+    const dayRuns = allRuns.filter((r) => periodOf(r) === period);
     const shares: Record<string, number> = {};
     for (const name of timelineBrands) {
       const k = key(name);
       const n = dayRuns.filter((r) => brandsInRun(r).has(k)).length;
       shares[name] = dayRuns.length ? n / dayRuns.length : 0;
     }
-    return { date, runs: dayRuns.length, shares };
+    return { date: periodStart(period), label: periodLabel(period), runs: dayRuns.length, shares };
   });
 
   // ── Per intent ─────────────────────────────────────────────────────────────
@@ -316,7 +341,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   );
 
   // ── Position of the venue when named (latest measurement day) ─────────────
-  const latestRuns = runs.filter((r) => r.executed_on === latestDate);
+  const latestRuns = runs;
   const positions: PositionSplit = { first: 0, second: 0, third: 0, later: 0, absent: 0, runs: latestRuns.length };
   for (const run of latestRuns) {
     const ownMention = [...brandsInRun(run).values()].find((b) => b.isOwn);
@@ -372,7 +397,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     const ownDomains = new Map<string, number>();
     let rivalRuns = 0;
     let ownRuns = 0;
-    for (const run of runs) {
+    for (const run of allRuns) {
       const bs = brandsInRun(run);
       const hasRival = bs.has(rk);
       const hasOwn = [...bs.values()].some((b) => b.isOwn);
@@ -423,6 +448,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     categoryRuns: runs.length,
     dates,
     latestDate,
+    latestLabel: periodLabel(latestPeriod),
+    latestRuns: runs.length,
     brands,
     timeline,
     timelineBrands,

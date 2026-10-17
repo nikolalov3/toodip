@@ -85,7 +85,7 @@ export function ScoreTrend({ timeline }: { timeline: TrendPoint[] }) {
               textAnchor="middle"
               className="fill-foreground text-[8px]"
             >
-              {point.date.slice(5)}
+              {point.label}
             </text>
             <text
               x={x(index)}
@@ -99,10 +99,9 @@ export function ScoreTrend({ timeline }: { timeline: TrendPoint[] }) {
         ))}
       </svg>
       <p className="mt-2 text-xs text-muted-foreground">
-        Share of category prompts (branded excluded) where the venue was
-        mentioned, per measurement day. Dashed lines mark days with logged
-        interventions. Compare days with a similar prompt battery; a day of 3
-        runs is a hint, not a trend.
+        Share of category answers (branded excluded) naming the venue, per
+        measurement: a monthly report counts as one point however many days it
+        took. Dashed lines mark periods with logged changes.
       </p>
     </div>
   );

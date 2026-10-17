@@ -6,7 +6,6 @@ import { Bars, Card, Hint, Kpi, Kpis, QHead } from "@/components/stats/blocks";
 import { Donut } from "@/components/stats/donut";
 import { ShareLines } from "@/components/stats/share-lines";
 import { VisibilitySubNav } from "@/components/visibility/sub-nav";
-import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getShareDetail } from "@/services/visibility-share";
 
@@ -46,8 +45,8 @@ export default async function SharePage({
       <PageHeader
         title="AI Visibility"
         description={
-          d.latestDate
-            ? `Share of voice in depth. ${d.categoryRuns} answers across ${d.dates.length} measurement day${d.dates.length === 1 ? "" : "s"}, latest ${formatDate(d.latestDate)}.`
+          d.latestLabel
+            ? `Share of voice in depth. Latest measurement: ${d.latestLabel}, ${d.latestRuns} answers. ${d.dates.length} measurement${d.dates.length === 1 ? "" : "s"} in total.`
             : "Share of voice in depth."
         }
       />
@@ -62,23 +61,23 @@ export default async function SharePage({
       ) : (
         <>
           <Kpis>
-            <Kpi label="Your share" value={own ? pct(own.share) : "0%"} highlight hint="Share of all answers that name you, across every measurement day." />
+            <Kpi label="Your share" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you." />
             <Kpi label="Your rank" value={own ? `#${d.brands.indexOf(own) + 1}` : "—"} hint={`Among ${d.brands.length} venues the assistants name for the same questions.`} />
             <Kpi label="Avg. position" value={own?.avgPosition ?? "—"} hint="When you are named, how far down the answer: 1 is first." />
             <Kpi label="Reliable questions" value={`${d.stabilitySummary.reliable}/${d.stability.length}`} hint="Questions where every repetition named you on the latest day." />
           </Kpis>
 
-          <QHead step={1} title="How is the share moving?" sub="One line per venue, one point per measurement day." hint="Share = answers naming the venue / all category answers that day. Top five rivals plus you." />
+          <QHead step={1} title="How is the share moving?" sub="One line per venue, one point per measurement." hint="Share = answers naming the venue / all category answers in that measurement. A monthly report is one point. Top five rivals of the latest measurement plus you." />
           <Card>
             {d.timeline.length < 2 ? (
               <p className="mb-3 text-[13px] text-muted-foreground">
-                One measurement day so far. The second one draws the trend.
+                One measurement so far. The second one draws the trend.
               </p>
             ) : null}
             <ShareLines points={d.timeline} brands={d.timelineBrands} ownName={own?.name ?? null} />
           </Card>
 
-          <QHead step={2} title="Who gets named, overall?" sub="All measurement days together. Your slice highlighted." />
+          <QHead step={2} title="Who gets named?" sub="Latest measurement. Your slice highlighted." />
           <Card>
             <Donut
               slices={d.brands.map((b) => ({ label: b.name, value: b.runs, own: b.isOwn }))}
@@ -142,7 +141,7 @@ export default async function SharePage({
             </Card>
           </div>
 
-          <QHead step={5} title="When I am named, where in the answer?" sub={`Latest measurement day: ${d.positions.runs} answers.`} hint="Being first in the answer is worth more than being fifth. Absent = the answer did not name you at all." />
+          <QHead step={5} title="When I am named, where in the answer?" sub={`Latest measurement: ${d.positions.runs} answers.`} hint="Being first in the answer is worth more than being fifth. Absent = the answer did not name you at all." />
           <Card>
             <Bars
               items={[
@@ -157,7 +156,7 @@ export default async function SharePage({
             />
           </Card>
 
-          <QHead step={6} title="Which questions are reliable, which flicker?" sub="Per question, across repetitions on the latest day." hint="Reliable = named every time. Flickering = sometimes. Absent = never. Flickering questions are the cheapest wins: the assistant already considers you." />
+          <QHead step={6} title="Which questions are reliable, which flicker?" sub="Per question, across repetitions in the latest measurement." hint="Reliable = named every time. Flickering = sometimes. Absent = never. Flickering questions are the cheapest wins: the assistant already considers you." />
           <Card className="overflow-hidden p-0">
             <div className="flex flex-wrap gap-2 border-b border-border px-4 py-2.5 text-[12px]">
               {(["reliable", "flicker", "absent", "single"] as const).map((s) => (
@@ -184,7 +183,7 @@ export default async function SharePage({
             </ul>
           </Card>
 
-          <QHead step={7} title="Head to head" sub="Pick a rival. See the questions they win, and the sources behind them." />
+          <QHead step={7} title="Head to head" sub="Pick a rival. Across all measurements: the questions they win, and the sources behind them." />
           <Card>
             <div className="mb-4 flex flex-wrap gap-1.5">
               {d.rivals.map((name) => (

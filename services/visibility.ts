@@ -117,7 +117,12 @@ export interface MetricsSummary {
 
 /** One measured day: category runs only, branded intents excluded. */
 export interface TrendPoint {
+  /** First day of the period (ISO date), for ordering. */
   date: string;
+  /** Period key, see periodOf(). */
+  period: string;
+  /** Human label: "Oct 2026" for a monthly report, a date for a one-off. */
+  label: string;
   runs: number;
   ownMentions: number;
   /** Share of category runs that day that mentioned the venue, 0..1. */
@@ -128,6 +133,8 @@ export interface TrendPoint {
 
 export interface VisibilityOverview {
   hasData: boolean;
+  /** The measurement the headline numbers describe: the latest period. */
+  current: { period: string; label: string; start: string; runs: number; categoryRuns: number } | null;
   metrics: MetricsSummary;
   sources: string[];
   dates: string[];
@@ -163,6 +170,26 @@ const SOCIAL = /instagram|facebook|youtube|tiktok|pinterest/;
 const TRAVEL = /tripadvisor|wanderlog|yelp|booking|airbnb/;
 const GUIDES =
   /kukbuk|krakowfood|gojammin|polskapogodzinach|vogue|twojstyl|smartblonde|naszemiasto|krakow\.com|krakowcitybreaks|krakow-trip|bestofwarsaw|najlepszewwarszawie|warsawcity|kawa\.pl|foodie|magazyn|przewodnik/;
+
+/**
+ * The unit the panel compares. toodip's own runs belong to a monthly report
+ * however many ticks it took to complete, so they group by month; imported
+ * baselines and manual measurements keep their day.
+ */
+export function periodOf(run: { source: string; executed_on: string }): string {
+  return run.source === "toodip" ? run.executed_on.slice(0, 7) : run.executed_on;
+}
+
+export function periodStart(period: string): string {
+  return period.length === 7 ? `${period}-01` : period;
+}
+
+export function periodLabel(period: string): string {
+  const d = new Date(`${periodStart(period)}T00:00:00Z`);
+  return period.length === 7
+    ? d.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" })
+    : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
 
 export function classifyDomain(domain: string): SourceCategory {
   if (/(^|\.)google\./.test(domain) || domain === "google.com") return "Google";
@@ -250,7 +277,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       .maybeSingle(),
   ]);
 
-  const runs = (runsResult.data ?? []) as unknown as RunRow[];
+  let runs = (runsResult.data ?? []) as unknown as RunRow[];
   const interventions = (interventionsResult.data ?? []).map((row) => ({
     id: row.id as string,
     kind: row.kind as string,
@@ -271,6 +298,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
   if (runs.length === 0) {
     return {
       hasData: false,
+      current: null,
       metrics: emptyMetrics,
       sources: [],
       dates: [],
@@ -288,6 +316,13 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       interventions,
     };
   }
+
+  // Everything below describes the latest measurement period; the timeline
+  // at the end is the only place earlier periods appear.
+  const allRuns = runs;
+  const periods = [...new Set(allRuns.map(periodOf))].sort((a, b) => periodStart(a).localeCompare(periodStart(b)));
+  const currentPeriod = periods[periods.length - 1];
+  runs = allRuns.filter((run) => periodOf(run) === currentPeriod);
 
   const categoryRuns = runs.filter(
     (run) => !run.visibility_prompts?.intents?.is_branded,
@@ -522,37 +557,46 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       responseText: texts.get(run.id) ?? null,
     }));
 
-  // ── Score per day. Days with a thin battery are kept but flagged by their
-  // run count, so the chart can render them honestly instead of hiding them.
-  const byDate = new Map<string, { runs: number; own: number }>();
-  for (const run of categoryRuns) {
-    const entry = byDate.get(run.executed_on) ?? { runs: 0, own: 0 };
+  // ── Score per measurement period, across the whole history ─────────────────
+  const byPeriod = new Map<string, { runs: number; own: number }>();
+  for (const run of allRuns) {
+    if (run.visibility_prompts?.intents?.is_branded) continue;
+    const key = periodOf(run);
+    const entry = byPeriod.get(key) ?? { runs: 0, own: 0 };
     entry.runs += 1;
     if (run.visibility_mentions.some((m) => m.is_own)) entry.own += 1;
-    byDate.set(run.executed_on, entry);
+    byPeriod.set(key, entry);
   }
-  const interventionsByDate = new Map<string, number>();
+  const interventionsByPeriod = new Map<string, number>();
   for (const item of interventions) {
-    interventionsByDate.set(
-      item.performedOn,
-      (interventionsByDate.get(item.performedOn) ?? 0) + 1,
-    );
+    const key = item.performedOn.slice(0, 7);
+    interventionsByPeriod.set(key, (interventionsByPeriod.get(key) ?? 0) + 1);
   }
-  const timeline: TrendPoint[] = [...byDate.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, entry]) => ({
-      date,
+  const timeline: TrendPoint[] = periods.map((period) => {
+    const entry = byPeriod.get(period) ?? { runs: 0, own: 0 };
+    return {
+      date: periodStart(period),
+      period,
+      label: periodLabel(period),
       runs: entry.runs,
       ownMentions: entry.own,
       score: entry.own / Math.max(entry.runs, 1),
-      interventions: interventionsByDate.get(date) ?? 0,
-    }));
+      interventions: interventionsByPeriod.get(period.slice(0, 7)) ?? 0,
+    };
+  });
 
   return {
     hasData: true,
+    current: {
+      period: currentPeriod,
+      label: periodLabel(currentPeriod),
+      start: periodStart(currentPeriod),
+      runs: runs.length,
+      categoryRuns: categoryRuns.length,
+    },
     metrics,
     sources: [...new Set(runs.map((run) => run.source))],
-    dates: [...new Set(runs.map((run) => run.executed_on))].sort(),
+    dates: periods.map(periodStart),
     timeline,
     totalRuns: runs.length,
     totalCitations: runs.reduce((sum, run) => sum + run.visibility_citations.length, 0),
