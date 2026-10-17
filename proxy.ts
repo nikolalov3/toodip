@@ -28,10 +28,13 @@ export async function proxy(request: NextRequest) {
 
   // Layouts cannot see the current path. Passing it down lets the workspace
   // layout decide which screens are reachable before setup is finished.
-  const headers = new Headers(request.headers);
-  headers.set(PATHNAME_HEADER, pathname);
+  // The request object itself is forwarded, so cookies refreshed below reach
+  // the server components of this same request. Building a response from a
+  // copy of the headers would hand them the expired token instead, and a
+  // signed-in person would see "no workspace" once an hour.
+  request.headers.set(PATHNAME_HEADER, pathname);
 
-  let response = NextResponse.next({ request: { headers } });
+  let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -65,7 +68,7 @@ export async function proxy(request: NextRequest) {
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value);
         }
-        response = NextResponse.next({ request: { headers } });
+        response = NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }

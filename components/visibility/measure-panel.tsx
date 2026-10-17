@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Pencil, Play, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { FileUp, Pencil, Play, Plus, Sparkles, Square, Tags, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import {
   generateBatteryAction,
   runVisibilityPromptAction,
   saveBatteryAction,
+  regroupIntentsAction,
 } from "@/app/actions/visibility";
 import { Panel, PanelHeader } from "@/components/common/surfaces";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,7 @@ export function MeasurePanel({
   // Product default: every question asked twice. One monthly report = 50 × 2.
   const [reps, setReps] = useState(2);
   const [running, setRunning] = useState(false);
+  const [regrouping, setRegrouping] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
   const stopRef = useRef(false);
 
@@ -505,6 +507,26 @@ export function MeasurePanel({
             : "Needs a measurement engine key (OPENAI_API_KEY or OPENROUTER_API_KEY) on the server. Add it and reload; the battery is ready to go."
         }
         action={
+          <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={running || regrouping}
+            title="Let AI label every question with a customer intent (matcha, specialty coffee, breakfast…), so the per-type views have something to show."
+            onClick={() => {
+              setRegrouping(true);
+              void regroupIntentsAction().then((result) => {
+                setRegrouping(false);
+                if (result.ok) {
+                  toast.success(result.message);
+                  router.refresh();
+                } else toast.error(result.message);
+              });
+            }}
+          >
+            <Tags className="size-3.5" />
+            {regrouping ? "Grouping…" : "Regroup intents"}
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -524,6 +546,7 @@ export function MeasurePanel({
             <Pencil className="size-3.5" />
             Edit questions
           </Button>
+          </div>
         }
       />
       <div className="flex flex-col gap-3 p-4">

@@ -20,6 +20,14 @@ export interface WorkspaceSummary {
  * account before bootstrap, and to a client account if workspace creation fails
  * halfway. It is a state to explain, not a crash.
  */
+/** The session could not be read (expired token, database unreachable). */
+export class SessionReadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionReadError";
+  }
+}
+
 export class NoWorkspaceError extends Error {
   constructor(public readonly email: string) {
     super(`${email} is not a member of any workspace.`);
@@ -76,6 +84,11 @@ export const getSession = cache(async function getSession(): Promise<Session | n
       .eq("user_id", user.id),
     supabase.from("tenants").select("id, name, slug").order("name"),
   ]);
+
+  // A query error here means the token was rejected or the database did not
+  // answer. That is a session problem to recover from, not an empty account.
+  const queryError = membershipResult.error ?? tenantResult.error ?? profileResult.error;
+  if (queryError) throw new SessionReadError(queryError.message);
 
   const memberships = (membershipResult.data ?? []) as MembershipRow[];
   const workspaces = ((tenantResult.data ?? []) as WorkspaceSummary[]).map(
@@ -134,6 +147,7 @@ export async function requireSession(): Promise<Session> {
     // trace. Sending it back to sign in would loop, since the proxy bounces
     // signed in users away from that screen.
     if (error instanceof NoWorkspaceError) redirect("/no-workspace");
+    if (error instanceof SessionReadError) redirect("/sign-in?reason=expired");
     throw error;
   }
   if (!session) redirect("/sign-in");

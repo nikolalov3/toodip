@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-import { NextResponse, type NextRequest } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
 
 import { PLANS, type BillingPlan } from "@/lib/billing";
 import { getServiceClient } from "@/lib/supabase/server";
@@ -43,6 +43,8 @@ const LEASE_SECONDS = 90;
 const TIME_BUDGET_MS = Math.max(10_000, Number(process.env.CRON_TIME_BUDGET_MS ?? 260_000));
 /** Hard ceiling on executions per tick, whatever the clock says. */
 const MAX_RUNS_PER_TICK = Math.max(1, Number(process.env.CRON_RUNS_PER_TICK ?? 60));
+/** How many self-triggered ticks may follow one scheduled trigger. */
+const MAX_CHAIN_HOPS = Math.max(0, Number(process.env.CRON_MAX_CHAIN_HOPS ?? 120));
 
 type JobStatus = "pending" | "running" | "done" | "failed";
 
@@ -116,10 +118,10 @@ export async function GET(request: NextRequest) {
 
   // 2) + 3) Claim, serve a slice, release; repeat while there is time.
   const processed: Array<Record<string, unknown>> = [];
-  const served = new Set<string>();
   let executed = 0;
   let passes = 0;
   let stopReason = "queue drained";
+  let openJobs = 0;
 
   while (!outOfTime() && executed < MAX_RUNS_PER_TICK) {
     passes += 1;
@@ -138,17 +140,29 @@ export async function GET(request: NextRequest) {
         { status: 503 },
       );
     }
-    const jobs = ((claimed.data ?? []) as JobRow[]).filter((job) => !served.has(job.id));
+    // A job may be claimed again in a later pass of the same tick: that is
+    // how a tick with few clients keeps working until its time is up, each
+    // pass giving every open job another small slice.
+    const jobs = (claimed.data ?? []) as JobRow[];
     if (jobs.length === 0) break;
 
+    let progressed = false;
     for (const job of jobs) {
-      served.add(job.id);
+      const before = executed;
       const result = await serveSlice(job);
+      if (executed > before) progressed = true;
+      if (result.status === "running" || result.status === "paused" || result.status === "waiting") openJobs += 1;
       processed.push(result);
       if (outOfTime() || executed >= MAX_RUNS_PER_TICK) {
         stopReason = outOfTime() ? "time budget" : "run ceiling";
         break;
       }
+    }
+    // Nothing executed in a whole pass (every job waiting or paused): stop,
+    // otherwise the tick would spin on the same waiting jobs until its budget.
+    if (!progressed && !dry) {
+      stopReason = "nothing runnable";
+      break;
     }
     // In dry mode a claim changes nothing we want to keep; release the leases
     // so the next real tick sees the queue as it was.
@@ -167,6 +181,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Keep going on our own: while this tick did work and jobs are still open,
+  // the next tick is called right after this response is sent. Scheduled
+  // triggers (Vercel cron, the GitHub heartbeat) only need to start a chain;
+  // leases keep two chains off the same job, and the hop counter ends a chain
+  // that somehow never drains.
+  const hop = Number(request.headers.get("x-tick-hop") ?? 0);
+  const chain = !dry && executed > 0 && openJobs > 0 && hop < MAX_CHAIN_HOPS;
+  if (chain) {
+    const secret = process.env.CRON_SECRET?.trim() ?? "";
+    const base = (process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || request.nextUrl.origin);
+    after(async () => {
+      try {
+        await fetch(`${base}/api/cron/measure`, {
+          headers: { authorization: `Bearer ${secret}`, "x-tick-hop": String(hop + 1) },
+          signal: AbortSignal.timeout(5_000),
+        });
+      } catch {
+        /* the next scheduled trigger picks it up */
+      }
+    });
+  }
+
   return NextResponse.json({
     month,
     dry,
@@ -178,6 +214,9 @@ export async function GET(request: NextRequest) {
     runsExecuted: executed,
     elapsedMs: Date.now() - startedAt,
     stopReason,
+    openJobs,
+    chainedNext: chain,
+    hop,
     processed,
   });
 

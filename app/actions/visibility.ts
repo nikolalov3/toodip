@@ -9,6 +9,7 @@ import { PLANS } from "@/lib/billing";
 import { checkSharedRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { getUserClient } from "@/lib/supabase/server";
 import { getBillingSnapshot } from "@/services/billing";
+import { classifyQuestionIntents } from "@/services/measurement";
 import {
   executeVisibilityRun,
   generatePromptBattery,
@@ -218,4 +219,80 @@ export async function generateBatteryAction(
         ? "No AI key answered, so these are the standard templates."
         : undefined,
   };
+}
+
+/**
+ * Re-labels the active battery with AI intents. Intents are upserted by name,
+ * every active prompt is pointed at its new intent, and intents left without
+ * prompts are deactivated. Past runs keep their rows; they simply report under
+ * the new label from now on.
+ */
+export async function regroupIntentsAction(): Promise<{ ok: boolean; message: string }> {
+  const session = await requireSession();
+  if (!canEditSettings(session.role)) return { ok: false, message: "Only admins can regroup the battery." };
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) return { ok: false, message: "OPENROUTER_API_KEY is not set on the server." };
+
+  const supabase = await getUserClient();
+  const allowed = await checkSharedRateLimit(supabase, rateLimitKey("regroup", session.tenantId), 6, 3600);
+  if (!allowed) return { ok: false, message: "That is enough regrouping for this hour." };
+
+  const profile = await requireBusinessProfile();
+  const promptsResult = await supabase
+    .from("visibility_prompts")
+    .select("id, text, language")
+    .eq("tenant_id", session.tenantId)
+    .eq("active", true)
+    .limit(500);
+  const prompts = (promptsResult.data ?? []) as Array<{ id: string; text: string; language: string }>;
+  if (prompts.length === 0) return { ok: false, message: "No active questions to group." };
+
+  let assignments;
+  try {
+    assignments = await classifyQuestionIntents(
+      prompts.map((p) => p.text),
+      { name: profile.name, category: profile.category, city: profile.city },
+      apiKey,
+    );
+  } catch (error) {
+    return { ok: false, message: (error as Error).message };
+  }
+
+  const byText = new Map(assignments.map((a) => [a.text, a]));
+  const intentIds = new Map<string, string>();
+  for (const prompt of prompts) {
+    const a = byText.get(prompt.text.trim());
+    if (!a) continue;
+    if (!intentIds.has(a.intent)) {
+      const intent = await supabase
+        .from("intents")
+        .upsert(
+          { tenant_id: session.tenantId, name: a.intent, language: prompt.language ?? "pl", is_branded: a.isBranded, active: true },
+          { onConflict: "tenant_id,name" },
+        )
+        .select("id")
+        .single();
+      if (intent.error) return { ok: false, message: intent.error.message };
+      intentIds.set(a.intent, intent.data.id as string);
+    }
+    const moved = await supabase
+      .from("visibility_prompts")
+      .update({ intent_id: intentIds.get(a.intent) })
+      .eq("id", prompt.id);
+    if (moved.error) return { ok: false, message: moved.error.message };
+  }
+
+  // Intents nobody points at any more go quiet.
+  const stillUsed = [...intentIds.values()];
+  if (stillUsed.length) {
+    await supabase
+      .from("intents")
+      .update({ active: false })
+      .eq("tenant_id", session.tenantId)
+      .not("id", "in", `(${stillUsed.join(",")})`);
+  }
+
+  revalidatePath("/visibility");
+  revalidatePath("/visibility/share");
+  return { ok: true, message: `${prompts.length} questions grouped into ${intentIds.size} intents.` };
 }

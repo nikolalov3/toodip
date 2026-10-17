@@ -959,3 +959,75 @@ export async function generatePromptBattery(
 
   return { proposals: suggestPromptBattery(profile), source: "templates" };
 }
+
+/**
+ * Groups a list of questions into customer intents ("matcha in Kraków",
+ * "specialty coffee", "breakfast"), the way the generator labels them, so a
+ * battery that arrived without intents (a CSV, an imported baseline) gets the
+ * same per-type views as a generated one. DeepSeek through OpenRouter; one
+ * call for the whole battery.
+ */
+export interface IntentAssignment {
+  text: string;
+  intent: string;
+  isBranded: boolean;
+}
+
+export async function classifyQuestionIntents(
+  questions: string[],
+  profile: Pick<BatteryProfileInput, "name" | "category" | "city">,
+  apiKey: string,
+): Promise<IntentAssignment[]> {
+  const system = [
+    "You label customer questions for an AI-visibility tool.",
+    `The business: ${profile.name}, a ${profile.category} in ${profile.city}.`,
+    "Group the questions into 4 to 10 intents. An intent is a short English label (2 to 4 words) for what the customer wants, e.g. \"Matcha in Kraków\", \"Specialty coffee\", \"Breakfast spots\", \"Work-friendly cafe\". Questions in Polish and English about the same thing share one intent.",
+    `A question is branded when it names the business itself (\"${profile.name}\" or an obvious variant). Branded questions get the intent \"Branded\".`,
+    'Return JSON only: {"items":[{"text":"<question exactly as given>","intent":"<label>","isBranded":false}, ...]}. Every input question must appear exactly once.',
+  ].join("\n");
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: JSON.stringify({ questions }) },
+  ];
+  let lastError = "no attempt";
+  for (const model of OPENROUTER_MODELS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55_000);
+    try {
+      const response = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://toodip.com",
+          "X-Title": "toodip intent grouping",
+        },
+        body: JSON.stringify({ model, response_format: { type: "json_object" }, temperature: 0.2, messages }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        lastError = `${model} ${response.status}`;
+        continue;
+      }
+      const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const raw = (data.choices?.[0]?.message?.content ?? "").replace(/^```(?:json)?\s*|\s*```$/g, "");
+      const parsed = JSON.parse(raw) as { items?: Array<{ text?: unknown; intent?: unknown; isBranded?: unknown }> };
+      const byText = new Map<string, IntentAssignment>();
+      for (const item of parsed.items ?? []) {
+        if (typeof item.text !== "string" || typeof item.intent !== "string") continue;
+        byText.set(item.text.trim(), {
+          text: item.text.trim(),
+          intent: item.intent.trim().slice(0, 60) || "General",
+          isBranded: item.isBranded === true || /^branded$/i.test(item.intent),
+        });
+      }
+      // Every input must come back; anything the model dropped keeps a neutral label.
+      return questions.map((q) => byText.get(q.trim()) ?? { text: q, intent: "General", isBranded: false });
+    } catch (error) {
+      lastError = `${model}: ${(error as Error).message}`;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(`Intent grouping failed (${lastError})`);
+}
