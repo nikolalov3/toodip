@@ -1,6 +1,7 @@
 import "server-only";
 
 import { requireSession } from "@/lib/auth/session";
+import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
 import { classifyDomain, periodLabel, periodOf, periodStart, type Platform, type SourceCategory } from "@/services/visibility";
 
@@ -207,20 +208,22 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   const supabase = await getUserClient();
 
   const [runsResult, profileResult] = await Promise.all([
-    supabase
-      .from("visibility_runs")
-      .select(
-        "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
-      )
-      .eq("tenant_id", session.tenantId)
-      .order("executed_on", { ascending: true })
-      .limit(5000),
+    fetchAll<RunRow>(() =>
+      supabase
+        .from("visibility_runs")
+        .select(
+          "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
+        )
+        .eq("tenant_id", session.tenantId)
+        .order("executed_on", { ascending: true })
+        .order("id"),
+    ),
     supabase.from("business_profiles").select("name").eq("tenant_id", session.tenantId).maybeSingle(),
   ]);
 
   const venueName = (profileResult.data as { name: string } | null)?.name ?? session.tenantName;
   const displayName = (name: string, isOwn: boolean) => (isOwn ? venueName : name);
-  const all = (runsResult.data ?? []) as unknown as RunRow[];
+  const all = runsResult.rows;
   let runs = all.filter((run) => !run.visibility_prompts?.intents?.is_branded);
 
   const empty: ShareDetail = {

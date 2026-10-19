@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
+import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
 
 /**
@@ -254,16 +255,19 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
   const supabase = await getUserClient();
 
   const [runsResult, interventionsResult, profileResult] = await Promise.all([
-    supabase
-      .from("visibility_runs")
-      .select(
-        // No answer texts here: they are the heaviest column by far and only
-        // the thirty previews need them (fetched below by id).
-        "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
-      )
-      .eq("tenant_id", session.tenantId)
-      .order("executed_on", { ascending: false })
-      .limit(2000),
+    // Paged past the 1000-row cap, newest first.
+    fetchAll<RunRow>(() =>
+      supabase
+        .from("visibility_runs")
+        .select(
+          // No answer texts here: they are the heaviest column by far and only
+          // the thirty previews need them (fetched below by id).
+          "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
+        )
+        .eq("tenant_id", session.tenantId)
+        .order("executed_on", { ascending: false })
+        .order("id"),
+    ),
     supabase
       .from("interventions")
       .select("id, kind, surface, description, performed_on")
@@ -277,7 +281,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       .maybeSingle(),
   ]);
 
-  let runs = (runsResult.data ?? []) as unknown as RunRow[];
+  let runs = runsResult.rows;
   const interventions = (interventionsResult.data ?? []).map((row) => ({
     id: row.id as string,
     kind: row.kind as string,

@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
+import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
 
 /**
@@ -157,24 +158,28 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
 
   const supabase = await getUserClient();
   const since = new Date(Date.now() - DAYS * 864e5).toISOString();
+  // Paged: a busy site has far more than the 1000 rows one request returns,
+  // and newest-first so that a truncated set would lose old days, not today.
   const [eventsResult, botsResult] = await Promise.all([
-    supabase
-      .from("stats_events")
-      .select("ts, path, title, source, ai_name, type, name, visitor")
-      .eq("website_id", site.id)
-      .gte("ts", since)
-      .order("ts")
-      .limit(8000),
-    supabase
-      .from("stats_bot_hits")
-      .select("ts, bot, path")
-      .eq("website_id", site.id)
-      .gte("ts", since)
-      .order("ts", { ascending: false })
-      .limit(2000),
+    fetchAll<StatsEvent>(() =>
+      supabase
+        .from("stats_events")
+        .select("ts, path, title, source, ai_name, type, name, visitor")
+        .eq("website_id", site.id)
+        .gte("ts", since)
+        .order("ts", { ascending: false }),
+    ),
+    fetchAll<BotHit>(() =>
+      supabase
+        .from("stats_bot_hits")
+        .select("ts, bot, path")
+        .eq("website_id", site.id)
+        .gte("ts", since)
+        .order("ts", { ascending: false }),
+    ),
   ]);
 
-  const all = (eventsResult.data ?? []) as StatsEvent[];
+  const all = eventsResult.rows;
   const views = all.filter((e) => e.type !== "event");
   const events = all.filter((e) => e.type === "event");
   const conversions = events.filter((e) => !isEngagement(e.name));
@@ -198,7 +203,7 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
     }
   }
 
-  const botRows = (botsResult.data ?? []) as BotHit[];
+  const botRows = botsResult.rows;
   const lastSeen = new Map<string, string>();
   for (const hit of botRows) {
     const key = hit.bot ?? "?";
