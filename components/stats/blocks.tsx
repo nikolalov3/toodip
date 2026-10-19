@@ -34,7 +34,7 @@ export function QHead({
   sub?: string;
 }) {
   return (
-    <div className="mt-7 mb-3 flex items-start gap-3 first:mt-0">
+    <div className="mt-10 mb-3.5 flex items-start gap-3">
       <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand">
         {step}
       </span>
@@ -87,7 +87,7 @@ export function Kpi({
 }
 
 export function Kpis({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{children}</div>;
+  return <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">{children}</div>;
 }
 
 export function Bars({

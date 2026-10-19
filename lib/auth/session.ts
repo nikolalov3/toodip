@@ -67,10 +67,14 @@ interface MembershipRow {
  */
 export const getSession = cache(async function getSession(): Promise<Session | null> {
   const supabase = await getUserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // The proxy already refreshed the session; here the token is verified
+  // locally (ES256, cached JWKS) and the three queries below run under RLS
+  // with that token, so nothing is trusted that the database would not also
+  // have checked. Saves a 150–2000 ms round trip to the auth server.
+  const { data: claimsResult } = await supabase.auth.getClaims();
+  const claims = claimsResult?.claims;
+  if (!claims?.sub) return null;
+  const user = { id: claims.sub as string, email: (claims.email as string | undefined) ?? undefined };
 
   const [profileResult, membershipResult, tenantResult] = await Promise.all([
     supabase

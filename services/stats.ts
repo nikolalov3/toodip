@@ -164,7 +164,7 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
     fetchAll<StatsEvent>(() =>
       supabase
         .from("stats_events")
-        .select("ts, path, title, source, ai_name, type, name, visitor")
+        .select("ts, path, title, source, ai_name, type, name, visitor", { count: "exact" })
         .eq("website_id", site.id)
         .gte("ts", since)
         .order("ts", { ascending: false }),
@@ -172,7 +172,7 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
     fetchAll<BotHit>(() =>
       supabase
         .from("stats_bot_hits")
-        .select("ts, bot, path")
+        .select("ts, bot, path", { count: "exact" })
         .eq("website_id", site.id)
         .gte("ts", since)
         .order("ts", { ascending: false }),

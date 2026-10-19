@@ -28,13 +28,13 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="flex h-14 items-center gap-2 px-4">
-          <PinMark size={18} className="text-foreground" />
-          <span className="text-[15px] font-semibold tracking-tight">toodip</span>
+        <div className="flex h-14 items-center gap-2 px-5">
+          <PinMark size={16} className="text-foreground" />
+          <span className="text-[14px] font-semibold tracking-tight">toodip</span>
         </div>
-        <div className="mx-3 mb-2 rounded-[4px] border border-brand/60 bg-card px-3 py-2">
-          <p className="truncate text-sm font-semibold leading-tight">{session.tenantName}</p>
-          <p className="truncate text-[11px] leading-tight text-muted-foreground">
+        <div className="mx-3 mb-3 rounded-[4px] border border-border bg-card/60 px-3 py-2.5">
+          <p className="truncate text-[13.5px] font-semibold leading-tight">{session.tenantName}</p>
+          <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
             {siteDomain ?? location}
           </p>
         </div>
@@ -78,7 +78,7 @@ export function AppShell({
       </aside>
 
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur-md sm:px-6">
           <div className="lg:hidden">
             <MobileNav
               workspaceName={session.tenantName}
@@ -105,7 +105,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="panel-in mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="panel-in mx-auto max-w-[1120px] px-4 py-8 sm:px-6 lg:px-10">{children}</main>
       </div>
     </div>
   );

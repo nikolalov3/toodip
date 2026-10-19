@@ -213,6 +213,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
         .from("visibility_runs")
         .select(
           "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
+          { count: "exact" },
         )
         .eq("tenant_id", session.tenantId)
         .order("executed_on", { ascending: true })

@@ -263,6 +263,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
           // No answer texts here: they are the heaviest column by far and only
           // the thirty previews need them (fetched below by id).
           "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
+          { count: "exact" },
         )
         .eq("tenant_id", session.tenantId)
         .order("executed_on", { ascending: false })

@@ -158,12 +158,15 @@ function GettingStarted({ canMeasure }: { canMeasure: boolean }) {
 
 export default async function VisibilityPage() {
   const session = await requireSession();
-  const profile = await requireBusinessProfile();
+  // The profile guard and the data queries start together; the guard only
+  // decides whether to redirect, it does not feed the queries.
+  const profilePromise = requireBusinessProfile();
 
   // One wave of queries: plan, measurements, traffic and the saved battery
   // all at once, instead of one after another.
   const supabase = await getUserClient();
-  const [billing, overview, traffic, promptRows, used] = await Promise.all([
+  const [profile, billing, overview, traffic, promptRows, used] = await Promise.all([
+    profilePromise,
     getBillingSnapshot(),
     getVisibilityOverview(),
     getStatsSnapshot(),
@@ -298,7 +301,7 @@ export default async function VisibilityPage() {
       <VisibilitySubNav />
 
       {/* Context line, like the stats panel: engine · date · questions · category */}
-      <p className="mb-4 text-[13px] text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         {platformsUsed.join(", ")} · {current.label} ·{" "}
         <span className="text-numeric">{current.categoryRuns}</span> answers ·{" "}
         <span className="font-medium text-foreground">{profile.category}</span>
@@ -359,7 +362,7 @@ export default async function VisibilityPage() {
       </Kpis>
 
       {/* Next step and trend side by side */}
-      <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_1fr]">
+      <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1.4fr]">
         <Card>
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Recommended next step</p>
           {weakest ? (
@@ -393,7 +396,7 @@ export default async function VisibilityPage() {
         </Card>
       </div>
 
-      {measurePanel && <div className="mt-3">{measurePanel}</div>}
+      {measurePanel && <div className="mt-10">{measurePanel}</div>}
 
       <QHead step={1} title="Who is taking my spot?" sub="Share of AI recommendations. Your venue highlighted." hint="Venues the assistants name for the same customer questions. Share = answers naming the venue / all answers. This is your real competition in AI, not necessarily the one on Google." />
       <Card>
@@ -503,26 +506,24 @@ export default async function VisibilityPage() {
       </Card>
 
       <QHead step={4} title="How does each assistant see me?" sub="Named rate per platform and what that platform reads." />
-      <Card className="p-0">
-        <div className="grid gap-px bg-border sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {overview.platforms
             .filter((p) => p.runs > 0)
             .map((p) => (
-              <div key={p.platform} className="bg-card p-4">
+              <Card key={p.platform}>
                 <p className="text-[13px] font-semibold">{PLATFORM_LABELS[p.platform]}</p>
                 <p className="text-numeric mt-1 text-[24px] font-semibold tracking-tight">{pct(p.ownMentions / p.runs)}</p>
                 <p className="text-[12px] text-muted-foreground">named in {p.ownMentions} of {p.runs} answers</p>
                 <div className="mt-3">
                   <Bars items={p.topDomains.slice(0, 4).map((d) => ({ label: d.domain, value: d.count }))} empty="No citations." muted />
                 </div>
-              </div>
+              </Card>
             ))}
-        </div>
-      </Card>
+      </div>
 
       <section id="plan" className="scroll-mt-6">
         <QHead step={5} title="What do I do about it?" sub="Each assistant reads a different part of the internet, so each one has its own fix. Start with the weakest." />
-        <div className="grid gap-3 md:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rankedPlatforms.map((p, index) => (
             <Card key={p.platform} className={cn(index === 0 && "border-brand/50")}>
               <div className="flex items-start justify-between gap-2">

@@ -76,9 +76,11 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Local verification of the ES256 token against Supabase's JWKS (cached
+  // across requests). No round trip to the auth server; an expired token is
+  // refreshed here through the cookie adapter, so pages read a fresh one.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims ?? null;
 
   if (!user && !isPublic) {
     const target = request.nextUrl.clone();
