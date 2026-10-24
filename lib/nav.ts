@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
+  ClipboardList, // survey-module
   Building2,
   Code2,
   CreditCard,
@@ -12,6 +13,8 @@ import {
   Users,
 } from "lucide-react";
 
+import { SURVEY_MODULE } from "@/lib/survey-module"; // survey-module
+
 export interface NavItem {
   href: string;
   label: string;
@@ -22,6 +25,8 @@ export interface NavItem {
   platformOnly?: boolean;
   /** About a venue, so pointless until the business profile exists. */
   needsBusinessProfile?: boolean;
+  /** Only shown for sites that opted into this module (see SidebarNav `siteModules`). */
+  siteModule?: string;
 }
 
 export interface NavGroup {
@@ -39,6 +44,7 @@ export const navGroups: NavGroup[] = [
     label: "Measure",
     items: [
       { href: "/overview", label: "Overview", icon: LayoutGrid, status: "live", needsBusinessProfile: true },
+      { href: "/survey", label: "Survey", icon: ClipboardList, status: "live", needsBusinessProfile: true, siteModule: SURVEY_MODULE }, // survey-module
       {
         href: "/visibility",
         label: "AI Visibility",
@@ -67,6 +73,7 @@ export const navGroups: NavGroup[] = [
 export function navGroupsFor(options: {
   isPlatformAdmin: boolean;
   hasBusinessProfile: boolean;
+  siteModules?: string[];
 }): NavGroup[] {
   return navGroups
     .map((group) => ({
@@ -74,6 +81,7 @@ export function navGroupsFor(options: {
       items: group.items.filter((item) => {
         if (item.platformOnly && !options.isPlatformAdmin) return false;
         if (item.needsBusinessProfile && !options.hasBusinessProfile) return false;
+        if (item.siteModule && !(options.siteModules ?? []).includes(item.siteModule)) return false;
         return true;
       }),
     }))

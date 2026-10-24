@@ -17,10 +17,12 @@ export function MobileNav({
   workspaceName,
   isPlatformAdmin,
   hasBusinessProfile,
+  siteModules,
 }: {
   workspaceName: string;
   isPlatformAdmin: boolean;
   hasBusinessProfile: boolean;
+  siteModules?: string[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -41,6 +43,7 @@ export function MobileNav({
           <SidebarNav
             isPlatformAdmin={isPlatformAdmin}
             hasBusinessProfile={hasBusinessProfile}
+            siteModules={siteModules}
             onNavigate={() => setOpen(false)}
           />
         </div>

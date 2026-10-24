@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { requireSession } from "@/lib/auth/session";
 import { loadBusinessProfile } from "@/lib/auth/workspace";
+import { SURVEY_MODULE, SURVEY_SITE_ID } from "@/lib/survey-module"; // survey-module
 import { getStatsSite } from "@/services/stats";
 import { PATHNAME_HEADER } from "@/proxy";
 import type { BusinessProfile } from "@/types/domain";
@@ -42,9 +43,10 @@ export default async function WorkspaceLayout({ children }: LayoutProps<"/">) {
   }
 
   const site = profile ? await getStatsSite() : null;
+  const siteModules = site?.id === SURVEY_SITE_ID ? [SURVEY_MODULE] : []; // survey-module
 
   return (
-    <AppShell session={session} profile={profile} siteDomain={site?.domain ?? null}>
+    <AppShell session={session} profile={profile} siteDomain={site?.domain ?? null} siteModules={siteModules}>
       {children}
     </AppShell>
   );

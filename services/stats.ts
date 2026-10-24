@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
+import { isSurvey } from "@/lib/survey-module"; // survey-module
 import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
 
@@ -182,7 +183,7 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
   const all = eventsResult.rows;
   const views = all.filter((e) => e.type !== "event");
   const events = all.filter((e) => e.type === "event");
-  const conversions = events.filter((e) => !isEngagement(e.name));
+  const conversions = events.filter((e) => !isEngagement(e.name) && !isSurvey(e.name)); // survey-module
   const engagements = events.filter((e) => isEngagement(e.name));
 
   const days = new Map<string, TrendPoint>();

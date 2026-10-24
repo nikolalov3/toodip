@@ -13,12 +13,15 @@ export function AppShell({
   session,
   profile,
   siteDomain,
+  siteModules,
   children,
 }: {
   session: Session;
   profile: BusinessProfile | null;
   /** The linked traffic site's domain, shown under the workspace name. */
   siteDomain?: string | null;
+  /** Optional per-site modules to show in the nav (e.g. the Belmont survey). */
+  siteModules?: string[];
   children: ReactNode;
 }) {
   const location = profile
@@ -43,6 +46,7 @@ export function AppShell({
           <SidebarNav
             isPlatformAdmin={session.isPlatformAdmin}
             hasBusinessProfile={Boolean(profile)}
+            siteModules={siteModules}
           />
         </div>
 
@@ -84,6 +88,7 @@ export function AppShell({
               workspaceName={session.tenantName}
               isPlatformAdmin={session.isPlatformAdmin}
               hasBusinessProfile={Boolean(profile)}
+              siteModules={siteModules}
             />
           </div>
 
