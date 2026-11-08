@@ -12,11 +12,15 @@ import {
   PanelHeader,
 } from "@/components/common/surfaces";
 import { canEditSettings, requireSession } from "@/lib/auth/session";
-import { FAIR_USE_CAP, PLANS, formatEur } from "@/lib/billing";
+import { PLANS, formatEur } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
 import { stripeConfigured } from "@/lib/stripe";
 import { cn } from "@/lib/utils";
-import { getBillingSnapshot, syncCheckoutSession } from "@/services/billing";
+import {
+  getBillingSnapshot,
+  getMeasurementUsage,
+  syncCheckoutSession,
+} from "@/services/billing";
 
 export const metadata: Metadata = { title: "Billing" };
 
@@ -42,15 +46,14 @@ export default async function BillingPage({
     ? await syncCheckoutSession(checkoutSessionId, session.tenantId)
     : false;
 
-  const snapshot = await getBillingSnapshot();
+  const [snapshot, usage] = await Promise.all([
+    getBillingSnapshot(),
+    getMeasurementUsage(),
+  ]);
   const stripeReady = stripeConfigured();
   const isAdmin = canEditSettings(session.role);
   const agencyManaged = snapshot.plan === "agency";
-
-  const limitLabel =
-    PLANS[snapshot.effectivePlan].monthlyReplies === null
-      ? `fair use, up to ${FAIR_USE_CAP}`
-      : String(snapshot.limit);
+  const measures = PLANS[snapshot.effectivePlan].monthlyRuns > 0;
 
   return (
     <>
@@ -59,14 +62,14 @@ export default async function BillingPage({
         description={
           agencyManaged
             ? "This workspace is managed by the NotASlop team. Billing happens under the service agreement, not here."
-            : "One subscription, cancel any time. The plan decides how many replies a month and which engine writes them."
+            : "One subscription, cancel any time. The plan decides how many measurements run a month and whether the monthly report is included."
         }
       />
 
       {justUpgraded && (
         <div className="mb-4 rounded-md border border-positive/30 bg-positive-soft px-3 py-2.5 text-xs text-positive">
-          Payment confirmed. The {PLANS[snapshot.plan].name} plan is active and
-          the AI engine is on.
+          Payment confirmed. The {PLANS[snapshot.plan].name} plan is active
+          {measures ? " and measurements are unlocked." : "."}
         </div>
       )}
 
@@ -83,17 +86,21 @@ export default async function BillingPage({
           }
         />
         <MetricCard
-          label="Replies this month"
-          value={`${snapshot.usageThisMonth} / ${limitLabel}`}
-          hint="One review with a generated reply is one unit, drafts and retries included"
+          label="Measurements this month"
+          value={measures ? `${usage.used} / ${usage.limit}` : "Not included"}
+          hint={
+            measures
+              ? "One question asked once is one measurement. Failed executions are not counted."
+              : "Measurements are part of the Visibility and Unlimited plans."
+          }
         />
         <MetricCard
-          label="Engine"
-          value={snapshot.allowAi ? "AI model" : "Draft engine"}
+          label="Monthly report"
+          value={measures ? "Included" : "Not included"}
           hint={
-            snapshot.allowAi
-              ? "Replies written by the model"
-              : "Upgrade to switch the AI model on"
+            measures
+              ? "Runs automatically at the start of each month. History under Reports."
+              : "Upgrade and the first report runs at the start of next month."
           }
         />
       </div>

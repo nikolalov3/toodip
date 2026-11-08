@@ -17,6 +17,31 @@ import {
   type PromptProposal,
   type RunOutcome,
 } from "@/services/measurement";
+import { logIntervention } from "@/services/visibility";
+
+const interventionSchema = z.object({
+  kind: z.enum(["record_update", "review_reply", "site_change", "guide_entry", "social_post", "other"]),
+  surface: z.enum(["google", "site", "instagram", "facebook", "guide", "other"]),
+  description: z.string().trim().min(3).max(500),
+  performedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+/**
+ * The owner logs what they changed (a Google record update, a new page, a
+ * guide listing) so the next measurement can be read against it. Any member
+ * of the workspace may log; the ledger is append-only.
+ */
+export async function logInterventionAction(input: unknown): Promise<{ ok: boolean; message: string }> {
+  await requireSession();
+  const parsed = interventionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "Pick what changed and where, give it a date and a short description." };
+  }
+  const result = await logIntervention(parsed.data);
+  if (!result.ok) return { ok: false, message: result.message ?? "Could not save the change." };
+  revalidatePath("/visibility");
+  return { ok: true, message: "Logged. The next measurement will show the score before and after it." };
+}
 
 /** One prompt, one execution. The browser loops and renders progress. */
 export async function runVisibilityPromptAction(

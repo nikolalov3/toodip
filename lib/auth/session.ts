@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
+import { effectivePlanFrom, landingPathFor, type BillingPlan } from "@/lib/billing";
 import { getUserClient } from "@/lib/supabase/server";
 import type { MemberRole } from "@/types/domain";
 
@@ -48,6 +49,15 @@ export interface Session {
   jobTitle: string | null;
   /** Workspaces this account may operate in. One for a client, all for us. */
   workspaces: WorkspaceSummary[];
+  /** Active workspace's plan after checking the subscription is paid. */
+  effectivePlan: BillingPlan;
+  /** Where this person lands: AI Visibility on a measuring plan, else Overview. */
+  homePath: "/visibility" | "/overview";
+}
+
+interface TenantRow extends WorkspaceSummary {
+  billing_plan: BillingPlan | null;
+  billing_status: string | null;
 }
 
 interface MembershipRow {
@@ -86,7 +96,8 @@ export const getSession = cache(async function getSession(): Promise<Session | n
       .from("tenant_members")
       .select("tenant_id, role, job_title")
       .eq("user_id", user.id),
-    supabase.from("tenants").select("id, name, slug").order("name"),
+    // Plan columns ride along so the landing page is decided with no extra query.
+    supabase.from("tenants").select("id, name, slug, billing_plan, billing_status").order("name"),
   ]);
 
   // A query error here means the token was rejected or the database did not
@@ -95,9 +106,12 @@ export const getSession = cache(async function getSession(): Promise<Session | n
   if (queryError) throw new SessionReadError(queryError.message);
 
   const memberships = (membershipResult.data ?? []) as MembershipRow[];
-  const workspaces = ((tenantResult.data ?? []) as WorkspaceSummary[]).map(
-    (tenant) => ({ id: tenant.id, name: tenant.name, slug: tenant.slug }),
-  );
+  const tenantRows = (tenantResult.data ?? []) as TenantRow[];
+  const workspaces: WorkspaceSummary[] = tenantRows.map((tenant) => ({
+    id: tenant.id,
+    name: tenant.name,
+    slug: tenant.slug,
+  }));
 
   if (workspaces.length === 0) {
     throw new NoWorkspaceError(user.email ?? "This account");
@@ -128,6 +142,12 @@ export const getSession = cache(async function getSession(): Promise<Session | n
 
   const fullName = profile?.full_name ?? user.email ?? "Unknown user";
 
+  const activeRow = tenantRows.find((tenant) => tenant.id === active.id);
+  const effectivePlan = effectivePlanFrom({
+    billing_plan: activeRow?.billing_plan ?? "free",
+    billing_status: activeRow?.billing_status ?? "none",
+  });
+
   return {
     userId: user.id,
     email: profile?.email ?? user.email ?? "",
@@ -139,6 +159,8 @@ export const getSession = cache(async function getSession(): Promise<Session | n
     tenantName: active.name,
     jobTitle: membershipHere?.job_title ?? null,
     workspaces,
+    effectivePlan,
+    homePath: landingPathFor(effectivePlan),
   };
 });
 
@@ -160,7 +182,7 @@ export async function requireSession(): Promise<Session> {
 
 export async function requirePlatformAdmin(): Promise<Session> {
   const session = await requireSession();
-  if (!session.isPlatformAdmin) redirect("/overview");
+  if (!session.isPlatformAdmin) redirect(session.homePath);
   return session;
 }
 

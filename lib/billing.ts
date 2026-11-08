@@ -144,6 +144,31 @@ export function formatEur(cents: number): string {
   return `${(cents / 100).toFixed(2).replace(".", ",")} €`;
 }
 
+/**
+ * A paid plan without a live subscription behaves like free. Agency is
+ * managed off-platform and never downgrades itself. The one rule, in one place,
+ * for the session path and the session-free (cron, admin) path alike.
+ */
+export function effectivePlanFrom(row: {
+  billing_plan: BillingPlan;
+  billing_status: string;
+}): BillingPlan {
+  const paidButLapsed =
+    row.billing_plan !== "free" &&
+    row.billing_plan !== "agency" &&
+    row.billing_status !== "active" &&
+    row.billing_status !== "past_due";
+  return paidButLapsed ? "free" : row.billing_plan;
+}
+
+/**
+ * Where a signed-in person lands. A workspace that pays for measurements
+ * opens on AI Visibility; everyone else on the stats overview.
+ */
+export function landingPathFor(plan: BillingPlan): "/visibility" | "/overview" {
+  return PLANS[plan].monthlyRuns > 0 ? "/visibility" : "/overview";
+}
+
 export function repliesLimitFor(plan: BillingPlan): number {
   const definition = PLANS[plan];
   return definition.monthlyReplies ?? FAIR_USE_CAP;

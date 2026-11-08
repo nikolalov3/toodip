@@ -6,6 +6,7 @@ import { requireSession } from "@/lib/auth/session";
 import {
   FAIR_USE_CAP,
   PLANS,
+  effectivePlanFrom,
   repliesLimitFor,
   type BillingPlan,
 } from "@/lib/billing";
@@ -47,22 +48,8 @@ function monthStartIso(): string {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
-/**
- * A paid plan without a live subscription behaves like free. Agency is
- * managed off-platform and never downgrades itself. The one rule, in one place,
- * for the session path and the session-free (cron, admin) path alike.
- */
-export function effectivePlanFrom(row: {
-  billing_plan: BillingPlan;
-  billing_status: string;
-}): BillingPlan {
-  const paidButLapsed =
-    row.billing_plan !== "free" &&
-    row.billing_plan !== "agency" &&
-    row.billing_status !== "active" &&
-    row.billing_status !== "past_due";
-  return paidButLapsed ? "free" : row.billing_plan;
-}
+/** The rule lives in lib/billing so the session can apply it without a cycle. */
+export { effectivePlanFrom };
 
 /** Plan for any tenant without a session — what the monthly cron asks. */
 export async function getTenantEffectivePlan(
@@ -133,6 +120,28 @@ export const getBillingSnapshot = cache(async function getBillingSnapshot(): Pro
     stripeCustomerId: row.stripe_customer_id,
     renewsAt: row.plan_renews_at,
   };
+});
+
+export interface MeasurementUsage {
+  /** Measurements run this calendar month. Failed executions are not counted. */
+  used: number;
+  /** The plan's monthly allowance. Zero means measurements are not included. */
+  limit: number;
+  remaining: number;
+}
+
+/**
+ * Measurements used this month against the plan's allowance. Reads the same
+ * counter that reserve_visibility_run increments, so the billing page and the
+ * run guard never disagree.
+ */
+export const getMeasurementUsage = cache(async function getMeasurementUsage(): Promise<MeasurementUsage> {
+  const session = await requireSession();
+  const supabase = await getUserClient();
+  const { data } = await supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId });
+  const used = typeof data === "number" ? data : 0;
+  const limit = PLANS[session.effectivePlan].monthlyRuns;
+  return { used, limit, remaining: Math.max(0, limit - used) };
 });
 
 /**

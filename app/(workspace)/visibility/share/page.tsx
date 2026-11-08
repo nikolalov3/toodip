@@ -46,7 +46,7 @@ export default async function SharePage({
         title="AI Visibility"
         description={
           d.latestLabel
-            ? `Share of voice in depth. Latest measurement: ${d.latestLabel}, ${d.latestRuns} answers. ${d.dates.length} measurement${d.dates.length === 1 ? "" : "s"} in total.`
+            ? `Share of voice in depth. Latest measurement: ${d.latestLabel}, ${d.latestRuns} answers, ${d.method}. ${d.dates.length} comparable measurement${d.dates.length === 1 ? "" : "s"}${d.omittedPeriods > 0 ? `; ${d.omittedPeriods} made another way left out` : ""}.`
             : "Share of voice in depth."
         }
       />
@@ -55,23 +55,23 @@ export default async function SharePage({
       {!d.hasData ? (
         <Card>
           <p className="text-[13px] text-muted-foreground">
-            No measurements yet. Run the battery on the Overview tab and this view fills in.
+            No measurements yet. Run the battery on the Summary tab and this view fills in.
           </p>
         </Card>
       ) : (
         <>
           <Kpis>
-            <Kpi label="Named in answers" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you. The same number as Recommended on the Overview." />
-            <Kpi label="Share of voice" value={pct(d.shareOfVoice)} hint="Your mentions as a share of every venue mention in the latest measurement. The same number as on the Overview." />
+            <Kpi label="Named in answers" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you. The same number as on the Summary tab." />
+            <Kpi label="Share of voice" value={pct(d.shareOfVoice)} hint="Your mentions as a share of every venue mention in the latest measurement. The same number as on the Summary tab." />
             <Kpi label="Your rank" value={own ? `#${d.brands.indexOf(own) + 1}` : "—"} hint={`Among ${d.brands.length} venues the assistants name for the same questions. Avg. position when named: ${own?.avgPosition ?? "—"}.`} />
-            <Kpi label="Reliable questions" value={`${d.stabilitySummary.reliable}/${d.stability.length}`} hint="Questions where every repetition named you on the latest day." />
+            <Kpi label="Reliable questions (latest)" value={`${d.stabilitySummary.reliable}/${d.stability.length}`} hint="Questions where every repetition in the latest measurement named you." />
           </Kpis>
 
-          <QHead step={1} title="How is the share moving?" sub="Share of answers naming each venue, one point per measurement." hint="Answers naming the venue / all category answers in that measurement. A monthly report is one point. Top five rivals of the latest measurement plus you." />
+          <QHead step={1} title="How is the share moving?" sub="Share of answers naming each venue, one point per measurement made the same way." hint="Answers naming the venue / all category answers in that measurement. A monthly report is one point. Top five rivals of the latest measurement plus you. Measurements made with another model are left out, so every point is comparable." />
           <Card>
             {d.timeline.length < 2 ? (
               <p className="mb-3 text-[13px] text-muted-foreground">
-                One measurement so far. The second one draws the trend.
+                One measurement with this method so far. The second one draws the trend.
               </p>
             ) : null}
             <ShareLines points={d.timeline} brands={d.timelineBrands} ownName={own?.name ?? null} />
@@ -88,8 +88,8 @@ export default async function SharePage({
           </Card>
 
           <QHead step={3} title="Where do I win, where am I missing?" sub="Share per type of customer question. Sorted by your share." hint="Each row is one intent from the battery. Leader = the rival named most often for that intent." />
-          <Card className="overflow-hidden p-0">
-            <table className="w-full text-[13px]">
+          <Card className="overflow-x-auto p-0">
+            <table className="w-full min-w-[640px] text-[13px]">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-4 py-2.5 font-medium">Question type</th>
@@ -157,7 +157,7 @@ export default async function SharePage({
           </Card>
 
           <QHead step={6} title="Which questions are reliable, which flicker?" sub="Per question, across repetitions in the latest measurement." hint="Reliable = named every time. Flickering = sometimes. Absent = never. Flickering questions are the cheapest wins: the assistant already considers you." />
-          <Card className="overflow-hidden p-0">
+          <Card className="overflow-x-auto p-0">
             <div className="flex flex-wrap gap-2 border-b border-border px-4 py-2.5 text-[12px]">
               {(["reliable", "flicker", "absent", "single"] as const).map((s) => (
                 <span key={s} className={cn("rounded-[3px] px-2 py-0.5 font-medium", STATUS_STYLE[s])}>
@@ -183,7 +183,7 @@ export default async function SharePage({
             </ul>
           </Card>
 
-          <QHead step={7} title="Head to head" sub="Pick a rival. Across all measurements: the questions they win, and the sources behind them." />
+          <QHead step={7} title="Head to head" sub="Pick a rival. Across every measurement made the same way: the questions they win, and the sources behind them." />
           <Card>
             <div className="mb-4 flex flex-wrap gap-1.5">
               {d.rivals.map((name) => (

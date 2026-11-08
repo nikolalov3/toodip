@@ -90,9 +90,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(target);
   }
 
+  // Already signed in: the root page sends them to the landing for their
+  // plan. Deciding that here would cost a database query on every request.
   if (user && pathname === "/sign-in") {
     const target = request.nextUrl.clone();
-    target.pathname = "/overview";
+    target.pathname = "/";
     target.search = "";
     return NextResponse.redirect(target);
   }

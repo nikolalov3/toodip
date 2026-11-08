@@ -92,7 +92,7 @@ export function AppShell({
             />
           </div>
 
-          <Link href="/overview" className="text-sm font-medium lg:hidden">
+          <Link href={session.homePath} className="text-sm font-medium lg:hidden">
             {session.tenantName}
           </Link>
 

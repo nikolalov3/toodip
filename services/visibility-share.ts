@@ -3,7 +3,17 @@ import "server-only";
 import { requireSession } from "@/lib/auth/session";
 import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
-import { classifyDomain, periodLabel, periodOf, periodStart, type Platform, type SourceCategory } from "@/services/visibility";
+import {
+  brandKey,
+  classifyDomain,
+  methodKey,
+  methodLabelOf,
+  periodLabel,
+  periodOf,
+  periodStart,
+  type Platform,
+  type SourceCategory,
+} from "@/services/visibility";
 
 /**
  * Share of voice, in depth. Everything here is counted from the runs ledger
@@ -101,6 +111,10 @@ export interface ShareDetail {
   latestDate: string | null;
   latestLabel: string | null;
   latestRuns: number;
+  /** How the latest measurement was made; every number here is from that method only. */
+  method: string;
+  /** Earlier measurements made another way, left out of the trend and head to head. */
+  omittedPeriods: number;
   brands: BrandShare[];
   timeline: ShareTimelinePoint[];
   timelineBrands: string[];
@@ -119,6 +133,7 @@ interface RunRow {
   platform: Platform;
   executed_on: string;
   source: string;
+  model_version: string | null;
   visibility_prompts: {
     text: string;
     language: string;
@@ -137,8 +152,9 @@ const PLATFORM_LABEL: Record<Platform, string> = {
 
 const LANGUAGE_LABEL: Record<string, string> = { pl: "Polish", en: "English", de: "German" };
 
+/** Same folding as the overview leaderboard, so "Café Camelot" and "Camelot Cafe" are one rival here too. */
 function key(name: string): string {
-  return name.toLowerCase().trim();
+  return brandKey(name);
 }
 
 const OWN_KEY = "__own__";
@@ -175,20 +191,21 @@ function segment(
   }
   return [...groups.entries()]
     .map(([k, rows]) => {
-      const counts = new Map<string, { own: boolean; n: number }>();
+      const counts = new Map<string, { display: string; own: boolean; n: number }>();
       let ownRuns = 0;
       for (const run of rows) {
         const brands = brandsInRun(run);
         let ownHere = false;
         for (const [bk, b] of brands) {
-          const e = counts.get(bk) ?? { own: b.isOwn, n: 0 };
+          const e = counts.get(bk) ?? { display: b.display, own: b.isOwn, n: 0 };
           e.n += 1;
           counts.set(bk, e);
           if (b.isOwn) ownHere = true;
         }
         if (ownHere) ownRuns += 1;
       }
-      const ranked = [...counts.values()].sort((a, b) => b.n - a.n);
+      // Same tie-break as the overview, so a rank never depends on row order.
+      const ranked = [...counts.values()].sort((a, b) => b.n - a.n || a.display.localeCompare(b.display));
       const ownIndex = ranked.findIndex((e) => e.own);
       return {
         key: k,
@@ -212,7 +229,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
       supabase
         .from("visibility_runs")
         .select(
-          "id, platform, executed_on, source, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
+          "id, platform, executed_on, source, model_version, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
           { count: "exact" },
         )
         .eq("tenant_id", session.tenantId)
@@ -236,6 +253,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     latestDate: null,
     latestLabel: null,
     latestRuns: 0,
+    method: "",
+    omittedPeriods: 0,
     brands: [],
     timeline: [],
     timelineBrands: [],
@@ -250,15 +269,32 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   };
   if (runs.length === 0) return empty;
 
-  const allRuns = runs;
-  const periods = [...new Set(allRuns.map(periodOf))].sort((a, b) => periodStart(a).localeCompare(periodStart(b)));
-  const latestPeriod = periods[periods.length - 1];
+  // Periods in the order they were measured (a monthly report that finished on
+  // the 20th comes after an import from the 8th), then narrowed to the METHOD
+  // of the latest one: the trend and head to head only compare measurements
+  // made with the same model. Others are counted in omittedPeriods, not drawn.
+  const periodEnd = new Map<string, string>();
+  for (const run of runs) {
+    const p = periodOf(run);
+    if ((periodEnd.get(p) ?? "") < run.executed_on) periodEnd.set(p, run.executed_on);
+  }
+  const everyPeriod = [...periodEnd.keys()].sort(
+    (a, b) => periodEnd.get(a)!.localeCompare(periodEnd.get(b)!) || periodStart(a).localeCompare(periodStart(b)),
+  );
+  const latestPeriod = everyPeriod[everyPeriod.length - 1];
+  const latestPeriodRuns = runs.filter((r) => periodOf(r) === latestPeriod);
+  const methodCounts = new Map<string, number>();
+  for (const r of latestPeriodRuns) methodCounts.set(methodKey(r), (methodCounts.get(methodKey(r)) ?? 0) + 1);
+  const latestMethod = [...methodCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  const methodRun = latestPeriodRuns.find((r) => methodKey(r) === latestMethod)!;
+  const allRuns = runs.filter((r) => methodKey(r) === latestMethod);
+  const periodsWithMethod = new Set(allRuns.map(periodOf));
+  const periods = everyPeriod.filter((p) => periodsWithMethod.has(p));
   const dates = periods.map(periodStart);
   const latestDate = periodStart(latestPeriod);
   // Brands, segments, positions and stability describe the latest measurement
-  // (one monthly report counts as one measurement). The trend and head to head
-  // use the whole history.
-  runs = allRuns.filter((r) => periodOf(r) === latestPeriod);
+  // (one monthly report counts as one measurement).
+  runs = latestPeriodRuns.filter((r) => methodKey(r) === latestMethod);
 
   // ── Brands in the latest measurement ─────────────────────────────────────
   const brandTotals = new Map<string, { display: string; isOwn: boolean; runs: number; posSum: number; posN: number }>();
@@ -328,7 +364,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
         }
         if (ownHere) ownRuns += 1;
       }
-      const ranked = [...counts.values()].sort((a, b) => b.n - a.n);
+      // Same tie-break as the overview, so a rank never depends on row order.
+      const ranked = [...counts.values()].sort((a, b) => b.n - a.n || a.display.localeCompare(b.display));
       const ownIndex = ranked.findIndex((e) => e.own);
       const leader = ranked.find((e) => !e.own) ?? null;
       return {
@@ -463,6 +500,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     latestDate,
     latestLabel: periodLabel(latestPeriod),
     latestRuns: runs.length,
+    method: methodLabelOf(methodRun),
+    omittedPeriods: everyPeriod.length - periods.length,
     brands,
     timeline,
     timelineBrands,

@@ -15,24 +15,24 @@ const PERMISSIONS: Array<{
   roles: Record<MemberRole, boolean>;
 }> = [
   {
-    capability: "Read reviews and drafts",
+    capability: "See measurements, reports and website stats",
     roles: { platform_admin: true, tenant_admin: true, tenant_member: true },
   },
   {
-    capability: "Generate and edit drafts",
-    roles: { platform_admin: true, tenant_admin: true, tenant_member: true },
-  },
-  {
-    capability: "Approve, reject and publish",
+    capability: "Run measurements and edit the question set",
     roles: { platform_admin: true, tenant_admin: true, tenant_member: false },
   },
   {
-    capability: "Change brand settings and keyword bank",
+    capability: "Change the business profile and workspace settings",
     roles: { platform_admin: true, tenant_admin: true, tenant_member: false },
   },
   {
-    capability: "Inspect assembled prompts",
+    capability: "Change the plan and manage billing",
     roles: { platform_admin: true, tenant_admin: true, tenant_member: false },
+  },
+  {
+    capability: "Open every client workspace",
+    roles: { platform_admin: true, tenant_admin: false, tenant_member: false },
   },
 ];
 
@@ -55,7 +55,7 @@ export default async function TeamPage() {
         <Panel className="overflow-hidden">
           <PanelHeader
             title="Members"
-            description="Invitations arrive with Supabase auth. Until then, switch roles from the user menu to test each permission set."
+            description="Everyone with access to this workspace and their role."
           />
           <table className="w-full min-w-[640px] text-sm">
             <thead>
@@ -121,7 +121,7 @@ export default async function TeamPage() {
         <Panel className="overflow-hidden">
           <PanelHeader
             title="Permissions"
-            description="What each role can do. Enforced in the services layer. The matching row level security policies take over once sign in moves to Supabase auth."
+            description="What each role can do. Enforced in the services layer and by row level security in the database."
           />
           <table className="w-full min-w-[640px] text-sm">
             <thead>

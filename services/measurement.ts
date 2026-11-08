@@ -51,9 +51,37 @@ export function resolveEngine(): MeasurementEngine | null {
  * ":online" adds OpenRouter's web plugin to any model, so the answer is built
  * from live search results with url citations, the closest thing to what a
  * ChatGPT user sees. "perplexity/sonar" measures Perplexity itself.
+ *
+ * The model is part of the METHOD: the panel never compares runs made with
+ * different models on one line, so changing this starts a new series. The
+ * agency plans (venues that also get a hand-made report measured on
+ * "openai/gpt-chat-latest") can be pinned to that same model through
+ * OPENROUTER_SEARCH_MODEL_AGENCY, so the panel and the report agree.
  */
 const OPENROUTER_SEARCH_MODEL = () =>
   process.env.OPENROUTER_SEARCH_MODEL?.trim() || "openai/gpt-4o-mini:online";
+const OPENROUTER_SEARCH_MODEL_AGENCY = () => process.env.OPENROUTER_SEARCH_MODEL_AGENCY?.trim() || "";
+
+/** Which search model measures a tenant on a given plan. */
+export function searchModelForPlan(planName: string): string {
+  const agency = OPENROUTER_SEARCH_MODEL_AGENCY();
+  return agency && /agency|unlimited/i.test(planName) ? agency : OPENROUTER_SEARCH_MODEL();
+}
+
+/**
+ * Sources out of the prose, the same way the hand-made reports count: a
+ * venue cited only as a link target ("([belmont.cafe](https://...))") or a
+ * bare domain is a SOURCE, not a recommendation. Inline links keep their
+ * visible label, since "[Café Belmont](https://...)" names the venue.
+ */
+export function stripSources(text: string): string {
+  return text
+    .replace(/\(\s*\[[^\]]*\]\((?:https?:)?\/\/[^)\s]*\)\s*\)/g, " ")
+    .replace(/\[([^\]]*)\]\((?:https?:)?\/\/[^)\s]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:pl|com|eu|net|org|cafe|coffee|info|co|io|shop|app|site|online|de|uk|fr|it|es|cz|sk)\b(?:\/\S*)?/gi, " ")
+    .replace(/[ \t]{2,}/g, " ");
+}
 
 /** Which measured platform a model stands for, for the runs ledger. */
 export function platformForModel(model: string): "chatgpt" | "perplexity" | "google_aio" | "other" {
@@ -77,7 +105,10 @@ async function callOpenRouter(body: unknown, apiKey: string): Promise<Record<str
         "http-referer": "https://www.toodip.com",
         "x-title": "toodip",
       },
-      body: JSON.stringify(body),
+      // usage.include asks OpenRouter to return the exact charge with the
+      // usage block; without it `usage.cost` is absent and every run falls
+      // back to list-price estimates.
+      body: JSON.stringify({ ...(body as Record<string, unknown>), usage: { include: true } }),
       signal: controller.signal,
     });
     if (!response.ok) {
@@ -100,10 +131,26 @@ const PRICE_IN_PER_M = Number(process.env.AI_PRICE_IN_PER_M ?? 0.4);
 const PRICE_OUT_PER_M = Number(process.env.AI_PRICE_OUT_PER_M ?? 1.6);
 const PRICE_WEB_SEARCH = Number(process.env.AI_PRICE_WEB_SEARCH ?? 0.025);
 
-export function runCostUsd(tokensIn: number, tokensOut: number, webSearches: number): number {
+/**
+ * List prices per million tokens (USD) for the models this module is run
+ * with, as published on OpenRouter in November 2026. Only used when the
+ * provider did not report the charge itself; the env defaults above cover
+ * anything not listed.
+ */
+const MODEL_PRICES: Record<string, { in: number; out: number }> = {
+  "openai/gpt-4o-mini": { in: 0.15, out: 0.6 },
+  "openai/gpt-4.1-mini": { in: 0.4, out: 1.6 },
+  "openai/gpt-chat-latest": { in: 5, out: 30 },
+  "openai/gpt-6-luna": { in: 0.1, out: 0.5 },
+  "deepseek/deepseek-v4.1-flash": { in: 0.051, out: 0.41 },
+  "perplexity/sonar": { in: 1, out: 1 },
+};
+
+export function runCostUsd(tokensIn: number, tokensOut: number, webSearches: number, model?: string): number {
+  const price = model ? MODEL_PRICES[model.replace(/:online$/, "")] : undefined;
   const cost =
-    (tokensIn / 1_000_000) * PRICE_IN_PER_M +
-    (tokensOut / 1_000_000) * PRICE_OUT_PER_M +
+    (tokensIn / 1_000_000) * (price?.in ?? PRICE_IN_PER_M) +
+    (tokensOut / 1_000_000) * (price?.out ?? PRICE_OUT_PER_M) +
     webSearches * PRICE_WEB_SEARCH;
   return Math.round(cost * 1_000_000) / 1_000_000;
 }
@@ -170,8 +217,8 @@ interface SearchAnswer {
 }
 
 /** Asks the model with web search on, and collects the cited URLs. */
-async function askWithSearch(prompt: string, engine: MeasurementEngine): Promise<SearchAnswer> {
-  if (engine.provider === "openrouter") return askWithSearchOpenRouter(prompt, engine.apiKey);
+async function askWithSearch(prompt: string, engine: MeasurementEngine, planName: string): Promise<SearchAnswer> {
+  if (engine.provider === "openrouter") return askWithSearchOpenRouter(prompt, engine.apiKey, searchModelForPlan(planName));
   const apiKey = engine.apiKey;
   const model = process.env.OPENAI_MODEL?.trim() || "gpt-4.1-mini";
   const data = await callOpenAi(
@@ -212,9 +259,8 @@ async function askWithSearch(prompt: string, engine: MeasurementEngine): Promise
   };
 }
 
-/** The same question through OpenRouter's search-preview model: web search is built in, sources arrive as url_citation annotations. */
-async function askWithSearchOpenRouter(prompt: string, apiKey: string): Promise<SearchAnswer> {
-  const model = OPENROUTER_SEARCH_MODEL();
+/** The same question through OpenRouter with the web plugin: sources arrive as url_citation annotations. */
+async function askWithSearchOpenRouter(prompt: string, apiKey: string, model: string): Promise<SearchAnswer> {
   const data = await callOpenRouter({ model, messages: [{ role: "user", content: prompt }] }, apiKey);
   const choice = ((data.choices as Array<Record<string, unknown>>) ?? [])[0] ?? {};
   const message = (choice.message ?? {}) as Record<string, unknown>;
@@ -372,17 +418,22 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
   const ownPattern = ownNamePattern(ctx.venueName);
 
   try {
-    const answer = await askWithSearch(promptResult.data.text as string, ctx.engine);
-    const extracted = await extractVenues(answer.text, ctx.engine);
+    const answer = await askWithSearch(promptResult.data.text as string, ctx.engine, ctx.planName);
+    // Mentions are read from the prose only. Link targets and bare domains
+    // are sources, kept separately as citations, never as recommendations.
+    const prose = stripSources(answer.text);
+    const extracted = await extractVenues(prose, ctx.engine);
     const venues = extracted.venues;
+    const extractModel = ctx.engine.provider === "openrouter" ? OPENROUTER_EXTRACT_MODEL() : "gpt-4.1-mini";
 
     const tokensIn = answer.tokensIn + extracted.tokensIn;
     const tokensOut = answer.tokensOut + extracted.tokensOut;
-    // OpenRouter reports the exact charge; OpenAI is priced from the model.
+    // OpenRouter reports the exact charge for the search call; extraction and
+    // the OpenAI path are priced from the model's list price.
     const costUsd =
       answer.costUsd !== undefined
-        ? answer.costUsd + runCostUsd(extracted.tokensIn, extracted.tokensOut, 0)
-        : runCostUsd(tokensIn, tokensOut, answer.webSearches);
+        ? answer.costUsd + runCostUsd(extracted.tokensIn, extracted.tokensOut, 0, extractModel)
+        : runCostUsd(tokensIn, tokensOut, answer.webSearches, answer.model);
 
     const run = await supabase
       .from("visibility_runs")
@@ -400,6 +451,12 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
         // Metering lives in raw too: one place to read it from alongside the
         // search flags, whatever the columns do later.
         raw: {
+          // How the answer was produced, so a later reader can tell two
+          // methods apart without guessing from the model id.
+          engine: ctx.engine.provider === "openrouter" ? "openrouter web plugin" : "openai web_search",
+          search_model: answer.model,
+          extract_model: extractModel,
+          cost_reported: answer.costUsd !== undefined,
           used_search: answer.usedSearch,
           web_searches: answer.webSearches,
           tokens_in: tokensIn,
@@ -424,7 +481,7 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
       position: index + 1,
     }));
     const extractorFoundOwn = mentionRows.some((m) => m.is_own);
-    if (!extractorFoundOwn && ownPattern.test(answer.text)) {
+    if (!extractorFoundOwn && ownPattern.test(prose)) {
       mentionRows.push({
         run_id: run.data.id,
         name: ctx.venueName,
