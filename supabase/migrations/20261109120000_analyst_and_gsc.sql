@@ -1,9 +1,9 @@
 -- ============================================================================
 --  The analyst layer and Google Search Console.
 --
---  analyses       one note per measurement period and method, written by a
---                 model from facts the panel already computed; the facts are
---                 stored next to the note so every sentence can be checked.
+--  analyses       one summary per measurement period and method, worded from
+--                 facts the panel already computed; the facts are stored
+--                 next to it so every sentence can be checked.
 --  gsc_properties which Search Console property a workspace connected.
 --  gsc_daily      Search Console rows (day x query x page), the first source
 --                 outside the AI answers: what people type into Google,
@@ -11,13 +11,15 @@
 --
 --  Reads under row level security ("own workspace"); writes come from the
 --  panel (members) and from the cron (service role).
+--
+--  Safe to run more than once.
 -- ============================================================================
 
 create table if not exists analyses (
   id            uuid primary key default gen_random_uuid(),
   tenant_id     uuid not null references tenants(id) on delete cascade,
-  -- Period key as the panel groups runs: YYYY-MM for a monthly report,
-  -- YYYY-MM-DD for an imported or one-off measurement.
+  -- Period key as the panel groups runs: YYYY-Www for a weekly report,
+  -- YYYY-MM for a monthly one, YYYY-MM-DD for an imported or one-off measurement.
   period        text not null,
   period_start  date not null,
   -- source|model of the runs the note describes; notes never mix methods.
@@ -58,6 +60,7 @@ create table if not exists gsc_properties (
   updated_at      timestamptz not null default now()
 );
 
+drop trigger if exists gsc_properties_updated_at on gsc_properties;
 create trigger gsc_properties_updated_at
   before update on gsc_properties
   for each row execute function set_updated_at();

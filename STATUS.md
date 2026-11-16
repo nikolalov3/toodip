@@ -1,219 +1,104 @@
-# toodip, stan budowy
+# toodip, stan produktu
 
 Dokument roboczy dla właściciela produktu. Po polsku, bo to notatka do planowania, a nie część kodu. Reszta repo jest po angielsku.
 
-Stan na 5 sierpnia 2026.
+Stan na 17 listopada 2026. Zastępuje wersję z sierpnia (tamta opisywała moduł odpowiedzi na opinie, którego już nie ma).
 
-**Legenda**
+## Czym jest toodip
 
-| Znacznik | Znaczy |
-| --- | --- |
-| ✅ Działa | Zbudowane i sprawdzone na prawdziwej bazie |
-| 🟡 Częściowo | Działa, ale czegoś istotnego brakuje |
-| ⬜ Makieta | Ekran istnieje, funkcji nie ma |
-| ⬛ Planowane | Sama strona z opisem, zero mechaniki |
+Panel pomiarowy dla lokalu: czy asystenci AI (ChatGPT, Google AI) polecają lokal, kogo polecają zamiast niego, co czytają, i jaki ruch z tego wynika na stronie. Raz w tygodniu (albo w miesiącu) panel zadaje stały zestaw pytań, zapisuje odpowiedzi i mówi, co się zmieniło i co z tym zrobić.
 
----
+Zasada, której trzyma się cały kod: **liczy algorytm, model tylko pisze**. Każda liczba, każde porównanie i każdy werdykt ("realny wzrost", "w granicach szumu") powstają z reguł. Model (DeepSeek) robi dwie rzeczy: wyciąga nazwy lokali z odpowiedzi i ubiera gotowe fakty w zdania.
 
-## Konto i dostęp
-
-### Logowanie ✅
-Adres e-mail i hasło, na Supabase Auth. Sesja odświeżana przy każdym żądaniu, niezalogowany ruch odbija się przed wyrenderowaniem czegokolwiek. Nie ma publicznej rejestracji: konta zakłada platforma.
-
-**Co dalej:** reset hasła przez e-mail. Dziś klient, który zapomni hasła, musi napisać do Ciebie, a Ty wystawiasz nowe z panelu Supabase. Przy jednym kliencie to nieistotne, przy dziesięciu to codzienny telefon.
-
-### Role i izolacja danych ✅
-Trzy role: `platform_admin` (Ty), `tenant_admin` (właściciel lokalu), `tenant_member` (pracownik, pisze drafty, nie zatwierdza). Izolację wymusza baza przez polityki RLS, nie aplikacja. Każde zapytanie leci tokenem zalogowanego użytkownika.
-
-**Co dalej:** nic pilnego. Warto kiedyś przetestować izolację na dwóch klientach naraz.
-
-### Konto użytkownika ✅
-Zmiana własnego hasła i nazwiska. To ta strona, o którą chodziło przy przekazywaniu hasła Filipowi.
-
-**Co dalej:** nic.
-
-### Klienci ✅
-Ekran widoczny tylko dla Ciebie. Dodanie klienta zakłada workspace, konto właściciela i startowy profil biznesu naraz, i pokazuje raz hasło do przekazania. Przełączanie się między workspace'ami klientów.
-
-**Co dalej:** edycja i usuwanie klienta z panelu, dziś to robota w SQL. Dodanie drugiego użytkownika do istniejącego workspace'u, na razie każdy lokal ma jedno konto.
+**Legenda:** ✅ działa na prawdziwej bazie · 🟡 działa, ale czegoś brakuje · ⬜ nie zrobione
 
 ---
 
-## Praca z opiniami
+## Co jest w panelu
 
-### Ręczne dodawanie opinii ✅
-Wklejasz treść, gwiazdki, źródło i imię. System od razu klasyfikuje.
+### Report ✅ (nowe, 17 XI)
+Strona startowa. Jeden raport na okres: werdykt w dwóch zdaniach, wynik każdego asystenta z przedziałem ufności, lista wniosków od najważniejszego, asystenci obok siebie, ruch na stronie z tygodnia, trzy pierwsze kroki. Starsze raporty pod "Other reports" i w Report history.
 
-**Co dalej:** automatyczny import z Google Business Profile. To jest największa pojedyncza rzecz do zrobienia w całym produkcie, bo dziś ktoś musi przepisywać opinie ręcznie.
+### AI Visibility ✅ (przebudowane na zakładki, 17 XI)
+- **Summary**: cztery liczby, wnioski, trend z pasmem niepewności, co się zmieniło od poprzedniego pomiaru.
+- **Assistants**: ChatGPT i Google AI na tych samych pytaniach: typ po typie, pytanie po pytaniu, kogo poleca każdy z nich, co każdy czyta.
+- **Questions**: typy pytań, każde pytanie z wynikiem, wygrane i stracone.
+- **Competitors**: share of voice, pozycja w odpowiedzi, head to head z wybranym rywalem.
+- **Sources**: co czytają asystenci, które źródła stoją za wzmiankami o lokalu, a które tylko za rywalami.
+- **Answers**: cytaty, słowa przy nazwie lokalu, surowe odpowiedzi jako dowód.
+- **Actions**: plan z liczbami i dziennik zmian z wynikiem przed i po.
+- **Setup**: harmonogram, bateria pytań, ręczny pomiar (z wyborem asystenta), metoda.
 
-### Klasyfikacja i flagi ryzyka ✅
-Reguły, nie model. Ustala sentyment, wykrywa dziewięć rodzajów ryzyka (groźba prawna, higiena, zwrot pieniędzy, imię pracownika, konkurencja, wulgaryzmy, prawdopodobny fejk, skarga, niejasny sens) i decyduje, czy potrzebny jest człowiek. Działa po polsku i angielsku. Świadomie regułowe: bramka zatwierdzeń ma zachowywać się tak samo za każdym razem, także gdy model nie odpowiada.
+Przełącznik asystenta jest na każdej zakładce. Liczby z różnych asystentów i różnych modeli nigdy nie są sumowane ani porównywane w jednej linii.
 
-**Co dalej:** dostroić słowniki na prawdziwych opiniach Twoich klientów. To robota na dane, nie na kod.
+### Website ✅
+Cztery zakładki: Traffic, From AI, Conversions, AI crawlers. Dane z własnego trackera (skrypt na stronie klienta plus hak na boty).
 
-### Generowanie odpowiedzi 🟡
-Pełny potok działa: trójwarstwowy prompt, generowanie, ocena jakości, zapis, audyt. Dziś jedzie na silniku regułowym offline, zero kosztu.
+### Survey ✅ (tymczasowe, tylko Café Belmont)
+Wyniki ankiety "skąd o nas wiesz" z belmont.cafe/visit. Do usunięcia według instrukcji w `lib/survey-module.ts`.
 
-**Co dalej:** włączyć OpenAI. Kod providera jest gotowy i podpięty, brakuje tylko klucza w `.env.local` i `GENERATION_PROVIDER=openai`. Potem porównanie obu silników endpointem `/api/dev/compare-engines` i decyzja o modelu.
-
-### Kontrola jakości draftów ✅
-Każdy draft sprawdzany tymi samymi regułami niezależnie od silnika: czy odbija konkret z opinii, jedna fraza z banku maksimum, brak zakazanych zwrotów, brak zwrotów pieniędzy w publicznej odpowiedzi, brak imienia pracownika, emotki zgodne z polityką, kontakt prywatny przy negatywach.
-
-**Co dalej:** nic. To jest gotowe i jest jednym z mocniejszych elementów produktu.
-
-### Kolejka zatwierdzeń ✅
-Wszystko, co polityka workspace'u kieruje do człowieka. Zatwierdzanie, odrzucanie z notatką, edycja draftu przed zatwierdzeniem.
-
-**Co dalej:** przypisywanie opinii do konkretnej osoby. Mechanizm jest w kodzie, brakuje przycisku w interfejsie. Ma sens dopiero przy kliencie z kilkoma pracownikami.
-
-### Publikacja 🟡
-Oznacza odpowiedź jako opublikowaną, zapisuje treść i datę, podbija licznik użycia frazy.
-
-**Co dalej:** faktyczna wysyłka do Google. Dziś ktoś musi skopiować odpowiedź i wkleić ją w profilu Google ręcznie. Razem z importem opinii to domyka pełną automatyzację.
+### Konto ✅
+Team, Account, Billing, Clients (tylko platforma). Publiczna rejestracja jest zamknięta (`ALLOW_PUBLIC_SIGNUP`), konta zakłada platforma z ekranu Clients.
 
 ---
 
-## Konfiguracja i podgląd
+## Jak działa pomiar
 
-### Ustawienia marki ✅
-Ton, opisniki tonu, polityka emotek, podpis, zakazane zwroty, preferowane zwroty, czego nigdy nie wspominać, polityka negatywów, kontakt eskalacyjny, progi zatwierdzania, bank fraz z licznikami użycia, przykłady zatwierdzonych odpowiedzi.
-
-**Co dalej:** nic. To wszystko trafia do promptu.
-
-### Kreator setupu ✅
-Cztery kroki dla nowego klienta: lokal, głos marki, polityka negatywów, progi zatwierdzania.
-
-**Co dalej:** nic pilnego.
-
-### Prompt studio ✅
-Dokładny prompt stojący za dowolną opinią, warstwa po warstwie, wersjonowany. Plus dane wejściowe i szacowana liczba tokenów.
-
-**Co dalej:** nic. Zacznie pokazywać realne zużycie tokenów, kiedy włączysz OpenAI.
-
-### Log aktywności ✅
-Kto dodał, wygenerował, edytował, zatwierdził, odrzucił i opublikował, ze znacznikiem czasu. Tylko do dopisywania, nic go nie kasuje.
-
-**Co dalej:** nic.
-
-### Dashboard ✅
-Odsetek odpowiedzi, średni czas odpowiedzi, oczekujące zatwierdzenia, rozkład sentymentu i ocen, kolejka według ryzyka, ostatnia aktywność.
-
-**Co dalej:** nic.
-
----
-
-## Zespół i pieniądze
-
-### Zespół 🟡
-Lista osób w workspace i tabela uprawnień per rola.
-
-**Co dalej:** zapraszanie ludzi i zmiana ról z panelu. Dziś dodanie drugiej osoby do lokalu to robota w SQL.
-
-### Billing 🟡
-Samoobsługa zbudowana: publiczna rejestracja (/sign-up) zakłada konto, workspace i profil, plany Free 0 zł / Starter 19,99 / Pro 79,99 z limitami egzekwowanymi przy generowaniu (Free jedzie na silniku offline, płatne na modelu AI), licznik zużycia liczy opinie z wygenerowaną odpowiedzią w miesiącu. Cała integracja Stripe gotowa (checkout, portal klienta, webhook), nieaktywna do wklejenia kluczy STRIPE_*. Workspace'y agencyjne poza limitami.
-
-**Co dalej:** wkleić klucze Stripe i utworzyć dwa cenniki w dashboardzie, dodać SUPABASE_SERVICE_ROLE_KEY na Vercelu (wymagana przez rejestrację), skonfigurować webhook /api/stripe/webhook.
-
----
-
-## Moduły przyszłe ⬛
-
-Wszystkie cztery to strony opisujące, co zrobią i z czego skorzystają. Zero mechaniki, ale też zero martwych linków.
-
-**Visibility 🟡 (awans z planowanych).** Księga pomiarów działa: intencje z flagą brandową, prompty, wykonania per platforma, wzmianki i cytowania osobno, księga interwencji (publikacja odpowiedzi loguje się sama). Panel pokazuje właścicieli intencji, diagnozę per platforma i mapę cytowań. Punkt zerowy zaimportowany z eksportów Profound (7-8.08.2026). Brakuje: własnego runnera baterii (ChatGPT przez API OpenAI, Perplexity przez ich API, AIO przez dostawcę SERP) i progu próbki dla werdyktów. Pełna analiza: docs/profound-recon.md.
-
-Cztery branżowe metryki widoczności w AI (ujęcie Adobe) są policzone i widoczne na panelu: brand mentions (score), share of voice z rankingiem, citation rate (heurystyczne wykrywanie własnej strony i profili po nazwie lokalu) — wszystkie na promptach kategorii, brandowe nigdy nie zawyżają. Czwarta, AI referral traffic, wymaga analityki na stronie lokalu i jest rozpisana jako plan w docs/ai-visibility-metrics.md.
-
-Bateria promptów nie jest już przyspawana do kawiarni: asystent generuje domyślnie 50 realnych pytań zakupowych z pełnego profilu biznesu klienta (kategoria, miasto, dzielnica, opis, języki) i — gdy klient poda adres — z treści jego strony, z jedną intencją brandową liczoną osobno, jak w Profound. Propozycje lądują w tabeli, w której klient edytuje każde pytanie, intencję i język osobno, dodaje własne i usuwa zbędne; zapis dopiero po zatwierdzeniu. Silnik pierwszego wyboru to DeepSeek przez OpenRouter (`OPENROUTER_API_KEY`; lista modeli z retry po 429, bo trasy DeepSeek bywają chwilowo dławione), z zapasem OpenAI i Gemini, a bez żadnego klucza wchodzą szablony pokrywające wszystkie kategorie. Generacja 50 pytań trwa zwykle 30–50 s; przy przekroczeniu budżetu czasu agent spada na kolejny silnik, nigdy na błąd.
-
-Ekonomia raportu: domyślnie każde pytanie pytane 2 razy (50 × 2 = 100 wykonań ≈ 3–4 USD kosztu AI), a plan Visibility to 199 € za jeden pełny raport miesięcznie (limit 100 wykonań). Panel pokazuje przed startem liczbę wykonań, szacowany koszt, czas i zużycie limitu w miesiącu, a kolejka nigdy nie przekracza limitu. Każde wykonanie zapisuje tokeny i koszt (w `raw` oraz, po migracji `run_metering`, w kolumnach typowanych i widoku `v_tenant_usage_monthly`) — fundament pod panel admina ze zużyciem per klient.
-
-**Miesięczny runner (Sprint 2) ✅.** `/api/cron/measure` (Vercel Cron co 10 min, `Authorization: Bearer CRON_SECRET`) tworzy jeden job na klienta na miesiąc dla planów z pomiarami (`measurement_jobs`, unikalny per tenant+miesiąc, więc podwójny tick nie zrobi drugiego raportu) i przesuwa otwarte joby po kilka wykonań na tick, zapisując postęp po każdym runie — zerwany tick wznawia się od miejsca przerwania. Rdzeń wykonania (`executeRunForTenant`) jest wspólny dla panelu i crona, więc oba produkują identyczne wiersze w rejestrze. `?dry=1` pokazuje plan bez wykonywania. Strona `/clients` ma kolumny Raport (status jobu, zrobione/zaplanowane), Pomiary (zużycie/limit) i Koszt AI, plus sumę miesiąca w nagłówku — czytane rolą serwisową, działa także przed migracjami (wtedy kolumna raportu pokazuje „not scheduled").
-
-**Co dalej (Sprint 3):** self-serve po płatności (webhook Stripe → tenant → wizard), porównanie raportów w czasie w panelu stats, warstwa atrybutów.
-
-**Social content agent.** Posty z zatwierdzonych odpowiedzi i zdjęć gości, na tych samych zasadach marki. Potrzebuje magazynu na media i integracji z publikowaniem.
-
-**Competitors.** Porównanie oceny, tempa opinii i szybkości odpowiedzi z lokalami z tej samej ulicy. Potrzebuje źródła danych o miejscach.
-
-**Reports.** Miesięczny dokument dla klienta, white label dla agencji. Potrzebuje generatora PDF i wysyłki.
-
----
-
-## Infrastruktura
-
-| Element | Stan | Co dalej |
+| | Raport tygodniowy | Raport miesięczny |
 | --- | --- | --- |
-| Baza i RLS | ✅ | Nic. Migracje w `supabase/migrations` |
-| Repo i Git | ✅ | Nic |
-| Deploy na Vercel | 🟡 | Build przechodzi lokalnie, produkcja jeszcze nie wystartowała. Do sprawdzenia zakładka Deployments |
-| Zmienne na Vercelu | 🟡 | Dodane, do potwierdzenia po pierwszym zielonym buildzie |
-| Domena | ⬛ | Do podpięcia po uruchomieniu produkcji |
-| Limit generowań | ✅ | Hamulec na pętlę, prawdziwy sufit to limit budżetu w OpenAI |
+| Kto | Café Belmont (lista w `lib/weekly-reports.ts`, nadpisywana przez `WEEKLY_REPORT_TENANTS`) | pozostali klienci z planem pomiarowym |
+| Kiedy | każdy poniedziałek | 1. dnia miesiąca |
+| Asystenci | ChatGPT i Google AI | ChatGPT |
+| Rozmiar | pytania × 2 powtórzenia × 2 asystentów (Belmont: 34 × 2 × 2 = 136 odpowiedzi) | pytania × 2 powtórzenia |
+| Ruch | tydzień przed poniedziałkiem raportu, obok tygodnia wcześniejszego | ostatnie 30 dni |
+
+- **ChatGPT**: `openai/gpt-4o-mini:online` przez OpenRouter (model GPT z wyszukiwaniem na żywo). Około 0,008 USD za odpowiedź.
+- **Google AI**: `google/gemini-3.8-flash` przez OpenRouter z natywnym Google Search (wyszukuje sam Google, nie zewnętrzny indeks). Około 0,035 USD za odpowiedź. To najbliższy powtarzalny pomiar tego, co odpowiada AI Google'a; nie jest to zrzut okienka AI Overviews.
+- **Liczy się tylko odpowiedź z wyszukiwaniem.** Zostawiony sam sobie Gemini odpowiada na mniej więcej 4 pytania z 10 z pamięci, bez wyszukiwania (pierwszy raport: 22 odpowiedzi, w żadnej nie było Belmont; w odpowiedziach z wyszukiwaniem był w około 60%). Dlatego pytanie do Google idzie z jedną stałą instrukcją "najpierw wyszukaj", a odpowiedź bez wyszukiwania jest pytana ponownie i nie wchodzi do liczb. Te z pierwszego raportu zostały w bazie jako dowód, raport pokazuje je osobnym wnioskiem.
+- **Raport sam się domyka.** Tygodniowy raport czyta z bazy, czego mu brakuje (każde pytanie: 2 odpowiedzi na każdym asystencie), i dopytuje to, co się nie udało albo przyszło bez wyszukiwania. Ma zapas jednej czwartej prób, potem zamyka się z tym, co ma.
+- Koszt tygodnia dla Belmont: około 3 USD, czyli około 12 USD miesięcznie.
+- Kolejka: `measurement_jobs`, jeden wiersz na klienta i okres, obsługiwana w krótkich porcjach przez `/api/cron/measure` (Vercel Cron raz dziennie plus GitHub Actions co 10 minut). Raport w trakcie nie jest pokazywany jako wynik: panel pokazuje ostatni skończony i pasek postępu. Raport niedokończony do końca swojego okresu jest zamykany z tym, co ma.
+- Limity: dzienny limit wydatków platformy (domyślnie 25 USD), miesięczny limit odpowiedzi z planu, oba rezerwowane atomowo w bazie.
+
+## Jak działa analiza
+
+1. **Fakty** liczy panel z zapisanych odpowiedzi: udział odpowiedzi z nazwą lokalu, share of voice, pozycja, źródła przypisane do konkretnej pozycji listy, typy pytań.
+2. **Istotność** (`lib/stats-math.ts`): każda zmiana przechodzi test dwóch proporcji, każdy wynik ma przedział Wilsona. Przy około 70 odpowiedziach zmiana liczy się od około 15 punktów; mniejsza jest opisywana jako szum, nie jako sukces albo porażka.
+3. **Wnioski** (`services/insights.ts`): reguły, które z faktów układają zdania w kolejności ważności: realna zmiana, różnica między asystentami, stracone i wygrane pytania, rywale, źródła, ruch, boty.
+4. **Podsumowanie słowne** (`services/analyst.ts`): DeepSeek dostaje wyłącznie ponumerowane fakty. Lint odrzuca każde zdanie z liczbą lub domeną, której nie ma w faktach. Gdy żaden model nie odda czystej notatki, panel pisze ją sam z tych samych faktów.
 
 ---
 
-## Droga do samoobsługi
+## Co czeka na Ciebie
 
-Cel: klient wchodzi na stronę, kupuje jedną usługę za paywallem, podpina swoje konto Google w panelu, opinie same się zaciągają, on klika publikuj. Bez kontaktu z Tobą na żadnym etapie.
+1. **Uruchomić SQL** `docs/ANALYST_GSC_MIGRATION_TO_RUN.sql` w Supabase SQL Editor. Bez tego nie zapisuje się podsumowanie słowne i nie działa Search Console. Reszta panelu działa.
+2. **Stripe**: prawdziwy `STRIPE_SECRET_KEY` (obecny jest nieprawidłowy), `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` na produkcji, VAT w Stripe. Do tego czasu przyciski zakupu są wyłączone.
+3. **Search Console**: konto serwisowe Google (`GSC_SERVICE_ACCOUNT_JSON`) i dodanie go jako użytkownika w Search Console belmont.cafe. Wtedy popyt z Google wchodzi do analizy Google AI.
+4. **Dwa spamowe workspace'y** z sierpnia ("Gulrxujp LLC", "Sssiquv LLC"): czekają na Twoje potwierdzenie usunięcia.
 
-To jest wykonalne i architektura już na to pracuje. Wymaga jednak **dwóch osobnych zgód od Google**, nie jednej.
+## Otwarte decyzje
 
-**Zgoda pierwsza, lista dopuszczonych.** Jednorazowa, dotyczy NotASlop jako dewelopera. To tutaj potrzebna jest rola menedżera na jednej wizytówce klienta, raz, żeby udowodnić, że firma jest prawdziwa. Po przyznaniu nikt już nikogo nigdzie nie dodaje.
+- **Model ChatGPT w raporcie.** Raport jedzie na GPT-4o mini (tani, seria od października). Ręczne pomiary z 15 X i 8 XI były na domyślnym modelu ChatGPT (`gpt-chat-latest`, około 0,064 USD za odpowiedź). Przejście raportu na ten model to nowa seria i około 4,4 USD więcej tygodniowo.
+- **Strona główna i cennik.** Publiczny `/pricing` nadal opisuje moduł odpowiedzi i 7 dni próbnych. Sierpniowy landing "Evidence Atelier" leży na osobnej gałęzi (`claude/loving-rhodes-2672c8`) i nie jest na `main`.
+- **Tygodniowa kadencja dla wszystkich.** Dziś to przełącznik w kodzie dla jednego klienta. Gdy ma być ofertą, staje się kolumną przy kliencie i pozycją w planie.
 
-**Zgoda druga, weryfikacja ekranu zgody OAuth.** O tej łatwo zapomnieć, a bez niej nie da się otworzyć produktu publicznie. Niezweryfikowana aplikacja ma limit 100 użytkowników i pokazuje ostrzeżenie „Google nie zweryfikowało tej aplikacji", które za paywallem zabija konwersję. Do weryfikacji potrzeba polityki prywatności, regulaminu, potwierdzonej własności domeny, nagrania pokazującego przepływ i uzasadnienia zakresu. Trwa tygodniami.
+## Znane ograniczenia
 
-Zakres `business.manage` jest wrażliwy, a nie zastrzeżony, więc weryfikacja tak, ale bez corocznego płatnego audytu bezpieczeństwa u zewnętrznego audytora. **Potwierdź to w Google Cloud Console**, która przy dodawaniu zakresu sama pokazuje jego kategorię. Różnica między wrażliwym a zastrzeżonym to różnica kilkudziesięciu tysięcy złotych rocznie, więc sprawdź zanim zaplanujesz budżet.
+- Google AI to Gemini z Google Search, nie AI Overviews ani AI Mode w przeglądarce. Perplexity nie jest mierzony (jest tylko w imporcie z sierpnia).
+- Pojedyncze pytanie zadawane jest 2 razy na asystenta, więc wynik jednego pytania to trop, nie wniosek. Wnioski stoją na typach pytań i na całości.
+- Klasyfikacja źródeł (przewodnik, social, agregator) to lista wzorców dla Krakowa w `services/visibility.ts`. Dla innego miasta trzeba ją rozszerzyć.
+- Dni liczone są w UTC, więc tydzień zaczyna się o 1:00 albo 2:00 czasu polskiego.
 
-**Co już jest gotowe pod ten model**
+## Gdzie co jest
 
-- Wielodostępność od pierwszej tabeli, każdy klient ma własne wszystko
-- Tabela `review_sources` czeka pusta, z polami `connected` i `last_synced_at`
-- Publikacja jest osobną akcją, więc podmiana ręcznego oznaczania na wysyłkę do Google to jedno miejsce w kodzie
-- Prompt składany per lokal działa
-
-**Czego brakuje**
-
-- Ekran łączenia konta Google, przechowywanie i odświeżanie tokenów
-- Zadanie importujące opinie cyklicznie
-- Publikacja przez API zamiast ręcznego skoku
-- Paywall i samodzielna rejestracja, dziś konta zakłada wyłącznie platforma
-- Polityka prywatności i regulamin, potrzebne i tak do weryfikacji OAuth
-
-**Kolejność, która nie marnuje czasu**
-
-1. Teraz: rola menedżera na wizytówce Bruka albo Filipa, wniosek o listę dopuszczonych
-2. W czasie oczekiwania: budowa łączenia konta, importu i publikacji
-3. Potem: polityka prywatności, regulamin, nagranie, weryfikacja OAuth
-4. Potem: paywall i samodzielna rejestracja
-5. Otwarcie
-
-Do 100 użytkowników można działać przed weryfikacją OAuth. Przy pierwszych kilku płacących klientach to zapas, którego nie wyczerpiesz. Weryfikację trzeba zacząć zanim zaczniesz skalować, a nie zanim zaczniesz sprzedawać.
-
----
-
-## Trzy rzeczy, które zmieniłyby najwięcej
-
-1. **Import opinii z Google.** Dopóki go nie ma, ktoś przepisuje opinie ręcznie i cała oszczędność czasu jest połowiczna.
-2. **Włączenie OpenAI.** Silnik regułowy pilnuje higieny odpowiedzi, ale nie napisze zdania, które brzmi jak żywy człowiek. To jedno popołudnie pracy.
-3. **Reset hasła przez e-mail.** Drobiazg, który przy kilku klientach zamienia się w stały telefon do Ciebie.
-
----
-
-## Stan na 12 października 2026
-
-**Produkcja (main = gałąź panelu, jedna wersja):** strona waitlist z animowaną pinezką, nagłówek pisany na żywo, logowanie jako panel z dołu; nowy panel Visibility (4 metryki, bateria 50 pytań z DeepSeek, metering kosztu, plan Visibility 199 €/100 pomiarów), cron codzienny 04:00 UTC (limit planu Hobby w Vercelu), /clients z kosztem AI. Obie migracje (metering, measurement_jobs) wgrane. Stripe: produkt, cena, webhook, portal gotowe; na Vercelu brakuje `STRIPE_PRICE_VISIBILITY` i `STRIPE_WEBHOOK_SECRET`, w Stripe Tax brak rejestracji VAT.
-
-**Audyt gotowości na 10 000 klientów (12.10.2026): NIE jest gotowe.** Do zrobienia przed onboardingiem obcych klientów:
-
-1. 🔴 Eskalacja do platform_admin: polityka `members: admin manage` pozwala adminowi lokalu zmienić własną rolę; `/sign-up` nadal publiczny. Zablokować kolumnę `role` i wyłączyć sign-up.
-2. 🔴 Widok `v_tenant_usage_monthly` czytelny kluczem anon (brak `security_invoker`).
-3. 🔴 Admin lokalu może kasować własne `visibility_runs` i zerować limit; brak atomowej rezerwacji pomiaru; brak globalnego limitu wydatków na AI.
-4. 🔴 Cron: 1 tick dziennie × 300 s ≈ 17 pomiarów/dzień ≈ 5 klientów miesięcznie. Potrzebna kolejka i równoległe workery (lub plan Pro w Vercelu).
-5. 🟠 Zapytania ucięte na 1000 wierszach (lista tenantów w sesji admina, /clients, cron, listReviews), brakujące indeksy, brak paginacji.
-6. 🟠 SSRF przez pole website URL w generatorze baterii; brak rate limitu na waitlist i generowanie baterii; rate limiter in-memory.
-7. 🟠 Brak Sentry/logów/health, brak testów i CI.
-
-## Stan na 12 października 2026, wieczór: jeden panel
-
-Decyzja: aplikacja toodip jest jedynym panelem, wygląd = stats.toodip.com, moduł odpowiedzi na opinie wycofany. Zrobione: nawigacja po polsku (Przegląd, Widoczność w AI, Ruch z AI, Konwersje, Boty AI, Instalacja + Konto), pięć modułów analityki przeniesionych ze stats (czytają stats_* przez członkostwo w workspace), stare ekrany przekierowują na /overview. Migracja stats_link wgrana; Cafe Belmont i COPPA mają workspace'y (plan agency, Kraków) z podpiętymi stronami; Bruk Cafe podpina stronę w Instalacji. Następne: Widoczność w AI w stylu stats, tłumaczenie reszty ekranów, usunięcie kodu modułu opinii, przekierowanie stats.toodip.com, silniki per klient.
+| Co | Plik |
+| --- | --- |
+| Pojedynczy pomiar (oba silniki) | `services/measurement.ts` |
+| Kolejka raportów | `app/api/cron/measure/route.ts` |
+| Model odczytu (serie, okresy, porównania) | `services/visibility.ts`, `services/visibility-share.ts` |
+| Statystyka | `lib/stats-math.ts` |
+| Wnioski | `services/insights.ts` |
+| Podsumowanie słowne | `services/analyst.ts` |
+| Ruch i boty | `services/stats.ts` |
+| Okresy (tydzień ISO, miesiąc, dzień) | `lib/periods.ts` |
+| Kto ma raport tygodniowy | `lib/weekly-reports.ts` |
