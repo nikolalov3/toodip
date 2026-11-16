@@ -71,6 +71,7 @@ Team, Account, Billing, Clients (tylko platforma). Publiczna rejestracja jest za
 
 ## Co czeka na Ciebie
 
+0. **Doładować OpenRouter.** 17 XI na koncie zostało 0,04 USD (kupione 87,00, zużyte 86,96). Bez środków nie działa żaden pomiar ani podsumowanie. Raport tygodniowy Belmont stoi na 125 z 136 odpowiedzi i sam się dokończy w ciągu kilkunastu minut od doładowania. Tydzień Belmont to około 3 USD, miesiąc wszystkich klientów dziś około 15 USD.
 1. **Uruchomić SQL** `docs/ANALYST_GSC_MIGRATION_TO_RUN.sql` w Supabase SQL Editor. Bez tego nie zapisuje się podsumowanie słowne i nie działa Search Console. Reszta panelu działa.
 2. **Stripe**: prawdziwy `STRIPE_SECRET_KEY` (obecny jest nieprawidłowy), `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` na produkcji, VAT w Stripe. Do tego czasu przyciski zakupu są wyłączone.
 3. **Search Console**: konto serwisowe Google (`GSC_SERVICE_ACCOUNT_JSON`) i dodanie go jako użytkownika w Search Console belmont.cafe. Wtedy popyt z Google wchodzi do analizy Google AI.
@@ -88,6 +89,7 @@ Team, Account, Billing, Clients (tylko platforma). Publiczna rejestracja jest za
 - Pojedyncze pytanie zadawane jest 2 razy na asystenta, więc wynik jednego pytania to trop, nie wniosek. Wnioski stoją na typach pytań i na całości.
 - Klasyfikacja źródeł (przewodnik, social, agregator) to lista wzorców dla Krakowa w `services/visibility.ts`. Dla innego miasta trzeba ją rozszerzyć.
 - Dni liczone są w UTC, więc tydzień zaczyna się o 1:00 albo 2:00 czasu polskiego.
+- Przy kilku krótkich, ogólnych pytaniach ("Kawiarnia w centrum Krakowa") Gemini potrafi dwa razy z rzędu odpowiedzieć z pamięci mimo instrukcji. Takie pytanie jest pytane ponownie w ramach zapasu prób; jeśli nadal się nie uda, raport zamyka się bez tej odpowiedzi i pokazuje ją jako brak, nie jako zero.
 
 ## Gdzie co jest
 

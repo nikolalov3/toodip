@@ -193,6 +193,9 @@ export async function GET(request: NextRequest) {
   let passes = 0;
   let stopReason = "queue drained";
   const openJobIds = new Set<string>();
+  // A job a provider just answered "not now" for (rate limit, no credits) is
+  // left alone until the next tick, instead of being asked again in a loop.
+  const pausedThisTick = new Set<string>();
 
   if (dry) {
     // Jobs a real tick would create are shown as if they were already queued.
@@ -222,9 +225,14 @@ export async function GET(request: NextRequest) {
 
     let progressed = false;
     for (const job of jobs) {
+      if (pausedThisTick.has(job.id)) {
+        if (!dry) await service.from("measurement_jobs").update({ lease_until: null }).eq("id", job.id);
+        continue;
+      }
       const before = executed;
       const result = await serveSlice(job);
-      if (executed > before) progressed = true;
+      if (result.status === "paused") pausedThisTick.add(job.id);
+      else if (executed > before) progressed = true;
       if (result.status === "running") openJobIds.add(job.id);
       else openJobIds.delete(job.id);
       processed.push(result);
