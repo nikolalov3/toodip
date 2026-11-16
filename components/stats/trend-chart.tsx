@@ -86,7 +86,7 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
         role="img"
         aria-label={`Page views per day, last ${n} days: ${total} in total, ${totalAi} from AI assistants. Focus the chart and use the arrow keys to read each day.`}
         tabIndex={0}
-        className="block focus-visible:rounded-[4px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="block focus-visible:rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         onPointerLeave={() => {
           if (!pinned) setActive(null);
         }}
@@ -144,7 +144,7 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
       <div aria-live="polite" className="contents">
         {current && active !== null && (
           <div
-            className="pointer-events-none absolute z-10 whitespace-nowrap rounded-[4px] border border-border bg-popover px-2.5 py-1.5 text-[12px] leading-relaxed shadow-lg"
+            className="pointer-events-none absolute z-10 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-[12px] leading-relaxed shadow-lg"
             style={{
               left: `${tooltipLeft}%`,
               top: `${(y(current.total) / H) * 100}%`,

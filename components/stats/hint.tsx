@@ -63,7 +63,7 @@ export function Hint({ text }: { text: string }) {
         id={id}
         hidden={!open}
         className={cn(
-          "absolute bottom-full z-20 mb-1.5 w-max max-w-[min(280px,calc(100vw-32px))] rounded-[4px] border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] leading-relaxed font-normal text-popover-foreground shadow-md",
+          "absolute bottom-full z-20 mb-1.5 w-max max-w-[min(280px,calc(100vw-32px))] rounded-lg border border-border bg-popover px-2.5 py-1.5 text-left text-[12px] leading-relaxed font-normal text-popover-foreground shadow-md",
           alignEnd ? "right-0" : "left-0",
         )}
       >

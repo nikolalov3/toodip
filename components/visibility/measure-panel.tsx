@@ -35,6 +35,8 @@ interface Progress {
 }
 
 const LANG_RE = /^[a-z]{2}(-[a-z]{2})?$/;
+/** What one Google AI answer costs, for the estimate (Gemini with two Google searches). */
+const GOOGLE_RUN_ESTIMATE_USD = 0.04;
 const FIELD =
   "h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-60";
 
@@ -84,6 +86,7 @@ export function MeasurePanel({
   canGenerate,
   runsUsed,
   runsLimit,
+  googleAvailable = false,
 }: {
   prompts: BatteryPrompt[];
   suggestions: PromptProposal[];
@@ -94,6 +97,8 @@ export function MeasurePanel({
   runsUsed: number;
   /** The plan's monthly allowance. */
   runsLimit: number;
+  /** Whether Google AI can be asked from this server, next to ChatGPT. */
+  googleAvailable?: boolean;
 }) {
   const router = useRouter();
   const intents = useMemo(
@@ -109,6 +114,8 @@ export function MeasurePanel({
   );
   // Product default: every question asked twice. One monthly report = 50 × 2.
   const [reps, setReps] = useState(2);
+  // Which assistant answers. "both" asks every question on each, like the weekly report.
+  const [assistant, setAssistant] = useState<"chatgpt" | "google" | "both">("chatgpt");
   const [running, setRunning] = useState(false);
   const [regrouping, setRegrouping] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -450,18 +457,21 @@ export function MeasurePanel({
   }
 
   const selectedPrompts = prompts.filter((prompt) => selectedIntents.has(prompt.intent));
-  const totalRuns = selectedPrompts.length * reps;
+  const asked: Array<"chatgpt" | "google"> = assistant === "both" ? ["chatgpt", "google"] : [assistant];
+  const totalRuns = selectedPrompts.length * reps * asked.length;
   const remaining = Math.max(0, runsLimit - runsUsed);
   const willRun = Math.min(totalRuns, remaining);
-  const estimateUsd = willRun * RUN_COST_ESTIMATE_USD;
-  const estimateMin = Math.max(1, Math.ceil((willRun * 10) / 60 / 3));
+  // A Google answer costs about four times a ChatGPT one (two Google searches per answer).
+  const perRunUsd = asked.reduce((sum, a) => sum + (a === "google" ? GOOGLE_RUN_ESTIMATE_USD : RUN_COST_ESTIMATE_USD), 0) / asked.length;
+  const estimateUsd = willRun * perRunUsd;
+  const estimateMin = Math.max(1, Math.ceil((willRun * (asked.includes("google") ? 18 : 10)) / 60 / 3));
 
   async function run() {
     stopRef.current = false;
     setRunning(true);
-    const queue: string[] = [];
+    const queue: Array<[string, "chatgpt" | "google"]> = [];
     for (const prompt of selectedPrompts) {
-      for (let i = 0; i < reps; i += 1) queue.push(prompt.id);
+      for (let i = 0; i < reps; i += 1) for (const a of asked) queue.push([prompt.id, a]);
     }
     // Never queue past the plan's allowance; the server enforces it too.
     queue.length = Math.min(queue.length, remaining);
@@ -471,9 +481,9 @@ export function MeasurePanel({
     // Three workers keep the wall clock short without hammering the API.
     async function worker() {
       while (queue.length > 0 && !stopRef.current) {
-        const promptId = queue.shift();
-        if (!promptId) return;
-        const outcome = await runVisibilityPromptAction(promptId);
+        const next = queue.shift();
+        if (!next) return;
+        const outcome = await runVisibilityPromptAction(next[0], next[1]);
         state.done += 1;
         if (!outcome.ok) state.failed += 1;
         if (outcome.mentionedOwn) state.mentioned += 1;
@@ -503,7 +513,7 @@ export function MeasurePanel({
         title="Run a measurement"
         description={
           hasKey
-            ? "Each question is asked on ChatGPT with web search on, as many times as you set. Results land below the moment the loop finishes."
+            ? "Each question is asked with web search on, as many times as you set, on the assistant you choose. Results land in the other tabs the moment the loop finishes."
             : "Needs a measurement engine key (OPENAI_API_KEY or OPENROUTER_API_KEY) on the server. Add it and reload; the battery is ready to go."
         }
         action={
@@ -596,8 +606,25 @@ export function MeasurePanel({
             </select>
           </label>
 
+          {googleAvailable && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              Assistant
+              <select
+                value={assistant}
+                disabled={running}
+                onChange={(event) => setAssistant(event.target.value as "chatgpt" | "google" | "both")}
+                className="h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <option value="chatgpt">ChatGPT</option>
+                <option value="google">Google AI</option>
+                <option value="both">Both</option>
+              </select>
+            </label>
+          )}
+
           <span className="text-xs text-muted-foreground">
-            {selectedPrompts.length} questions × {reps} = {totalRuns} runs · ≈ $
+            {selectedPrompts.length} questions × {reps}
+            {asked.length > 1 ? ` × ${asked.length} assistants` : ""} = {totalRuns} runs · ≈ $
             {estimateUsd.toFixed(2)} · ~{estimateMin} min ·{" "}
             <span className="text-numeric">
               {runsUsed}/{runsLimit}

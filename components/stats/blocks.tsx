@@ -31,16 +31,16 @@ export function QHead({
 }) {
   return (
     <div className="mt-10 mb-3.5 flex items-start gap-3">
-      <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand">
+      <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11.5px] font-semibold text-brand">
         {step}
       </span>
       <div>
-        <p className="text-[15px] font-semibold leading-tight text-foreground">
+        <p className="text-[17px] font-semibold leading-snug tracking-tight text-foreground">
           {title}
           {period && <span className="ml-2 text-[12px] font-normal text-muted-foreground">{period}</span>}
           {hint && <Hint text={hint} />}
         </p>
-        {sub && <p className="mt-0.5 text-[13px] text-muted-foreground">{sub}</p>}
+        {sub && <p className="mt-1 text-[13.5px] leading-relaxed text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -48,7 +48,7 @@ export function QHead({
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-[4px] border border-border bg-card p-4", className)}>
+    <div className={cn("rounded-xl border border-border/80 bg-card p-4 shadow-card", className)}>
       {children}
     </div>
   );
@@ -78,12 +78,12 @@ export function Kpi({
   sub?: ReactNode;
 }) {
   return (
-    <div className="rounded-[4px] border border-border bg-card px-4 py-3.5">
-      <p className="text-[12px] text-muted-foreground">
+    <div className="rounded-xl border border-border/80 bg-card px-4 py-4 shadow-card">
+      <p className="text-[12.5px] font-medium text-muted-foreground">
         {label}
         {hint && <Hint text={hint} />}
       </p>
-      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <p
           className={cn(
             "text-numeric text-[28px] font-semibold leading-none tracking-tight",
@@ -122,7 +122,7 @@ function Delta({ value, unit, label }: { value: number | null; unit: string; lab
 
 export function Kpis({ children, cols = 4 }: { children: ReactNode; cols?: 4 | 5 }) {
   return (
-    <div className={cn("mt-6 grid grid-cols-2 gap-3", cols === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+    <div className={cn("mt-2 grid grid-cols-2 gap-3", cols === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
       {children}
     </div>
   );
@@ -310,7 +310,7 @@ export function ErrorCard({ message }: { message: string }) {
   return (
     <div
       role="alert"
-      className="mt-6 flex items-start gap-2.5 rounded-[4px] border border-critical/30 bg-critical-soft px-4 py-3 text-[13px]"
+      className="mt-6 flex items-start gap-2.5 rounded-xl border border-critical/30 bg-critical-soft px-4 py-3 text-[13px]"
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-critical" aria-hidden />
       <div>

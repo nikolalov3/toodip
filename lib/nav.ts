@@ -1,15 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Bot,
-  ClipboardList, // survey-module
+  BarChart3,
   Building2,
+  ClipboardList, // survey-module
   Code2,
   CreditCard,
   Eye,
-  FileText,
-  LayoutGrid,
-  Target,
-  TrendingUp,
+  History,
+  Newspaper,
   UserCog,
   Users,
 } from "lucide-react";
@@ -22,6 +20,8 @@ export interface NavItem {
   icon: LucideIcon;
   status?: "live" | "planned";
   description?: string;
+  /** Other paths that belong to this item (its tabs live on their own routes). */
+  match?: string[];
   /** Hidden from clients. Only the platform team sees these. */
   platformOnly?: boolean;
   /** About a venue, so pointless until the business profile exists. */
@@ -35,17 +35,31 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/** The views of the website module; they share one sidebar item and a row of tabs. */
+export const WEBSITE_TABS = [
+  { href: "/overview", label: "Traffic", exact: true },
+  { href: "/traffic", label: "From AI" },
+  { href: "/conversions", label: "Conversions" },
+  { href: "/bots", label: "AI crawlers" },
+];
+
 /**
- * The panel's modules, in the order a venue owner reads them: how many people
- * and from where, whether AI recommends the venue, who sends traffic, what
- * that traffic does, whether AI bots read the site, and how to install.
+ * The panel's modules, in the order a venue owner reads them: the report
+ * (what changed and what it means), the answers behind it, the website's
+ * side of the story, then setup.
  */
 export const navGroups: NavGroup[] = [
   {
     label: "Measure",
     items: [
-      { href: "/overview", label: "Overview", icon: LayoutGrid, status: "live", needsBusinessProfile: true },
-      { href: "/survey", label: "Survey", icon: ClipboardList, status: "live", needsBusinessProfile: true, siteModule: SURVEY_MODULE }, // survey-module
+      {
+        href: "/report",
+        label: "Report",
+        icon: Newspaper,
+        status: "live",
+        needsBusinessProfile: true,
+        description: "The latest report: what changed, what it means, what to do.",
+      },
       {
         href: "/visibility",
         label: "AI Visibility",
@@ -55,18 +69,28 @@ export const navGroups: NavGroup[] = [
         description: "Whether AI assistants recommend your venue when customers ask.",
       },
       {
-        href: "/reports",
-        label: "Reports",
-        icon: FileText,
+        href: "/overview",
+        label: "Website",
+        icon: BarChart3,
         status: "live",
         needsBusinessProfile: true,
-        description: "The monthly measurement reports, past and scheduled.",
+        match: ["/traffic", "/conversions", "/bots"],
+        description: "Traffic, visits from AI, conversions and AI crawlers.",
       },
-      { href: "/traffic", label: "AI Traffic", icon: TrendingUp, status: "live", needsBusinessProfile: true },
-      { href: "/conversions", label: "Conversions", icon: Target, status: "live", needsBusinessProfile: true },
-      { href: "/bots", label: "AI Bots", icon: Bot, status: "live", needsBusinessProfile: true },
-      { href: "/install", label: "Install", icon: Code2, status: "live", needsBusinessProfile: true },
+      { href: "/survey", label: "Survey", icon: ClipboardList, status: "live", needsBusinessProfile: true, siteModule: SURVEY_MODULE }, // survey-module
+      {
+        href: "/reports",
+        label: "Report history",
+        icon: History,
+        status: "live",
+        needsBusinessProfile: true,
+        description: "Every report, past and scheduled.",
+      },
     ],
+  },
+  {
+    label: "Setup",
+    items: [{ href: "/install", label: "Install", icon: Code2, status: "live", needsBusinessProfile: true }],
   },
   {
     label: "Account",
@@ -97,12 +121,15 @@ export function navGroupsFor(options: {
     .filter((group) => group.items.length > 0);
 }
 
+/** Whether a path belongs to a nav item: its own route, a route under it, or one of its tabs. */
+export function navItemActive(item: NavItem, pathname: string): boolean {
+  return [item.href, ...(item.match ?? [])].some((href) => pathname === href || pathname.startsWith(`${href}/`));
+}
+
 export function findNavItem(pathname: string): NavItem | null {
   for (const group of navGroups) {
     for (const item of group.items) {
-      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
-        return item;
-      }
+      if (navItemActive(item, pathname)) return item;
     }
   }
   return null;

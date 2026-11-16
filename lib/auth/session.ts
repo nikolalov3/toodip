@@ -52,7 +52,7 @@ export interface Session {
   /** Active workspace's plan after checking the subscription is paid. */
   effectivePlan: BillingPlan;
   /** Where this person lands: AI Visibility on a measuring plan, else Overview. */
-  homePath: "/visibility" | "/overview";
+  homePath: "/report" | "/overview";
 }
 
 interface TenantRow extends WorkspaceSummary {

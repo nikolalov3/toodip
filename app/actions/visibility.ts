@@ -24,6 +24,12 @@ import { syncSearchConsole } from "@/services/gsc";
 import { getStatsSnapshot } from "@/services/stats";
 import { logIntervention } from "@/services/visibility";
 
+/** Every AI Visibility tab and the report read the same ledger; all of them go stale together. */
+function refreshVisibility(): void {
+  revalidatePath("/visibility", "layout");
+  revalidatePath("/report");
+}
+
 const propertySchema = z
   .string()
   .trim()
@@ -51,15 +57,15 @@ export async function connectSearchConsoleAction(input: unknown): Promise<{ ok: 
     };
   }
   if (!gscConfigured()) {
-    revalidatePath("/visibility");
+    refreshVisibility();
     return { ok: true, message: "Property saved. The daily sync starts once the server has a Search Console service account." };
   }
   try {
     const synced = await syncSearchConsole(getServiceClient(), session.tenantId, siteUrl, null);
-    revalidatePath("/visibility");
+    refreshVisibility();
     return { ok: true, message: `Connected. ${synced.rows} rows loaded for ${synced.from} to ${synced.to}.` };
   } catch (error) {
-    revalidatePath("/visibility");
+    refreshVisibility();
     return {
       ok: true,
       message: `Property saved, but the first sync failed: ${(error as Error).message.slice(0, 200)}. Check that the service account was added as a user of the property; the daily sync retries.`,
@@ -71,7 +77,7 @@ export async function connectSearchConsoleAction(input: unknown): Promise<{ ok: 
  * Writes the analyst note for the latest measurement on request. Admins only:
  * each note is a model call paid by the platform.
  */
-export async function writeAnalystNoteAction(): Promise<{ ok: boolean; message: string; note?: AnalystNote }> {
+export async function writeAnalystNoteAction(series?: string): Promise<{ ok: boolean; message: string; note?: AnalystNote }> {
   const session = await requireSession();
   if (!canEditSettings(session.role)) return { ok: false, message: "Only an admin can write the note." };
   const supabase = await getUserClient();
@@ -80,9 +86,10 @@ export async function writeAnalystNoteAction(): Promise<{ ok: boolean; message: 
   const traffic = await getStatsSnapshot().catch(() => null);
   const result = await writeAnalystNote(supabase, session.tenantId, {
     createdBy: "panel",
+    series: typeof series === "string" ? series.slice(0, 120) : null,
     traffic: traffic?.site ? { days: traffic.days, pageviews: traffic.pageviews, fromAi: traffic.fromAi } : null,
   });
-  if (result.ok) revalidatePath("/visibility");
+  if (result.ok) refreshVisibility();
   return { ok: result.ok, message: result.ok ? "Note written." : (result.message ?? "Could not write the note."), note: result.note };
 }
 
@@ -106,20 +113,21 @@ export async function logInterventionAction(input: unknown): Promise<{ ok: boole
   }
   const result = await logIntervention(parsed.data);
   if (!result.ok) return { ok: false, message: result.message ?? "Could not save the change." };
-  revalidatePath("/visibility");
+  refreshVisibility();
   return { ok: true, message: "Logged. The next measurement will show the score before and after it." };
 }
 
-/** One prompt, one execution. The browser loops and renders progress. */
+/** One prompt, one execution on one assistant. The browser loops and renders progress. */
 export async function runVisibilityPromptAction(
   promptId: string,
+  assistant?: string,
 ): Promise<RunOutcome> {
-  return executeVisibilityRun(promptId);
+  return executeVisibilityRun(promptId, assistant === "google" ? "google" : "chatgpt");
 }
 
 export async function finishMeasurementAction(): Promise<void> {
   await requireSession();
-  revalidatePath("/visibility");
+  refreshVisibility();
 }
 
 const proposalsSchema = z
@@ -213,7 +221,7 @@ export async function saveBatteryAction(
     }
   }
 
-  revalidatePath("/visibility");
+  refreshVisibility();
   return { ok: true, message: `${parsed.data.length} prompts saved.` };
 }
 
@@ -384,7 +392,6 @@ export async function regroupIntentsAction(): Promise<{ ok: boolean; message: st
       .not("id", "in", `(${stillUsed.join(",")})`);
   }
 
-  revalidatePath("/visibility");
-  revalidatePath("/visibility/share");
+  refreshVisibility();
   return { ok: true, message: `${prompts.length} questions grouped into ${intentIds.size} intents.` };
 }

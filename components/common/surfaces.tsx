@@ -12,7 +12,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "rounded-lg border border-border bg-card shadow-card",
+        "rounded-xl border border-border/80 bg-card shadow-card",
         className,
       )}
       {...props}
@@ -63,11 +63,11 @@ export function PageHeader({
   meta?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 pb-5">
-      <div className="min-w-0 max-w-2xl">
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+    <div className="flex flex-wrap items-end justify-between gap-4 pb-6">
+      <div className="min-w-0 max-w-3xl">
+        <h1 className="text-[26px] font-semibold leading-tight tracking-tight">{title}</h1>
         {description && (
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1.5 text-[14.5px] leading-relaxed text-muted-foreground">{description}</p>
         )}
         {meta && <div className="mt-3">{meta}</div>}
       </div>
@@ -122,7 +122,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-card px-4 py-3.5 shadow-card",
+        "rounded-xl border border-border/80 bg-card px-4 py-4 shadow-card",
         className,
       )}
     >

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/common/surfaces";
 import { Bars, Card, ErrorCard, NoSite, QHead, Sparkline, Verdict } from "@/components/stats/blocks";
+import { WebsiteTabs } from "@/components/stats/website-tabs";
 import { getStatsSnapshot, KNOWN_ASSISTANTS } from "@/services/stats";
 
-export const metadata: Metadata = { title: "AI Traffic" };
+export const metadata: Metadata = { title: "Traffic from AI" };
 
 /** "ChatGPT", "ChatGPT and Gemini", "ChatGPT, Gemini and Claude". */
 function listNames(names: string[]): string {
@@ -26,7 +27,8 @@ export default async function TrafficPage() {
         : `${listNames(sending)} ${sending.length === 1 ? "sends" : "send"} visitors; ${listNames(silent)} ${silent.length === 1 ? "does" : "do"} not yet.`;
   return (
     <>
-      <PageHeader title="AI Traffic" description="Which assistants actually send people to your site." />
+      <PageHeader title="Website" description="Which assistants actually send people to your site, and where they land." />
+      <WebsiteTabs />
       {s.error && <ErrorCard message={s.error} />}
       {!s.site ? (
         s.error ? null : <NoSite />

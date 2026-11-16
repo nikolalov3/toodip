@@ -36,7 +36,7 @@ const DEFAULT_SURFACE: Record<(typeof KINDS)[number]["value"], (typeof SURFACES)
 };
 
 const selectClass =
-  "h-8 w-full rounded-[4px] border border-input bg-background px-2 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+  "h-8 w-full rounded-lg border border-input bg-background px-2 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
 
 /**
  * A small append-only form for the interventions ledger. Opens inline so the

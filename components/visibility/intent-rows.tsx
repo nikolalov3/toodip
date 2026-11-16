@@ -48,13 +48,13 @@ export function IntentRows({ intents }: { intents: IntentSummary[] }) {
           <li key={intent.name} className={cn(intent.isBranded && "text-muted-foreground")}>
             <details className="group">
               <summary className="grid cursor-pointer list-none grid-cols-[88px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-2.5 text-[13px] hover:bg-muted/40 sm:grid-cols-[88px_minmax(0,1.2fr)_minmax(120px,1fr)_minmax(0,1fr)_16px]">
-                <span className={cn("rounded-[3px] px-2 py-0.5 text-center text-[11px] font-medium", STATUS_STYLE[intent.status])}>
+                <span className={cn("rounded-md px-2 py-0.5 text-center text-[11px] font-medium", STATUS_STYLE[intent.status])}>
                   {STATUS_LABEL[intent.status]}
                 </span>
                 <span className="min-w-0 font-medium">
                   <span className="truncate">{intent.name}</span>
                   <span className="ml-2 text-[11px] uppercase text-muted-foreground">{intent.language}</span>
-                  {intent.isBranded && <span className="ml-2 rounded-[3px] bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">branded</span>}
+                  {intent.isBranded && <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">branded</span>}
                   <span className="ml-2 text-[12px] text-muted-foreground">
                     {intent.questions.length} {intent.questions.length === 1 ? "question" : "questions"} · {intent.runs} answers
                   </span>
@@ -101,7 +101,7 @@ export function IntentRows({ intents }: { intents: IntentSummary[] }) {
                         <span className="text-numeric text-[12px] text-muted-foreground">
                           {q.own}/{q.runs}
                         </span>
-                        <span className={cn("rounded-[3px] px-1.5 py-0.5 text-[10.5px] font-medium", Q_STYLE[q.status])}>{Q_LABEL[q.status]}</span>
+                        <span className={cn("rounded-md px-1.5 py-0.5 text-[10.5px] font-medium", Q_STYLE[q.status])}>{Q_LABEL[q.status]}</span>
                       </li>
                     ))}
                   </ul>

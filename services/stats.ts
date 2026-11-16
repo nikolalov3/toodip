@@ -1,8 +1,10 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
+import { addDays } from "@/lib/periods";
 import { isSurvey } from "@/lib/survey-module"; // survey-module
 import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
@@ -502,4 +504,147 @@ export async function getStatsSnapshot(): Promise<StatsSnapshot> {
 
 function sum(values: number[]): number {
   return values.reduce((total, v) => total + v, 0);
+}
+
+// ── One week of traffic, for the weekly report ───────────────────────────────
+
+/** Seven days of traffic, reduced to what the weekly report reads. */
+export interface TrafficWeek {
+  /** First and last day of the window (ISO dates, both inclusive). */
+  from: string;
+  to: string;
+  pageviews: number;
+  visitors: number;
+  /** Page views that arrived from an AI assistant. */
+  aiVisits: number;
+  aiVisitors: number;
+  byAssistant: BarItem[];
+  /** Pages the assistants sent people to. */
+  aiLanding: BarItem[];
+  conversions: number;
+  /** Conversions by visitors who came from an assistant in the same week. */
+  aiConversions: number;
+  conversionsByKind: BarItem[];
+  channels: BarItem[];
+  /** Crawler hits per bot. */
+  bots: BarItem[];
+  botHits: number;
+  /** Paths the AI crawlers fetched most. */
+  botPaths: BarItem[];
+}
+
+export interface WeekTraffic {
+  site: StatsSite | null;
+  /** The week the report reads: the seven full days before its Monday. */
+  current: TrafficWeek;
+  /** The seven days before that, for the comparison. */
+  previous: TrafficWeek;
+  /** Set when a query failed; the numbers are then partial. */
+  error: string | null;
+}
+
+function emptyWeek(from: string, to: string): TrafficWeek {
+  return {
+    from,
+    to,
+    pageviews: 0,
+    visitors: 0,
+    aiVisits: 0,
+    aiVisitors: 0,
+    byAssistant: [],
+    aiLanding: [],
+    conversions: 0,
+    aiConversions: 0,
+    conversionsByKind: [],
+    channels: [],
+    bots: [],
+    botHits: 0,
+    botPaths: [],
+  };
+}
+
+function weekOf(from: string, to: string, events: StatsEvent[], hits: BotHit[]): TrafficWeek {
+  const s = summarize(events);
+  const aiViews = s.views.filter((v) => v.source === "ai");
+  return {
+    from,
+    to,
+    pageviews: s.views.length,
+    visitors: s.visitors.size,
+    aiVisits: s.fromAi,
+    aiVisitors: s.aiVisitors.size,
+    byAssistant: groupBy(aiViews, (v) => v.ai_name || "AI"),
+    aiLanding: groupBy(aiViews, (v) => v.path || "/").slice(0, 6),
+    conversions: s.conversions.length,
+    aiConversions: s.conversions.filter((e) => e.visitor && s.aiVisitors.has(e.visitor)).length,
+    conversionsByKind: groupBy(s.conversions, (e) => conversionLabel(e.name)).slice(0, 6),
+    channels: groupBy(s.views, (v) => CHANNEL_LABEL[v.source ?? ""] ?? CHANNEL_LABEL.other),
+    bots: groupBy(hits, (h) => h.bot ?? "?"),
+    botHits: hits.length,
+    botPaths: groupBy(hits, (h) => h.path || "/").slice(0, 6),
+  };
+}
+
+/**
+ * The traffic a weekly report reads: the seven full days before the report's
+ * Monday, next to the seven before those. Works through any client: the
+ * panel passes the signed-in user's (row level security), the cron passes
+ * the service client. Days are UTC, like the report's own week.
+ */
+export async function loadWeekTraffic(
+  supabase: SupabaseClient,
+  tenantId: string,
+  reportMonday: string,
+): Promise<WeekTraffic> {
+  const currentFrom = addDays(reportMonday, -7);
+  const previousFrom = addDays(reportMonday, -14);
+  const current = emptyWeek(currentFrom, addDays(reportMonday, -1));
+  const previous = emptyWeek(previousFrom, addDays(reportMonday, -8));
+
+  const siteResult = await supabase
+    .from("stats_websites")
+    .select("id, name, domain")
+    .eq("tenant_id", tenantId)
+    .limit(1)
+    .maybeSingle();
+  const site = (siteResult.data as StatsSite | null) ?? null;
+  if (siteResult.error) return { site: null, current, previous, error: `Could not load the website record: ${siteResult.error.message}` };
+  if (!site) return { site: null, current, previous, error: null };
+
+  const since = `${previousFrom}T00:00:00Z`;
+  const until = `${reportMonday}T00:00:00Z`;
+  const split = `${currentFrom}T00:00:00Z`;
+  const [eventsResult, botsResult] = await Promise.all([
+    fetchAll<StatsEvent>(
+      () =>
+        supabase
+          .from("stats_events")
+          .select("ts, path, title, source, ai_name, type, name, visitor", { count: "exact" })
+          .eq("website_id", site.id)
+          .gte("ts", since)
+          .lt("ts", until)
+          .order("ts", { ascending: false }),
+      { max: MAX_EVENT_ROWS },
+    ),
+    fetchAll<BotHit>(() =>
+      supabase
+        .from("stats_bot_hits")
+        .select("ts, bot, path", { count: "exact" })
+        .eq("website_id", site.id)
+        .gte("ts", since)
+        .lt("ts", until)
+        .order("ts", { ascending: false }),
+    ),
+  ]);
+  const problems: string[] = [];
+  if (eventsResult.error) problems.push(`visits (${eventsResult.error.message})`);
+  if (botsResult.error) problems.push(`crawler visits (${botsResult.error.message})`);
+
+  const inCurrent = (ts: string) => Date.parse(ts) >= Date.parse(split);
+  return {
+    site,
+    current: weekOf(current.from, current.to, eventsResult.rows.filter((r) => inCurrent(r.ts)), botsResult.rows.filter((r) => inCurrent(r.ts))),
+    previous: weekOf(previous.from, previous.to, eventsResult.rows.filter((r) => !inCurrent(r.ts)), botsResult.rows.filter((r) => !inCurrent(r.ts))),
+    error: problems.length ? `Could not load ${problems.join(" and ")}.` : null,
+  };
 }

@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/common/surfaces";
 import { Bars, Card, ErrorCard, Kpi, Kpis, NoSite, QHead } from "@/components/stats/blocks";
 import { TrendChart } from "@/components/stats/trend-chart";
+import { WebsiteTabs } from "@/components/stats/website-tabs";
 import { getStatsSnapshot } from "@/services/stats";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Website traffic" };
 
 export default async function OverviewPage() {
   const s = await getStatsSnapshot();
@@ -13,7 +14,8 @@ export default async function OverviewPage() {
   const compare = `compared with the ${s.days} days before`;
   return (
     <>
-      <PageHeader title="Overview" description={s.site ? `${s.site.name}${s.site.domain ? ` · ${s.site.domain}` : ""}` : "Traffic, sources and conversions of your website."} />
+      <PageHeader title="Website" description={s.site ? `Traffic on ${s.site.domain ?? s.site.name}: how many people, from where, and what they open.` : "Traffic, sources and conversions of your website."} />
+      <WebsiteTabs />
       {s.error && <ErrorCard message={s.error} />}
       {!s.site ? (
         s.error ? null : <NoSite />

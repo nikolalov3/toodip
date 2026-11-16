@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s | toodip",
   },
   description:
-    "Reputation operations for local business. Triage every review, draft a reply that sounds like the venue, approve it and publish.",
+    "toodip measures whether AI assistants recommend your venue: a weekly report on what ChatGPT and Google AI answer, who they name instead, what they read, and the traffic they send.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

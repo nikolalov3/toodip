@@ -79,7 +79,7 @@ export function ShareLines({
       </svg>
       {hovered && hover !== null && (
         <div
-          className="pointer-events-none absolute z-10 rounded-[4px] border border-border bg-popover px-2.5 py-2 text-[12px] leading-relaxed shadow-lg"
+          className="pointer-events-none absolute z-10 rounded-lg border border-border bg-popover px-2.5 py-2 text-[12px] leading-relaxed shadow-lg"
           style={{ left: `${Math.max(10, Math.min(90, (x(hover) / W) * 100))}%`, top: 0, transform: "translate(-50%, 0)" }}
         >
           <div className="mb-1 font-semibold">

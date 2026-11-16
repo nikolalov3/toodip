@@ -25,7 +25,7 @@ export function GscConnect({ serviceEmail, currentSiteUrl }: { serviceEmail: str
           <span>
             In Google Search Console open the property, then <span className="font-medium">Settings → Users and permissions → Add user</span> and add{" "}
             {serviceEmail ? (
-              <code className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[12.5px]">{serviceEmail}</code>
+              <code className="rounded-md bg-muted px-1.5 py-0.5 text-[12.5px]">{serviceEmail}</code>
             ) : (
               <span className="text-caution">the toodip service account (not configured on this server yet)</span>
             )}{" "}
@@ -35,8 +35,8 @@ export function GscConnect({ serviceEmail, currentSiteUrl }: { serviceEmail: str
         <li className="flex gap-2.5">
           <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-semibold text-brand">2</span>
           <span>
-            Paste the property exactly as Search Console names it: <code className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[12.5px]">sc-domain:example.com</code> for a
-            domain property, or <code className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[12.5px]">https://example.com/</code> for a URL prefix.
+            Paste the property exactly as Search Console names it: <code className="rounded-md bg-muted px-1.5 py-0.5 text-[12.5px]">sc-domain:example.com</code> for a
+            domain property, or <code className="rounded-md bg-muted px-1.5 py-0.5 text-[12.5px]">https://example.com/</code> for a URL prefix.
           </span>
         </li>
       </ol>

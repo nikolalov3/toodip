@@ -1,16 +1,17 @@
 import "server-only";
 
 import { requireSession } from "@/lib/auth/session";
-import { fetchAll } from "@/lib/supabase/paginate";
-import { getUserClient } from "@/lib/supabase/server";
 import {
+  ASSISTANT_NAME,
   brandKey,
+  chooseSeries,
   classifyDomain,
-  methodKey,
+  getSettledRuns,
+  measurementsOf,
   methodLabelOf,
   periodLabel,
-  periodOf,
   periodStart,
+  type LedgerRun,
   type Platform,
   type SourceCategory,
 } from "@/services/visibility";
@@ -113,6 +114,8 @@ export interface ShareDetail {
   latestRuns: number;
   /** How the latest measurement was made; every number here is from that method only. */
   method: string;
+  /** The series on this page, for links that must keep it. */
+  seriesId: string | null;
   /** Earlier measurements made another way, left out of the trend and head to head. */
   omittedPeriods: number;
   brands: BrandShare[];
@@ -128,27 +131,9 @@ export interface ShareDetail {
   headToHead: HeadToHead | null;
 }
 
-interface RunRow {
-  id: string;
-  platform: Platform;
-  executed_on: string;
-  source: string;
-  model_version: string | null;
-  visibility_prompts: {
-    text: string;
-    language: string;
-    intents: { name: string; language: string; is_branded: boolean } | null;
-  } | null;
-  visibility_mentions: Array<{ name: string; is_own: boolean; position: number | null }>;
-  visibility_citations: Array<{ domain: string }>;
-}
+type RunRow = LedgerRun;
 
-const PLATFORM_LABEL: Record<Platform, string> = {
-  chatgpt: "ChatGPT",
-  google_aio: "Google AI Overviews",
-  perplexity: "Perplexity",
-  other: "Other",
-};
+const PLATFORM_LABEL: Record<Platform, string> = { ...ASSISTANT_NAME, other: "Other" };
 
 const LANGUAGE_LABEL: Record<string, string> = { pl: "Polish", en: "English", de: "German" };
 
@@ -220,28 +205,15 @@ function segment(
     .sort((a, b) => b.runs - a.runs);
 }
 
-export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> {
+export async function getShareDetail(rivalParam?: string, seriesParam?: string): Promise<ShareDetail> {
   const session = await requireSession();
-  const supabase = await getUserClient();
+  // The same runs the Summary tab counts, so the two always agree.
+  const ledger = await getSettledRuns();
 
-  const [runsResult, profileResult] = await Promise.all([
-    fetchAll<RunRow>(() =>
-      supabase
-        .from("visibility_runs")
-        .select(
-          "id, platform, executed_on, source, model_version, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(domain)",
-          { count: "exact" },
-        )
-        .eq("tenant_id", session.tenantId)
-        .order("executed_on", { ascending: true })
-        .order("id"),
-    ),
-    supabase.from("business_profiles").select("name").eq("tenant_id", session.tenantId).maybeSingle(),
-  ]);
-
-  const venueName = (profileResult.data as { name: string } | null)?.name ?? session.tenantName;
+  const venueName = ledger.venueName ?? session.tenantName;
   const displayName = (name: string, isOwn: boolean) => (isOwn ? venueName : name);
-  const all = runsResult.rows;
+  // Oldest first: the trend and head to head read in time order.
+  const all: RunRow[] = [...ledger.runs].sort((a, b) => a.executed_on.localeCompare(b.executed_on) || a.id.localeCompare(b.id));
   let runs = all.filter((run) => !run.visibility_prompts?.intents?.is_branded);
 
   const empty: ShareDetail = {
@@ -254,6 +226,7 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     latestLabel: null,
     latestRuns: 0,
     method: "",
+    seriesId: null,
     omittedPeriods: 0,
     brands: [],
     timeline: [],
@@ -269,32 +242,22 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
   };
   if (runs.length === 0) return empty;
 
-  // Periods in the order they were measured (a monthly report that finished on
-  // the 20th comes after an import from the 8th), then narrowed to the METHOD
-  // of the latest one: the trend and head to head only compare measurements
-  // made with the same model. Others are counted in omittedPeriods, not drawn.
-  const periodEnd = new Map<string, string>();
-  for (const run of runs) {
-    const p = periodOf(run);
-    if ((periodEnd.get(p) ?? "") < run.executed_on) periodEnd.set(p, run.executed_on);
-  }
-  const everyPeriod = [...periodEnd.keys()].sort(
-    (a, b) => periodEnd.get(a)!.localeCompare(periodEnd.get(b)!) || periodStart(a).localeCompare(periodStart(b)),
-  );
-  const latestPeriod = everyPeriod[everyPeriod.length - 1];
-  const latestPeriodRuns = runs.filter((r) => periodOf(r) === latestPeriod);
-  const methodCounts = new Map<string, number>();
-  for (const r of latestPeriodRuns) methodCounts.set(methodKey(r), (methodCounts.get(methodKey(r)) ?? 0) + 1);
-  const latestMethod = [...methodCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-  const methodRun = latestPeriodRuns.find((r) => methodKey(r) === latestMethod)!;
-  const allRuns = runs.filter((r) => methodKey(r) === latestMethod);
-  const periodsWithMethod = new Set(allRuns.map(periodOf));
-  const periods = everyPeriod.filter((p) => periodsWithMethod.has(p));
-  const dates = periods.map(periodStart);
+  // One series at a time: the one asked for, or the one the Summary tab
+  // shows by default. The trend and head to head only compare measurements
+  // made the same way; the others are counted in omittedPeriods, not drawn.
+  const everyMeasurement = measurementsOf(runs);
+  const method = chooseSeries(measurementsOf(all), seriesParam);
+  const ownSeries = everyMeasurement.filter((m) => m.methodKey === method);
+  if (ownSeries.length === 0) return empty;
+  const latest = ownSeries[ownSeries.length - 1];
+  const latestPeriod = latest.period;
+  const methodRun = latest.runs[0];
+  const allRuns = ownSeries.flatMap((m) => m.runs);
+  const dates = ownSeries.map((m) => periodStart(m.period));
   const latestDate = periodStart(latestPeriod);
   // Brands, segments, positions and stability describe the latest measurement
-  // (one monthly report counts as one measurement).
-  runs = latestPeriodRuns.filter((r) => methodKey(r) === latestMethod);
+  // (one report counts as one measurement).
+  runs = latest.runs;
 
   // ── Brands in the latest measurement ─────────────────────────────────────
   const brandTotals = new Map<string, { display: string; isOwn: boolean; runs: number; posSum: number; posN: number }>();
@@ -332,8 +295,9 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     ...brands.filter((b) => !b.isOwn).slice(0, 5).map((b) => b.name),
     ...(own ? [own.name] : []),
   ];
-  const timeline: ShareTimelinePoint[] = periods.map((period) => {
-    const dayRuns = allRuns.filter((r) => periodOf(r) === period);
+  const timeline: ShareTimelinePoint[] = ownSeries.map((m) => {
+    const period = m.period;
+    const dayRuns = m.runs;
     const shares: Record<string, number> = {};
     for (const name of timelineBrands) {
       const k = lookupKey(name);
@@ -501,7 +465,8 @@ export async function getShareDetail(rivalParam?: string): Promise<ShareDetail> 
     latestLabel: periodLabel(latestPeriod),
     latestRuns: runs.length,
     method: methodLabelOf(methodRun),
-    omittedPeriods: everyPeriod.length - periods.length,
+    seriesId: latest.seriesId,
+    omittedPeriods: everyMeasurement.length - ownSeries.length,
     brands,
     timeline,
     timelineBrands,

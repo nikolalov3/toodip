@@ -3,10 +3,11 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/common/surfaces";
 import { Card, ErrorCard, MiniBars, NoSite, QHead, Verdict } from "@/components/stats/blocks";
+import { WebsiteTabs } from "@/components/stats/website-tabs";
 import { formatDate } from "@/lib/format";
 import { getStatsSnapshot, KEY_BOTS, type BotActivity } from "@/services/stats";
 
-export const metadata: Metadata = { title: "AI Bots" };
+export const metadata: Metadata = { title: "AI crawlers" };
 
 function findBot(activity: BotActivity[], name: string): BotActivity | undefined {
   const needle = name.toLowerCase();
@@ -26,7 +27,8 @@ export default async function BotsPage() {
   }).filter((line): line is string => line !== null);
   return (
     <>
-      <PageHeader title="AI Bots" description="Whether the assistants' crawlers fetch your site." />
+      <PageHeader title="Website" description="Whether the assistants' crawlers fetch your site: an assistant can only quote pages its crawler has read." />
+      <WebsiteTabs />
       {s.error && <ErrorCard message={s.error} />}
       {!s.site ? (
         s.error ? null : <NoSite />

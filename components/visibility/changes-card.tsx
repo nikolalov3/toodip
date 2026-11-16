@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 
-import { Card } from "@/components/stats/blocks";
+import { Surface } from "@/components/panel/ui";
 import { cn } from "@/lib/utils";
 import type { ChangeSummary, IntentStatus, MethodMeta } from "@/services/visibility";
 
@@ -64,14 +64,14 @@ export function ChangesCard({
 }) {
   if (!changes.comparable) {
     return (
-      <Card>
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Since the last measurement</p>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+      <Surface className="h-full p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Since the last measurement</p>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
           {changes.otherMethodPrevious
             ? `The previous measurement (${changes.otherMethodPrevious.label}) was made with ${changes.otherMethodPrevious.method}, this one with ${method.label}. Numbers from different methods are not compared. The next measurement made this way draws the comparison here.`
             : "No earlier measurement made the same way yet. The next one draws the comparison here."}
         </p>
-      </Card>
+      </Surface>
     );
   }
 
@@ -93,9 +93,9 @@ export function ChangesCard({
     changes.goneSources.length === 0;
 
   return (
-    <Card>
+    <Surface className="h-full p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Since {prev.label}
         </p>
         <p className="text-[12px] text-muted-foreground">
@@ -104,7 +104,7 @@ export function ChangesCard({
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[4px] border border-border px-3 py-2.5">
+        <div className="rounded-lg border border-border px-3 py-2.5">
           <p className="text-[12px] text-muted-foreground">Named in answers</p>
           <p className="text-numeric mt-0.5 text-[20px] font-semibold leading-none tracking-tight">
             {pct(changes.scoreBefore ?? 0)} <span className="text-muted-foreground">→</span>{" "}
@@ -114,7 +114,7 @@ export function ChangesCard({
             </span>
           </p>
         </div>
-        <div className="rounded-[4px] border border-border px-3 py-2.5">
+        <div className="rounded-lg border border-border px-3 py-2.5">
           <p className="text-[12px] text-muted-foreground">Share of voice</p>
           <p className="text-numeric mt-0.5 text-[20px] font-semibold leading-none tracking-tight">
             {pct(changes.sovBefore ?? 0)} <span className="text-muted-foreground">→</span>{" "}
@@ -131,7 +131,7 @@ export function ChangesCard({
           No movement beyond the noise between two repetitions: the same question types, rivals and sources as last time.
         </p>
       ) : (
-        <div className="mt-4 grid gap-5 md:grid-cols-3">
+        <div className="mt-4 grid gap-x-8 gap-y-5 md:grid-cols-3">
           <Column title="Question types that moved" empty="Every question type kept its status.">
             {[
               ...changes.intents.slice(0, SHOW).map((row) => (
@@ -227,6 +227,6 @@ export function ChangesCard({
           )}
         </p>
       )}
-    </Card>
+    </Surface>
   );
 }

@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { PageHeader } from "@/components/common/surfaces";
-import { Bars, Card, Hint, Kpi, Kpis, QHead } from "@/components/stats/blocks";
+import { EmptyNote, SectionHead } from "@/components/panel/ui";
+import { Bars, Card, Hint, Kpi, Kpis } from "@/components/stats/blocks";
 import { Donut } from "@/components/stats/donut";
 import { ShareLines } from "@/components/stats/share-lines";
-import { VisibilitySubNav } from "@/components/visibility/sub-nav";
 import { cn } from "@/lib/utils";
 import { getShareDetail } from "@/services/visibility-share";
 
-export const metadata: Metadata = { title: "Share of voice" };
+export const metadata: Metadata = { title: "Competitors · AI Visibility" };
+
+/** The numbered question headers of the old layout, as plain section heads. */
+function QHead({ title, sub, hint }: { step?: number; title: string; sub?: string; hint?: string }) {
+  return <SectionHead title={title} sub={sub} hint={hint} />;
+}
 
 const STATUS_STYLE = {
   reliable: "bg-positive-soft text-positive",
@@ -36,30 +40,28 @@ export default async function SharePage({
 }) {
   const params = await searchParams;
   const rival = typeof params.rival === "string" ? params.rival : undefined;
-  const d = await getShareDetail(rival);
+  const series = typeof params.series === "string" ? params.series : undefined;
+  const d = await getShareDetail(rival, series);
   const own = d.brands.find((b) => b.isOwn);
   const h2h = d.headToHead;
+  const rivalHref = (name: string) => {
+    const next = new URLSearchParams();
+    if (series && d.seriesId) next.set("series", d.seriesId);
+    next.set("rival", name);
+    return `/visibility/share?${next.toString()}`;
+  };
 
   return (
     <>
-      <PageHeader
-        title="AI Visibility"
-        description={
-          d.latestLabel
-            ? `Share of voice in depth. Latest measurement: ${d.latestLabel}, ${d.latestRuns} answers, ${d.method}. ${d.dates.length} comparable measurement${d.dates.length === 1 ? "" : "s"}${d.omittedPeriods > 0 ? `; ${d.omittedPeriods} made another way left out` : ""}.`
-            : "Share of voice in depth."
-        }
-      />
-      <VisibilitySubNav />
-
       {!d.hasData ? (
-        <Card>
-          <p className="text-[13px] text-muted-foreground">
-            No measurements yet. Run the battery on the Summary tab and this view fills in.
-          </p>
-        </Card>
+        <EmptyNote>No measurements yet. Once the first report runs, this view fills in.</EmptyNote>
       ) : (
         <>
+          <p className="mb-5 text-[13px] text-muted-foreground">
+            <span className="font-medium text-foreground">{d.latestLabel}</span> · {d.method} · <span className="text-numeric">{d.latestRuns}</span> answers ·{" "}
+            {d.dates.length} comparable measurement{d.dates.length === 1 ? "" : "s"}
+            {d.omittedPeriods > 0 ? `, ${d.omittedPeriods} made another way left out` : ""}
+          </p>
           <Kpis>
             <Kpi label="Named in answers" value={own ? pct(own.share) : "0%"} highlight hint="Share of answers in the latest measurement that name you. The same number as on the Summary tab." />
             <Kpi label="Share of voice" value={pct(d.shareOfVoice)} hint="Your mentions as a share of every venue mention in the latest measurement. The same number as on the Summary tab." />
@@ -160,7 +162,7 @@ export default async function SharePage({
           <Card className="overflow-x-auto p-0">
             <div className="flex flex-wrap gap-2 border-b border-border px-4 py-2.5 text-[12px]">
               {(["reliable", "flicker", "absent", "single"] as const).map((s) => (
-                <span key={s} className={cn("rounded-[3px] px-2 py-0.5 font-medium", STATUS_STYLE[s])}>
+                <span key={s} className={cn("rounded-md px-2 py-0.5 font-medium", STATUS_STYLE[s])}>
                   {STATUS_LABEL[s]} · {d.stabilitySummary[s]}
                 </span>
               ))}
@@ -175,7 +177,7 @@ export default async function SharePage({
                   <span className="text-numeric text-muted-foreground">
                     {row.ownRuns}/{row.runs}
                   </span>
-                  <span className={cn("rounded-[3px] px-2 py-0.5 text-[11px] font-medium", STATUS_STYLE[row.status])}>
+                  <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", STATUS_STYLE[row.status])}>
                     {STATUS_LABEL[row.status]}
                   </span>
                 </li>
@@ -189,10 +191,10 @@ export default async function SharePage({
               {d.rivals.map((name) => (
                 <Link
                   key={name}
-                  href={`/visibility/share?rival=${encodeURIComponent(name)}`}
+                  href={rivalHref(name)}
                   scroll={false}
                   className={cn(
-                    "rounded-[4px] border px-2.5 py-1 text-[12.5px] transition-colors",
+                    "rounded-lg border px-2.5 py-1 text-[12.5px] transition-colors",
                     h2h?.rival === name
                       ? "border-brand bg-brand-soft text-brand"
                       : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",

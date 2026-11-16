@@ -4,8 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
+import { isMonday, isoWeekKey, periodContains, periodLabel, periodLastDay, periodShortLabel, periodStart } from "@/lib/periods";
+import { isWeeklyTenant } from "@/lib/weekly-reports";
 import { fetchAll } from "@/lib/supabase/paginate";
 import { getUserClient } from "@/lib/supabase/server";
+
+export { periodContains, periodLabel, periodStart };
 
 /**
  * Read model for the visibility module.
@@ -21,6 +25,11 @@ import { getUserClient } from "@/lib/supabase/server";
  * model and an imported measurement on another are two series, never one
  * line, and a delta is only printed against the previous point of the same
  * method.
+ *
+ * Since the weekly report asks two assistants in the same week, the unit is a
+ * MEASUREMENT: the runs of one period made one way. A method's measurements
+ * over time are a SERIES; the page describes one series at a time and lists
+ * the others next to it.
  */
 
 export type Platform = "chatgpt" | "google_aio" | "perplexity" | "other";
@@ -78,7 +87,7 @@ export interface ActionItem {
   why: string;
   /** Answers this would touch, for ordering and for the owner's sense of scale. */
   affects: number;
-  /** Where on the page the evidence lives. */
+  /** The view holding the evidence (a path inside AI Visibility). */
   href: string;
 }
 
@@ -205,16 +214,23 @@ export interface MethodMeta {
   reps: number;
 }
 
-/** One measurement period: category runs only, branded intents excluded. */
+/** One measurement (a period measured one way): category runs only, branded intents excluded. */
 export interface TrendPoint {
+  /** Period plus method, unique per point. */
+  key: string;
+  /** The series the point belongs to, see SeriesSummary. */
+  seriesId: string;
+  platform: Platform;
   /** First day of the period (ISO date). */
   date: string;
   /** Last day a run of the period was executed (ISO date), for ordering. */
   endDate: string;
   /** Period key, see periodOf(). */
   period: string;
-  /** Human label: "Oct 2026" for a monthly report, a date for a one-off. */
+  /** Human label: "Oct 2026" for a monthly report, "Week of 16 Nov 2026", a date for a one-off. */
   label: string;
+  /** The same without the year, for chart axes. */
+  shortLabel: string;
   runs: number;
   ownMentions: number;
   /** Share of category runs in the period that mentioned the venue, 0..1. */
@@ -257,7 +273,7 @@ export interface QuestionChange {
  */
 export interface ChangeSummary {
   comparable: boolean;
-  previous: { period: string; label: string; categoryRuns: number } | null;
+  previous: { period: string; label: string; categoryRuns: number; ownMentions: number } | null;
   /** The chronologically previous period, when it was measured differently. */
   otherMethodPrevious: { label: string; method: string } | null;
   scoreBefore: number | null;
@@ -291,7 +307,23 @@ export interface VisibilityOverview {
     method: MethodMeta;
     /** The assistant most of the period's runs measured. */
     platform: Platform;
+    /** The series this measurement is the latest point of. */
+    seriesId: string;
   } | null;
+  /** Set while a report is being measured; its partial answers are not in the numbers below. */
+  inProgress: ReportInProgress | null;
+  /**
+   * Answers of this measurement the assistant gave from memory, without
+   * searching. They are stored as evidence and kept out of every number; the
+   * report asks those questions again. Null when there are none.
+   */
+  setAside: { answers: number; named: number } | null;
+  /** The periods the series on this page was measured in, newest first, for opening a past report. */
+  periods: Array<{ period: string; label: string; current: boolean }>;
+  /** Every series in the ledger, the one on this page marked; newest first. */
+  series: SeriesSummary[];
+  /** The assistants measured in the same period as this one, side by side. Null with one assistant. */
+  comparison: AssistantComparison | null;
   /** Whether Search Console demand shaped this overview (only for Google AI measurements). */
   demandApplied: boolean;
   metrics: MetricsSummary;
@@ -328,20 +360,80 @@ export interface VisibilityOverview {
   interventions: InterventionRow[];
 }
 
+/** One series: every measurement made the same way, summarised by its latest point. */
+export interface SeriesSummary {
+  /** URL-safe id, see seriesIdOf(). */
+  id: string;
+  /** The method key the series shares. */
+  key: string;
+  /** "GPT-4o mini · web search" */
+  label: string;
+  platform: Platform;
+  /** "ChatGPT", "Google AI": the assistant as the owner knows it. */
+  assistant: string;
+  /** How many measurements the series has. */
+  points: number;
+  latest: { period: string; label: string; end: string; categoryRuns: number; ownMentions: number; score: number };
+  previous: { period: string; label: string; categoryRuns: number; ownMentions: number; score: number } | null;
+  /** Percentage points against the previous measurement of this series. */
+  delta: number | null;
+  /** Measured in the newest period of the ledger, so still running. */
+  live: boolean;
+  selected: boolean;
+}
+
+/** One cell of the side-by-side table: answers asked and answers naming the venue. */
+export interface ComparisonCell {
+  runs: number;
+  own: number;
+}
+
+/** The assistants measured in one period, on the same questions. */
+export interface AssistantComparison {
+  period: string;
+  label: string;
+  columns: Array<{
+    seriesId: string;
+    assistant: string;
+    label: string;
+    platform: Platform;
+    categoryRuns: number;
+    ownMentions: number;
+    score: number;
+  }>;
+  /** Per question type; cells in the order of columns. */
+  intents: Array<{ name: string; cells: ComparisonCell[] }>;
+  /** Per question; cells in the order of columns. */
+  questions: Array<{ text: string; intent: string; cells: ComparisonCell[] }>;
+  /** The venues named most across the assistants: answers naming each, per column. */
+  brands: Array<{ name: string; isOwn: boolean; cells: number[] }>;
+  /** The domains cited most across the assistants: answers citing each, per column. */
+  sources: Array<{ domain: string; category: SourceCategory; cells: number[] }>;
+}
+
 interface RunRow {
   id: string;
   platform: Platform;
   executed_on: string;
   source: string;
   model_version: string | null;
+  /** The report the run belongs to ("2026-W47"), stamped by the runner; null on older runs. */
+  report_period: string | null;
+  /** Which assistant the runner asked ("chatgpt", "google"); null on older and imported runs. */
+  assistant: string | null;
+  /** "true" or "false" as stored: whether the answer was built on a search. */
+  used_search: string | null;
   visibility_prompts: {
     text: string;
     language: string;
     intents: { name: string; language: string; is_branded: boolean } | null;
   } | null;
-  visibility_mentions: Array<{ name: string; is_own: boolean }>;
+  visibility_mentions: Array<{ name: string; is_own: boolean; position: number | null }>;
   visibility_citations: Array<{ url: string; domain: string }>;
 }
+
+/** One run as the ledger holds it, for the read models built next to the overview. */
+export type LedgerRun = RunRow;
 
 const SOCIAL = /instagram|facebook|youtube|tiktok|pinterest/;
 const TRAVEL = /tripadvisor|wanderlog|yelp|booking|airbnb/;
@@ -350,28 +442,14 @@ const GUIDES =
   /kukbuk|krakowfood|gojammin|polskapogodzinach|vogue|twojstyl|smartblonde|naszemiasto|krakow\.com|krakow\.pl|krakowcitybreaks|krakow-trip|bestofwarsaw|najlepszewwarszawie|warsawcity|kawa\.pl|foodie|magazyn|przewodnik|inyourpocket|kulinarny|gdziejemy|krakowchanka|restaurantguru|eatbu|menuradar|coffeepals|cartogiraffe|foursquare|atlas|coffeemap|roasterroute|bestin|coffeedash|brewwworld|corner\.inc|\.guide$|timeout|culinaryon|pyszne|zomato|gastronauci|wanderlog/;
 
 /**
- * The unit the panel compares. toodip's own runs belong to a monthly report
- * however many ticks it took to complete, so they group by month; imported
- * baselines and manual measurements keep their day.
+ * The period a run belongs to. Runs stamped with a report ("2026-W47") keep
+ * it however many ticks the report took; toodip's older runs belong to the
+ * monthly report of their calendar month; imported baselines and hand-made
+ * measurements keep their day.
  */
-export function periodOf(run: { source: string; executed_on: string }): string {
+export function periodOf(run: { source: string; executed_on: string; report_period?: string | null }): string {
+  if (run.report_period) return run.report_period;
   return run.source === "toodip" ? run.executed_on.slice(0, 7) : run.executed_on;
-}
-
-export function periodStart(period: string): string {
-  return period.length === 7 ? `${period}-01` : period;
-}
-
-export function periodLabel(period: string): string {
-  const d = new Date(`${periodStart(period)}T00:00:00Z`);
-  return period.length === 7
-    ? d.toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" })
-    : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-}
-
-/** Whether a dated event (an intervention) falls inside a period. */
-export function periodContains(period: string, isoDate: string): boolean {
-  return period.length === 7 ? isoDate.slice(0, 7) === period : isoDate === period;
 }
 
 /** Two runs are comparable when the same kind of source asked the same model. */
@@ -390,6 +468,10 @@ export function modelLabel(model: string | null | undefined): string {
   if (/gpt-6-luna/.test(m)) return "GPT-6 Luna";
   if (/gpt-6-sol/.test(m)) return "GPT-6 Sol";
   if (/sonar/.test(m)) return "Perplexity Sonar";
+  if (/deepseek/.test(m)) return "DeepSeek";
+  if (/^template$/.test(m)) return "the panel's own rules";
+  const gemini = m.match(/gemini-(\d+(?:\.\d+)?)-([a-z]+)/);
+  if (gemini) return `Gemini ${gemini[1]} ${gemini[2].charAt(0).toUpperCase()}${gemini[2].slice(1)}`;
   if (/gemini/.test(m)) return "Gemini";
   return m.replace(/^[a-z0-9-]+\//, "");
 }
@@ -398,7 +480,110 @@ export function methodLabelOf(run: { source: string; model_version: string | nul
   const model = modelLabel(run.model_version);
   if (run.source === "profound") return `${model} · Profound export`;
   if (run.source === "manual") return `${model} · web search, imported`;
+  if (/gemini/i.test(run.model_version ?? "")) return `${model} · Google Search`;
   return `${model} · web search`;
+}
+
+const PLATFORM_ORDER: Platform[] = ["chatgpt", "google_aio", "perplexity", "other"];
+
+/** The assistant as the owner knows it. "Google AI" covers Gemini with Google Search and imported AI Overviews. */
+export const ASSISTANT_NAME: Record<Platform, string> = {
+  chatgpt: "ChatGPT",
+  google_aio: "Google AI",
+  perplexity: "Perplexity",
+  other: "AI assistant",
+};
+
+/** A URL-safe id for a series, derived from its method key. */
+export function seriesIdOf(method: string): string {
+  return method.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "series";
+}
+
+interface RunLike {
+  source: string;
+  model_version: string | null;
+  executed_on: string;
+  platform: Platform;
+  report_period?: string | null;
+}
+
+/** The runs of one period made one way. Two assistants asked in the same week are two measurements. */
+export interface Measurement<R extends RunLike> {
+  /** Period plus method: unique per measurement. */
+  key: string;
+  period: string;
+  methodKey: string;
+  seriesId: string;
+  runs: R[];
+  /** First and last day a run of the measurement was executed (ISO dates). */
+  from: string;
+  end: string;
+  /** The assistant most of its runs measured. */
+  platform: Platform;
+}
+
+/** Every measurement in a set of runs, oldest first by the day it was finished. */
+export function measurementsOf<R extends RunLike>(runs: R[]): Measurement<R>[] {
+  const groups = new Map<string, R[]>();
+  for (const run of runs) {
+    const key = `${periodOf(run)}|${methodKey(run)}`;
+    const list = groups.get(key);
+    if (list) list.push(run);
+    else groups.set(key, [run]);
+  }
+  const out: Measurement<R>[] = [];
+  for (const [key, rows] of groups) {
+    const method = methodKey(rows[0]);
+    let from = rows[0].executed_on;
+    let end = rows[0].executed_on;
+    const platforms = new Map<Platform, number>();
+    for (const run of rows) {
+      if (run.executed_on < from) from = run.executed_on;
+      if (run.executed_on > end) end = run.executed_on;
+      platforms.set(run.platform, (platforms.get(run.platform) ?? 0) + 1);
+    }
+    const platform = [...platforms.entries()].sort(
+      (a, b) => b[1] - a[1] || PLATFORM_ORDER.indexOf(a[0]) - PLATFORM_ORDER.indexOf(b[0]),
+    )[0][0];
+    out.push({ key, period: periodOf(rows[0]), methodKey: method, seriesId: seriesIdOf(method), runs: rows, from, end, platform });
+  }
+  return out.sort(
+    (a, b) =>
+      a.end.localeCompare(b.end) ||
+      periodStart(a.period).localeCompare(periodStart(b.period)) ||
+      PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform) ||
+      a.methodKey.localeCompare(b.methodKey),
+  );
+}
+
+/**
+ * Which series a page describes. An explicit choice (a series id, a method
+ * key, or just "chatgpt" / "google") wins when it exists. Otherwise it is
+ * the series of the newest measurement; when several assistants were asked
+ * in that same period, ChatGPT's leads, being the one with the history.
+ */
+export function chooseSeries<R extends RunLike>(
+  measurements: Measurement<R>[],
+  requested?: string | null,
+  period?: string | null,
+): string | null {
+  if (measurements.length === 0) return null;
+  if (requested) {
+    const wanted = requested.trim().toLowerCase();
+    const exact = measurements.find((m) => m.seriesId === wanted || m.methodKey.toLowerCase() === wanted);
+    if (exact) return exact.methodKey;
+    const platform = wanted === "google" ? "google_aio" : wanted;
+    const newestOnPlatform = [...measurements].reverse().find((m) => m.platform === platform);
+    if (newestOnPlatform) return newestOnPlatform.methodKey;
+  }
+  const inPeriod = period ? measurements.filter((m) => m.period === period) : [];
+  const anchor = inPeriod.length > 0 ? inPeriod[0].period : measurements[measurements.length - 1].period;
+  return measurements
+    .filter((m) => m.period === anchor)
+    .sort(
+      (a, b) =>
+        PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform) || b.runs.length - a.runs.length,
+    )[0].methodKey;
 }
 
 export function classifyDomain(domain: string): SourceCategory {
@@ -694,19 +879,6 @@ function repsOf(runs: RunRow[]): number {
   return Math.max(1, Math.round(runs.length / Math.max(prompts.size, 1)));
 }
 
-function methodOf(runs: RunRow[]): MethodMeta {
-  // A period is one source and (almost always) one model; the most common wins.
-  const counts = new Map<string, { run: RunRow; n: number }>();
-  for (const run of runs) {
-    const key = methodKey(run);
-    const entry = counts.get(key) ?? { run, n: 0 };
-    entry.n += 1;
-    counts.set(key, entry);
-  }
-  const top = [...counts.values()].sort((a, b) => b.n - a.n)[0];
-  return { key: methodKey(top.run), label: methodLabelOf(top.run), reps: repsOf(runs) };
-}
-
 interface PeriodSummary {
   runs: RunRow[];
   categoryRuns: RunRow[];
@@ -856,20 +1028,53 @@ export interface OverviewOptions {
    * not. Never shown as numbers; it shapes priorities and the analyst's facts.
    */
   demand?: DemandByIntent;
+  /**
+   * Which series the overview describes: a series id, a method key, or
+   * "chatgpt" / "google". Without it, the series of the newest measurement.
+   */
+  series?: string | null;
+  /**
+   * Describe the measurement of this period instead of the newest one: how
+   * a past report is opened. Ignored when the series has no such period.
+   */
+  period?: string | null;
 }
 
-/** The assistant most runs of a period measured. */
-function platformOf(runs: RunRow[]): Platform {
-  const counts = new Map<Platform, number>();
-  for (const run of runs) counts.set(run.platform, (counts.get(run.platform) ?? 0) + 1);
-  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "other";
+/** A report whose job is still running: its partial answers are kept out of every number. */
+export interface ReportInProgress {
+  period: string;
+  label: string;
+  done: number;
+  planned: number;
+}
+
+/** Category answers of a set of runs and how many of them name the venue. */
+function tally(runs: RunRow[]): { categoryRuns: number; ownMentions: number; score: number } {
+  let categoryRuns = 0;
+  let ownMentions = 0;
+  for (const run of runs) {
+    if (!isCategory(run)) continue;
+    categoryRuns += 1;
+    if (ownMentioned(run)) ownMentions += 1;
+  }
+  return { categoryRuns, ownMentions, score: ownMentions / Math.max(categoryRuns, 1) };
 }
 
 /** The signed-in workspace's overview, under row level security. */
 export const getVisibilityOverview = cache(async function getVisibilityOverview(options: OverviewOptions = {}): Promise<VisibilityOverview> {
   const session = await requireSession();
   const supabase = await getUserClient();
-  return loadVisibilityOverview(supabase, session.tenantId, options);
+  return overviewFromLedger(supabase, session.tenantId, await getLedger(session.tenantId), options);
+});
+
+/**
+ * The report of one period as each assistant measured it: one overview per
+ * series asked in that period, ChatGPT first. One ledger read serves them all.
+ */
+export const getReportOverviews = cache(async function getReportOverviews(period?: string | null): Promise<VisibilityOverview[]> {
+  const session = await requireSession();
+  const supabase = await getUserClient();
+  return reportOverviewsFromLedger(supabase, session.tenantId, await getLedger(session.tenantId), { period });
 });
 
 /**
@@ -882,7 +1087,83 @@ export async function loadVisibilityOverview(
   tenantId: string,
   options: OverviewOptions = {},
 ): Promise<VisibilityOverview> {
-  const [runsResult, interventionsResult, profileResult] = await Promise.all([
+  return overviewFromLedger(supabase, tenantId, await loadLedger(supabase, tenantId), options);
+}
+
+/** The same for every assistant of a report, through any client. */
+export async function loadReportOverviews(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options: OverviewOptions = {},
+): Promise<VisibilityOverview[]> {
+  return reportOverviewsFromLedger(supabase, tenantId, await loadLedger(supabase, tenantId), options);
+}
+
+async function reportOverviewsFromLedger(
+  supabase: SupabaseClient,
+  tenantId: string,
+  ledger: Ledger,
+  options: OverviewOptions,
+): Promise<VisibilityOverview[]> {
+  const primary = await overviewFromLedger(supabase, tenantId, ledger, options);
+  const columns = primary.comparison?.columns ?? [];
+  if (!primary.current || columns.length < 2) return [primary];
+  const period = primary.current.period;
+  return Promise.all(
+    columns.map((column) =>
+      column.seriesId === primary.current!.seriesId
+        ? primary
+        : overviewFromLedger(supabase, tenantId, ledger, { ...options, series: column.seriesId, period }),
+    ),
+  );
+}
+
+type LedgerIntervention = { id: string; kind: string; surface: string; description: string; performedOn: string };
+
+/** Everything the overview is computed from, read once however many series are described. */
+interface Ledger {
+  tenantId: string;
+  runs: RunRow[];
+  /** Google answers given without a search: evidence, never counted. */
+  unsearched: RunRow[];
+  interventions: LedgerIntervention[];
+  ownDisplay: string | undefined;
+  inProgress: ReportInProgress | null;
+  error: string | null;
+  /** Answer texts by date range, shared between the series of one request. */
+  texts: Map<string, Promise<Array<{ id: string; response_text: string | null }>>>;
+}
+
+/** One ledger per request for the signed-in workspace, whatever asks for it (layout, page, switcher). */
+const getLedger = cache(async function getLedger(tenantId: string): Promise<Ledger> {
+  return loadLedger(await getUserClient(), tenantId);
+});
+
+/**
+ * The signed-in workspace's runs with any report still in progress left out:
+ * the same set every number on the overview is computed from, for the read
+ * models built next to it (share of voice in depth).
+ */
+export async function getSettledRuns(): Promise<{
+  runs: LedgerRun[];
+  venueName: string | undefined;
+  inProgress: ReportInProgress | null;
+  error: string | null;
+}> {
+  const session = await requireSession();
+  const ledger = await getLedger(session.tenantId);
+  const period = ledger.inProgress?.period;
+  const settled = period ? ledger.runs.filter((run) => periodOf(run) !== period) : ledger.runs;
+  return {
+    runs: settled.length > 0 ? settled : ledger.runs,
+    venueName: ledger.ownDisplay,
+    inProgress: ledger.inProgress,
+    error: ledger.error,
+  };
+}
+
+async function loadLedger(supabase: SupabaseClient, tenantId: string): Promise<Ledger> {
+  const [runsResult, interventionsResult, profileResult, jobsResult] = await Promise.all([
     // Paged past the 1000-row cap, newest first.
     fetchAll<RunRow>(() =>
       supabase
@@ -890,7 +1171,7 @@ export async function loadVisibilityOverview(
         .select(
           // No answer texts here: they are the heaviest column by far and only
           // the thirty previews need them (fetched below by id).
-          "id, platform, executed_on, source, model_version, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
+          "id, platform, executed_on, source, model_version, report_period:raw->>report_period, assistant:raw->>assistant, used_search:raw->>used_search, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own, position), visibility_citations(url, domain)",
           { count: "exact" },
         )
         .eq("tenant_id", tenantId)
@@ -908,16 +1189,64 @@ export async function loadVisibilityOverview(
       .select("name")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
+    // A report still being measured: its answers so far are a fragment, not a result.
+    supabase
+      .from("measurement_jobs")
+      .select("scheduled_for, runs_planned, runs_done, runs_failed")
+      .eq("tenant_id", tenantId)
+      .eq("status", "running")
+      .gt("runs_planned", 0)
+      .order("scheduled_for", { ascending: false })
+      .limit(1),
   ]);
 
-  const allRuns = runsResult.rows;
-  const interventionRows = (interventionsResult.data ?? []).map((row) => ({
-    id: row.id as string,
-    kind: row.kind as string,
-    surface: row.surface as string,
-    description: row.description as string,
-    performedOn: row.performed_on as string,
-  }));
+  const job = ((jobsResult.data ?? []) as Array<{ scheduled_for: string; runs_planned: number; runs_done: number; runs_failed: number }>)[0];
+  let inProgress: ReportInProgress | null = null;
+  // runs_done is the answers that count; a report still owed some is not finished
+  // however many attempts it has made.
+  if (job && job.runs_done < job.runs_planned) {
+    const period =
+      isWeeklyTenant(tenantId) && isMonday(job.scheduled_for)
+        ? isoWeekKey(new Date(`${job.scheduled_for}T00:00:00Z`))
+        : job.scheduled_for.slice(0, 7);
+    // A job is only served during its own period. One left unfinished when
+    // the period ended will never grow: its answers are all there will be.
+    const stillOpen = periodLastDay(period) >= new Date().toISOString().slice(0, 10);
+    if (stillOpen) inProgress = { period, label: periodLabel(period), done: job.runs_done, planned: job.runs_planned };
+  }
+
+  // The Google series is "Gemini answering with Google Search". In the first
+  // weekly report Gemini answered some questions from memory, without a
+  // search; those answers stay in the ledger as evidence and out of every
+  // number, like every later one the runner now refuses to store.
+  const fromMemory = (run: RunRow) => run.assistant === "google" && run.used_search === "false";
+  const runs = runsResult.rows.filter((run) => !fromMemory(run));
+
+  return {
+    tenantId,
+    runs,
+    unsearched: runsResult.rows.filter(fromMemory),
+    interventions: (interventionsResult.data ?? []).map((row) => ({
+      id: row.id as string,
+      kind: row.kind as string,
+      surface: row.surface as string,
+      description: row.description as string,
+      performedOn: row.performed_on as string,
+    })),
+    ownDisplay: (profileResult.data as { name: string } | null)?.name,
+    inProgress,
+    error: runsResult.error?.message ?? interventionsResult.error?.message ?? null,
+    texts: new Map(),
+  };
+}
+
+async function overviewFromLedger(
+  supabase: SupabaseClient,
+  tenantId: string,
+  ledger: Ledger,
+  options: OverviewOptions = {},
+): Promise<VisibilityOverview> {
+  const interventionRows = ledger.interventions;
 
   const emptyMetrics: MetricsSummary = {
     brandMentionRate: 0,
@@ -931,6 +1260,11 @@ export async function loadVisibilityOverview(
   const empty: VisibilityOverview = {
     hasData: false,
     current: null,
+    inProgress: ledger.inProgress,
+    setAside: null,
+    periods: [],
+    series: [],
+    comparison: null,
     demandApplied: false,
     metrics: emptyMetrics,
     sources: [],
@@ -959,59 +1293,70 @@ export async function loadVisibilityOverview(
     interventions: interventionRows.map((row) => ({ ...row, before: null, after: null })),
   };
 
-  const readError = runsResult.error?.message ?? interventionsResult.error?.message ?? null;
-  if (readError) return { ...empty, error: readError };
-  if (allRuns.length === 0) return empty;
+  if (ledger.error) return { ...empty, error: ledger.error };
+  if (ledger.runs.length === 0) return empty;
 
-  // ── Periods, ordered by when they were actually measured ──────────────────
-  const periodRuns = new Map<string, RunRow[]>();
-  for (const run of allRuns) {
-    const key = periodOf(run);
-    periodRuns.set(key, [...(periodRuns.get(key) ?? []), run]);
-  }
-  const periodEnd = new Map<string, string>();
-  for (const [period, rows] of periodRuns) {
-    periodEnd.set(period, rows.reduce((max, run) => (run.executed_on > max ? run.executed_on : max), ""));
-  }
-  const periods = [...periodRuns.keys()].sort(
-    (a, b) => periodEnd.get(a)!.localeCompare(periodEnd.get(b)!) || periodStart(a).localeCompare(periodStart(b)),
-  );
-  const periodMethod = new Map<string, MethodMeta>();
-  for (const period of periods) periodMethod.set(period, methodOf(periodRuns.get(period)!));
-
-  const currentPeriod = periods[periods.length - 1];
-  const runs = periodRuns.get(currentPeriod)!;
-  const currentPlatform = platformOf(runs);
-  // Google demand pairs with Google's answers only.
-  const demand = currentPlatform === "google_aio" ? options.demand : undefined;
-  const ownDisplay = (profileResult.data as { name: string } | null)?.name;
-  const now = summarize(runs, ownDisplay);
-  const categoryRuns = now.categoryRuns;
-
+  // ── Measurements (a period measured one way), oldest first, and the series this page describes ──
+  // A report still being measured is left out: a third of its answers would
+  // read as a result. Only when nothing else exists yet is the fragment shown.
+  const everyMeasurement = measurementsOf(ledger.runs);
+  const settled = ledger.inProgress ? everyMeasurement.filter((m) => m.period !== ledger.inProgress!.period) : everyMeasurement;
+  const measurements = settled.length > 0 ? settled : everyMeasurement;
+  const selectedMethod = chooseSeries(measurements, options.series, options.period)!;
+  const ownSeries = measurements.filter((m) => m.methodKey === selectedMethod);
+  const requestedIndex = options.period ? ownSeries.findIndex((m) => m.period === options.period) : -1;
+  const currentIndex = requestedIndex >= 0 ? requestedIndex : ownSeries.length - 1;
+  const currentMeasurement = ownSeries[currentIndex];
   // The previous measurement made the same way, if any: the only one the
   // latest is compared with.
-  const currentMethod = periodMethod.get(currentPeriod)!;
-  const earlier = periods.slice(0, -1);
-  const previousSame = [...earlier].reverse().find((period) => periodMethod.get(period)!.key === currentMethod.key) ?? null;
-  const previousAny = earlier[earlier.length - 1] ?? null;
+  const previousSame = ownSeries[currentIndex - 1] ?? null;
+  // With nothing comparable, the newest earlier measurement made another way
+  // is named, so the page can say why no delta is shown.
+  const previousOther = previousSame
+    ? null
+    : ([...measurements]
+        .reverse()
+        .find((m) => m.methodKey !== selectedMethod && m.period !== currentMeasurement.period && m.end <= currentMeasurement.end) ?? null);
+  const methodMeta = new Map<string, MethodMeta>();
+  for (const m of measurements) {
+    methodMeta.set(m.key, { key: m.methodKey, label: methodLabelOf(m.runs[0]), reps: repsOf(m.runs) });
+  }
+
+  const currentPeriod = currentMeasurement.period;
+  const runs = currentMeasurement.runs;
+  const currentPlatform = currentMeasurement.platform;
+  // Google demand pairs with Google's answers only.
+  const demand = currentPlatform === "google_aio" ? options.demand : undefined;
+  const ownDisplay = ledger.ownDisplay;
+  const now = summarize(runs, ownDisplay);
+  const categoryRuns = now.categoryRuns;
+  const currentMethod = methodMeta.get(currentMeasurement.key)!;
 
   // The answer texts of the latest measurement (and of the one it is
   // compared with), for per-item source attribution and quotes. Fetched by
   // date range, not by id list: a report of a thousand runs would not fit its
-  // ids into one request URL.
-  const textsFor = (period: string) =>
-    fetchAll<{ id: string; response_text: string | null }>(() =>
-      supabase
-        .from("visibility_runs")
-        .select("id, response_text", { count: "exact" })
-        .eq("tenant_id", tenantId)
-        .gte("executed_on", periodStart(period))
-        .lte("executed_on", periodEnd.get(period)!)
-        .order("id"),
-    );
-  const textResults = await Promise.all([textsFor(currentPeriod), ...(previousSame ? [textsFor(previousSame)] : [])]);
+  // ids into one request URL. Another assistant's answers from the same days
+  // come along and are simply never looked up.
+  const textsFor = (m: Measurement<RunRow>) => {
+    const range = `${m.from}|${m.end}`;
+    let pending = ledger.texts.get(range);
+    if (!pending) {
+      pending = fetchAll<{ id: string; response_text: string | null }>(() =>
+        supabase
+          .from("visibility_runs")
+          .select("id, response_text", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .gte("executed_on", m.from)
+          .lte("executed_on", m.end)
+          .order("id"),
+      ).then((result) => result.rows);
+      ledger.texts.set(range, pending);
+    }
+    return pending;
+  };
+  const textResults = await Promise.all([textsFor(currentMeasurement), ...(previousSame ? [textsFor(previousSame)] : [])]);
   const texts = new Map<string, string | null>();
-  for (const result of textResults) for (const row of result.rows) texts.set(row.id, row.response_text);
+  for (const rows of textResults) for (const row of rows) texts.set(row.id, row.response_text);
   const ownKeys = nameKeys(ownDisplay ?? "");
   /** Domains cited at the venue's own items in a run, or null when the text is missing. */
   const ownSourcesOf = (run: RunRow): Set<string> | null => {
@@ -1330,60 +1675,156 @@ export async function loadVisibilityOverview(
     if (words.length > 0) rivalDescriptors = { name: topRival.display, words };
   }
 
-  // ── Score per measurement period, across the whole history ─────────────────
-  const timeline: TrendPoint[] = periods.map((period) => {
-    const rows = periodRuns.get(period)!.filter(isCategory);
-    const own = rows.filter(ownMentioned).length;
+  // ── Score per measurement, across the whole history and every series ──────
+  const timeline: TrendPoint[] = measurements.map((m) => {
+    const t = tally(m.runs);
     return {
-      date: periodStart(period),
-      endDate: periodEnd.get(period)!,
-      period,
-      label: periodLabel(period),
-      runs: rows.length,
-      ownMentions: own,
-      score: own / Math.max(rows.length, 1),
-      interventions: interventionRows.filter((item) => periodContains(period, item.performedOn)).length,
-      method: periodMethod.get(period)!,
+      key: m.key,
+      seriesId: m.seriesId,
+      platform: m.platform,
+      date: periodStart(m.period),
+      endDate: m.end,
+      period: m.period,
+      label: periodLabel(m.period),
+      shortLabel: periodShortLabel(m.period),
+      runs: t.categoryRuns,
+      ownMentions: t.ownMentions,
+      score: t.score,
+      interventions: interventionRows.filter((item) => periodContains(m.period, item.performedOn)).length,
+      method: methodMeta.get(m.key)!,
     };
   });
 
+  // ── Every series, summarised by its latest point ──────────────────────────
+  const newestPeriod = measurements[measurements.length - 1].period;
+  const byMethod = new Map<string, Measurement<RunRow>[]>();
+  for (const m of measurements) byMethod.set(m.methodKey, [...(byMethod.get(m.methodKey) ?? []), m]);
+  const series: SeriesSummary[] = [...byMethod.entries()]
+    .map(([key, points]) => {
+      const last = points[points.length - 1];
+      const prior = points[points.length - 2] ?? null;
+      const latest = tally(last.runs);
+      const before = prior ? tally(prior.runs) : null;
+      return {
+        id: last.seriesId,
+        key,
+        label: methodMeta.get(last.key)!.label,
+        platform: last.platform,
+        assistant: ASSISTANT_NAME[last.platform],
+        points: points.length,
+        latest: { period: last.period, label: periodLabel(last.period), end: last.end, ...latest },
+        previous: before && prior ? { period: prior.period, label: periodLabel(prior.period), ...before } : null,
+        delta: before ? Math.round(latest.score * 100) - Math.round(before.score * 100) : null,
+        live: last.period === newestPeriod,
+        selected: key === selectedMethod,
+      } satisfies SeriesSummary;
+    })
+    .sort(
+      (a, b) =>
+        b.latest.end.localeCompare(a.latest.end) ||
+        PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform) ||
+        a.label.localeCompare(b.label),
+    );
+
+  // ── The assistants asked in this same period, side by side ────────────────
+  const peers = measurements
+    .filter((m) => m.period === currentPeriod)
+    .sort((a, b) => PLATFORM_ORDER.indexOf(a.platform) - PLATFORM_ORDER.indexOf(b.platform) || a.methodKey.localeCompare(b.methodKey));
+  let comparison: AssistantComparison | null = null;
+  if (peers.length > 1) {
+    const intentCells = new Map<string, ComparisonCell[]>();
+    const questionCells = new Map<string, { intent: string; cells: ComparisonCell[] }>();
+    const brandCells = new Map<string, { name: string; isOwn: boolean; cells: number[] }>();
+    const sourceCells = new Map<string, number[]>();
+    const blank = () => peers.map(() => ({ runs: 0, own: 0 }));
+    peers.forEach((peer, column) => {
+      for (const run of peer.runs) {
+        if (!isCategory(run)) continue;
+        const named = ownMentioned(run);
+        const intent = run.visibility_prompts?.intents?.name ?? "unknown";
+        const text = run.visibility_prompts?.text ?? "unknown";
+        const i = intentCells.get(intent) ?? blank();
+        i[column].runs += 1;
+        if (named) i[column].own += 1;
+        intentCells.set(intent, i);
+        const q = questionCells.get(text) ?? { intent, cells: blank() };
+        q.cells[column].runs += 1;
+        if (named) q.cells[column].own += 1;
+        questionCells.set(text, q);
+        for (const [key, brand] of brandsInRun(run)) {
+          const b = brandCells.get(key) ?? { name: brand.isOwn ? (ownDisplay ?? brand.name) : brand.name, isOwn: brand.isOwn, cells: peers.map(() => 0) };
+          b.cells[column] += 1;
+          brandCells.set(key, b);
+        }
+        for (const domain of new Set(run.visibility_citations.map((c) => c.domain))) {
+          const d = sourceCells.get(domain) ?? peers.map(() => 0);
+          d[column] += 1;
+          sourceCells.set(domain, d);
+        }
+      }
+    });
+    const total = (cells: number[]) => cells.reduce((sum, n) => sum + n, 0);
+    comparison = {
+      period: currentPeriod,
+      label: periodLabel(currentPeriod),
+      columns: peers.map((peer) => ({
+        seriesId: peer.seriesId,
+        assistant: ASSISTANT_NAME[peer.platform],
+        label: methodMeta.get(peer.key)!.label,
+        platform: peer.platform,
+        ...tally(peer.runs),
+      })),
+      intents: [...intentCells.entries()]
+        .map(([name, cells]) => ({ name, cells }))
+        .sort((a, b) => total(b.cells.map((c) => c.runs)) - total(a.cells.map((c) => c.runs)) || a.name.localeCompare(b.name)),
+      questions: [...questionCells.entries()]
+        .map(([text, q]) => ({ text, intent: q.intent, cells: q.cells }))
+        .sort((a, b) => a.intent.localeCompare(b.intent) || a.text.localeCompare(b.text)),
+      brands: [...brandCells.values()]
+        .sort((a, b) => Number(b.isOwn) - Number(a.isOwn) || total(b.cells) - total(a.cells) || a.name.localeCompare(b.name))
+        .slice(0, 13),
+      sources: [...sourceCells.entries()]
+        .map(([domain, cells]) => ({ domain, category: classifyDomain(domain), cells }))
+        .sort((a, b) => total(b.cells) - total(a.cells) || a.domain.localeCompare(b.domain))
+        .slice(0, 14),
+    };
+  }
+
   // ── What changed since the previous measurement made the same way ─────────
   let changes: ChangeSummary | null = null;
-  if (previousAny) {
-    const otherMethodPrevious =
-      previousAny !== previousSame
-        ? { label: periodLabel(previousAny), method: periodMethod.get(previousAny)!.label }
-        : null;
-    if (previousSame) {
-      const previousRuns = periodRuns.get(previousSame)!;
-      const before = summarize(previousRuns, ownDisplay);
-      changes = {
-        comparable: true,
-        previous: { period: previousSame, label: periodLabel(previousSame), categoryRuns: before.categoryRuns.length },
-        otherMethodPrevious,
-        ...compare(now, before),
-        backingBefore: backingOf(previousRuns).slice(0, 4),
-        backingAfter: ownSources.slice(0, 4),
-      };
-    } else {
-      changes = {
-        comparable: false,
-        previous: null,
-        otherMethodPrevious,
-        scoreBefore: null,
-        scoreDelta: null,
-        sovBefore: null,
-        sovDelta: null,
-        intents: [],
-        brands: [],
-        newSources: [],
-        goneSources: [],
-        questionsWon: [],
-        questionsLost: [],
-        backingBefore: [],
-        backingAfter: [],
-      };
-    }
+  if (previousSame) {
+    const before = summarize(previousSame.runs, ownDisplay);
+    changes = {
+      comparable: true,
+      previous: {
+        period: previousSame.period,
+        label: periodLabel(previousSame.period),
+        categoryRuns: before.categoryRuns.length,
+        ownMentions: before.categoryRuns.filter(ownMentioned).length,
+      },
+      otherMethodPrevious: null,
+      ...compare(now, before),
+      backingBefore: backingOf(previousSame.runs).slice(0, 4),
+      backingAfter: ownSources.slice(0, 4),
+    };
+  } else if (previousOther) {
+    changes = {
+      comparable: false,
+      previous: null,
+      otherMethodPrevious: { label: periodLabel(previousOther.period), method: methodMeta.get(previousOther.key)!.label },
+      scoreBefore: null,
+      scoreDelta: null,
+      sovBefore: null,
+      sovDelta: null,
+      intents: [],
+      brands: [],
+      newSources: [],
+      goneSources: [],
+      questionsWon: [],
+      questionsLost: [],
+      backingBefore: [],
+      backingAfter: [],
+    };
   }
 
   // ── This month's plan: every action the measurement supports, by answers at stake ─
@@ -1403,7 +1844,7 @@ export async function loadVisibilityOverview(
         ? `${intent.runs} answers; you are named in ${intent.ownMentions}. ${lead.name} is named in ${fmtPct(lead.share)}${read}.${google}`
         : `${intent.runs} answers; you are named in ${intent.ownMentions} and no rival dominates yet.${google}`,
       affects: intent.runs - intent.ownMentions,
-      href: "#types",
+      href: "/visibility/questions",
       weight: (intent.status === "flicker" ? 1.3 : intent.status === "none" ? 1 : 0.8) * (intent.demand ? 1 + Math.min(intent.demand.impressions, 5000) / 1000 : 1),
     });
   }
@@ -1418,7 +1859,7 @@ export async function loadVisibilityOverview(
       title: `Stabilise "${q.text}"`,
       why: `Named in ${q.own} of ${q.runs} repetitions. The assistant already considers you; one more page or listing tips it.`,
       affects: q.runs,
-      href: "#types",
+      href: "/visibility/questions",
       weight: 1.6,
     });
   }
@@ -1428,7 +1869,7 @@ export async function loadVisibilityOverview(
       title: `Recover "${q.text}"`,
       why: `Named in ${q.before} of ${q.runs} answers last time, ${q.after} now. Check what changed on the pages the assistants read for it.`,
       affects: q.runs,
-      href: "#types",
+      href: "/visibility/questions",
       weight: 1.5,
     });
   }
@@ -1446,7 +1887,7 @@ export async function loadVisibilityOverview(
       title: gapTitle(gap),
       why: `Cited at a rival's item in ${gap.count} answers (${gap.rivals.slice(0, 2).join(", ")}) and never at yours.`,
       affects: gap.count,
-      href: "#gaps",
+      href: "/visibility/sources#gaps",
       weight: 1.3,
     });
   }
@@ -1458,7 +1899,7 @@ export async function loadVisibilityOverview(
       title: `Match what ${rivalSites.map((g) => g.ownerRival).slice(0, 2).join(" and ")} publish on their own sites`,
       why: `${rivalSites.map((g) => g.domain).join(", ")} are cited in ${total} answers recommending them. Menu with prices, hours, district and a FAQ are what gets quoted.`,
       affects: total,
-      href: "#gaps",
+      href: "/visibility/sources#gaps",
       weight: 0.9,
     });
   }
@@ -1468,7 +1909,7 @@ export async function loadVisibilityOverview(
       title: ownCitedRuns === 0 ? "Make your website a source the assistants can quote" : "Make more of your website quotable",
       why: `Your site is cited in ${fmtPct(metrics.citationRate)} of answers. Assistants recommend from pages they can read: facts in plain text, not only in images.`,
       affects: categoryRuns.length - ownCitedRuns,
-      href: "#sources",
+      href: "/visibility/sources",
       weight: 0.8,
     });
   }
@@ -1495,16 +1936,27 @@ export async function loadVisibilityOverview(
       period: currentPeriod,
       label: periodLabel(currentPeriod),
       start: periodStart(currentPeriod),
-      end: periodEnd.get(currentPeriod)!,
+      end: currentMeasurement.end,
       runs: runs.length,
       categoryRuns: categoryRuns.length,
       method: currentMethod,
       platform: currentPlatform,
+      seriesId: currentMeasurement.seriesId,
     },
+    inProgress: ledger.inProgress,
+    setAside: (() => {
+      const aside = ledger.unsearched.filter((run) => isCategory(run) && periodOf(run) === currentPeriod && methodKey(run) === selectedMethod);
+      return aside.length > 0 ? { answers: aside.length, named: aside.filter(ownMentioned).length } : null;
+    })(),
+    periods: [...ownSeries]
+      .reverse()
+      .map((m) => ({ period: m.period, label: periodLabel(m.period), current: m.key === currentMeasurement.key })),
+    series,
+    comparison,
     demandApplied: Boolean(demand),
     metrics,
     sources: [...new Set(runs.map((run) => run.source))],
-    dates: periods.map(periodStart),
+    dates: [...new Set(measurements.map((m) => periodStart(m.period)))],
     timeline,
     changes,
     actions,

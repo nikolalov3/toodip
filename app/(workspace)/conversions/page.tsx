@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/common/surfaces";
 import { Bars, Card, ErrorCard, Kpi, Kpis, NoSite, QHead, SplitBars, Verdict } from "@/components/stats/blocks";
+import { WebsiteTabs } from "@/components/stats/website-tabs";
 import { getStatsSnapshot } from "@/services/stats";
 
 export const metadata: Metadata = { title: "Conversions" };
@@ -25,7 +26,8 @@ export default async function ConversionsPage() {
           : `Visitors from AI and the rest act equally often: ${s.aiConversionRate}%.`;
   return (
     <>
-      <PageHeader title="Conversions" description="What traffic does on the site: phone, directions, reservation." />
+      <PageHeader title="Website" description="What traffic does on the site: phone, directions, reservation, and whether visitors from AI act more often." />
+      <WebsiteTabs />
       {s.error && <ErrorCard message={s.error} />}
       {!s.site ? (
         s.error ? null : <NoSite />

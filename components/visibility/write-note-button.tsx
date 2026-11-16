@@ -6,8 +6,8 @@ import { writeAnalystNoteAction } from "@/app/actions/visibility";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Asks the server to write (or rewrite) the analyst note for the latest measurement. */
-export function WriteNoteButton({ hasNote }: { hasNote: boolean }) {
+/** Asks the server to write (or rewrite) the summary in words for the series on the page. */
+export function WriteNoteButton({ hasNote, seriesId }: { hasNote: boolean; seriesId?: string }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   return (
@@ -19,12 +19,12 @@ export function WriteNoteButton({ hasNote }: { hasNote: boolean }) {
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
-            const result = await writeAnalystNoteAction();
+            const result = await writeAnalystNoteAction(seriesId);
             setMessage({ ok: result.ok, text: result.ok ? "" : result.message });
           })
         }
       >
-        {pending ? "Writing…" : hasNote ? "Write again" : "Write the analyst note"}
+        {pending ? "Writing…" : hasNote ? "Write again" : "Write the summary"}
       </Button>
       {message && !message.ok && (
         <span className={cn("text-[12px]", "text-critical")} role="status">

@@ -155,8 +155,9 @@ export function effectivePlanFrom(row: {
  * Where a signed-in person lands. A workspace that pays for measurements
  * opens on AI Visibility; everyone else on the stats overview.
  */
-export function landingPathFor(plan: BillingPlan): "/visibility" | "/overview" {
-  return PLANS[plan].monthlyRuns > 0 ? "/visibility" : "/overview";
+/** Where a workspace lands: the report when its plan measures, the website module otherwise. */
+export function landingPathFor(plan: BillingPlan): "/report" | "/overview" {
+  return PLANS[plan].monthlyRuns > 0 ? "/report" : "/overview";
 }
 
 export function repliesLimitFor(plan: BillingPlan): number {

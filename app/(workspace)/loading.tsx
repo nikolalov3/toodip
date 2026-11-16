@@ -6,17 +6,17 @@
 export default function WorkspaceLoading() {
   return (
     <div aria-busy="true" aria-live="polite" className="animate-pulse">
-      <div className="h-6 w-44 rounded-[4px] bg-muted" />
-      <div className="mt-2.5 h-3.5 w-80 max-w-full rounded-[4px] bg-muted/70" />
+      <div className="h-6 w-44 rounded-md bg-muted" />
+      <div className="mt-2.5 h-3.5 w-80 max-w-full rounded-md bg-muted/70" />
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-[84px] rounded-[4px] border border-border bg-card" />
+          <div key={i} className="h-[84px] rounded-xl border border-border bg-card" />
         ))}
       </div>
-      <div className="mt-10 h-4 w-56 rounded-[4px] bg-muted" />
-      <div className="mt-3.5 h-[260px] rounded-[4px] border border-border bg-card" />
-      <div className="mt-10 h-4 w-48 rounded-[4px] bg-muted" />
-      <div className="mt-3.5 h-[180px] rounded-[4px] border border-border bg-card" />
+      <div className="mt-10 h-4 w-56 rounded-md bg-muted" />
+      <div className="mt-3.5 h-[260px] rounded-xl border border-border bg-card" />
+      <div className="mt-10 h-4 w-48 rounded-md bg-muted" />
+      <div className="mt-3.5 h-[180px] rounded-xl border border-border bg-card" />
     </div>
   );
 }

@@ -113,7 +113,7 @@ export function Donut({
               {s.color !== REST_COLOR ? `${i + 1}. ` : ""}
               {s.label}
               {s.own && (
-                <span className="ml-2 rounded-[3px] border border-brand/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-brand">
+                <span className="ml-2 rounded-md border border-brand/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-brand">
                   You
                 </span>
               )}

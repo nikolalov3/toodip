@@ -47,7 +47,7 @@ export function SaysCard({
             ) : (
               <p className="mt-1.5 flex flex-wrap gap-1.5">
                 {descriptors.map((d) => (
-                  <span key={d.word} className="rounded-[3px] bg-brand-soft px-1.5 py-0.5 text-[12px] text-brand">
+                  <span key={d.word} className="rounded-md bg-brand-soft px-1.5 py-0.5 text-[12px] text-brand">
                     {d.word} <span className="text-numeric opacity-70">{d.count}</span>
                   </span>
                 ))}
@@ -59,7 +59,7 @@ export function SaysCard({
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Words next to {rival.name}</p>
               <p className="mt-1.5 flex flex-wrap gap-1.5">
                 {rival.words.map((d) => (
-                  <span key={d.word} className="rounded-[3px] bg-muted px-1.5 py-0.5 text-[12px] text-muted-foreground">
+                  <span key={d.word} className="rounded-md bg-muted px-1.5 py-0.5 text-[12px] text-muted-foreground">
                     {d.word} <span className="text-numeric opacity-70">{d.count}</span>
                   </span>
                 ))}

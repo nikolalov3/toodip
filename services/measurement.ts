@@ -6,6 +6,7 @@ import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { PLANS, RUN_COST_ESTIMATE_USD } from "@/lib/billing";
 import { isPublicHost } from "@/lib/net";
 import { getUserClient } from "@/lib/supabase/server";
+import { currentReportPeriod, type Assistant } from "@/lib/weekly-reports";
 import { getBillingSnapshot } from "@/services/billing";
 import { classifyDomain } from "@/services/visibility";
 
@@ -66,6 +67,34 @@ const OPENROUTER_SEARCH_MODEL_AGENCY = () => process.env.OPENROUTER_SEARCH_MODEL
 export function searchModelForPlan(planName: string): string {
   const agency = OPENROUTER_SEARCH_MODEL_AGENCY();
   return agency && /agency|unlimited/i.test(planName) ? agency : OPENROUTER_SEARCH_MODEL();
+}
+
+/**
+ * The Google assistant: Gemini answering with Google Search itself as the
+ * search tool (OpenRouter's native web plugin hands the search to Google, not
+ * to a third-party index). This is the grounding Google's own AI answers are
+ * built on, so it is the closest reproducible measurement of "what Google's
+ * AI says"; it is not a capture of an AI Overviews box. Like every model id
+ * here it is part of the METHOD: changing it starts a new series.
+ */
+const OPENROUTER_GOOGLE_MODEL = () =>
+  process.env.OPENROUTER_GOOGLE_MODEL?.trim() || "google/gemini-3.8-flash";
+
+/**
+ * Left to itself, Gemini answers about four questions in ten from memory,
+ * without searching at all (measured on the first weekly report: 21 of 52
+ * answers, and none of the 21 named a venue that opened recently). Google's
+ * own AI answers are always built on a search, so an answer from memory is
+ * not the thing being measured. This one line makes Gemini search every
+ * time (six of six in the probe); it is part of the method and never names
+ * a venue or a preference. An answer that still comes back without a search
+ * is asked once more and, failing that, not counted.
+ */
+const GOOGLE_SEARCH_INSTRUCTION = "Search Google before you answer, and base the answer on what the search returns.";
+
+/** Whether the Google assistant can be measured on this deployment. */
+export function googleEngineConfigured(): boolean {
+  return Boolean(process.env.OPENROUTER_API_KEY?.trim());
 }
 
 /**
@@ -142,7 +171,11 @@ const MODEL_PRICES: Record<string, { in: number; out: number }> = {
   "openai/gpt-4.1-mini": { in: 0.4, out: 1.6 },
   "openai/gpt-chat-latest": { in: 5, out: 30 },
   "openai/gpt-6-luna": { in: 0.1, out: 0.5 },
-  "deepseek/deepseek-v4.1-flash": { in: 0.051, out: 0.41 },
+  "google/gemini-3.8-flash": { in: 0.825, out: 4.125 },
+  "deepseek/deepseek-v3.2": { in: 0.26, out: 0.38 },
+  "deepseek/deepseek-v4-flash": { in: 0.09, out: 0.18 },
+  "deepseek/deepseek-v4.1-flash": { in: 0.14, out: 0.42 },
+  "deepseek/deepseek-v4-pro": { in: 0.9, out: 1.5 },
   "perplexity/sonar": { in: 1, out: 1 },
 };
 
@@ -230,6 +263,8 @@ interface SearchAnswer {
   costUsd?: number;
   /** Where in the text each citation applies (character offsets), when the provider says. */
   citationSpans?: Array<{ url: string; start: number; end: number }>;
+  /** True when the provider gave sources beside the text and they were written into it. */
+  citationsInlined?: boolean;
   text: string;
   model: string;
   citations: string[];
@@ -313,6 +348,157 @@ async function askWithSearchOpenRouter(prompt: string, apiKey: string, model: st
   };
 }
 
+const GROUNDING_HOST = "vertexaisearch.cloud.google.com";
+
+/**
+ * Google hands back its sources as short-lived redirect links on its own
+ * host, with the real domain as the title. The redirect is resolved once, at
+ * measurement time, so the ledger keeps the page that was actually read; when
+ * that fails the domain alone is kept, which is what the source tables count.
+ * Only Google's redirect host is ever requested, and never followed.
+ */
+async function resolveGroundingUrl(url: string, title: string | undefined): Promise<string | null> {
+  const domain = (title ?? "").trim().toLowerCase();
+  const fallback = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(domain) ? `https://${domain}/` : null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return fallback;
+  }
+  if (parsed.hostname !== GROUNDING_HOST) return /^https?:$/.test(parsed.protocol) ? url : fallback;
+  try {
+    const response = await fetch(url, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(4_000),
+      headers: { "user-agent": "toodip-measure/1.0 (+https://www.toodip.com)" },
+    });
+    const location = response.headers.get("location");
+    if (location && /^https?:\/\//i.test(location) && !location.includes(GROUNDING_HOST)) return location;
+  } catch {
+    /* the domain is enough */
+  }
+  return fallback;
+}
+
+/**
+ * Puts each source where the assistant used it, in the same shape ChatGPT's
+ * answers arrive in: " ([domain](url))" right after the passage it backs.
+ * Gemini reports its sources as offsets beside a clean text; inlining them
+ * lets one reader (stripSources for mentions, the per-item attribution in
+ * the panel) serve both assistants. The marker goes after the passage's
+ * closing punctuation, never inside a word and never onto the next line,
+ * where it would be read as the source of the next list item.
+ */
+export function inlineCitations(text: string, spans: Array<{ url: string; end: number }>): string {
+  const word = /[\p{L}\p{N}]/u;
+  const byEnd = new Map<number, string[]>();
+  for (const span of spans) {
+    let at = Math.max(0, Math.min(text.length, span.end));
+    while (at > 0 && at < text.length && word.test(text[at - 1]) && word.test(text[at])) at += 1;
+    if (at > 0 && !/\s/.test(text[at - 1])) {
+      while (at < text.length && /[.,;:!?)*_"”’]/.test(text[at])) at += 1;
+    }
+    while (at > 0 && /\s/.test(text[at - 1])) at -= 1;
+    const urls = byEnd.get(at) ?? [];
+    if (!urls.includes(span.url)) urls.push(span.url);
+    byEnd.set(at, urls);
+  }
+  let out = text;
+  for (const at of [...byEnd.keys()].sort((a, b) => b - a)) {
+    const marks = byEnd
+      .get(at)!
+      .map((url) => {
+        let host = "source";
+        try {
+          host = new URL(url).hostname.replace(/^www\./, "");
+        } catch {
+          /* keep the generic label */
+        }
+        // A bare parenthesis in the address would end the markdown link early.
+        return ` ([${host}](${url.replace(/\(/g, "%28").replace(/\)/g, "%29")}))`;
+      })
+      .join("");
+    out = out.slice(0, at) + marks + out.slice(at);
+  }
+  return out;
+}
+
+/** The same question to Gemini with Google Search as its search tool; only a searched answer counts. */
+async function askGoogle(prompt: string, apiKey: string, model: string): Promise<SearchAnswer> {
+  const first = await askGoogleOnce(prompt, apiKey, model);
+  if (first.usedSearch) return first;
+  const second = await askGoogleOnce(prompt, apiKey, model);
+  if (second.usedSearch) return second;
+  throw new Error("Google answered from memory twice, without searching; the answer is not counted.");
+}
+
+async function askGoogleOnce(prompt: string, apiKey: string, model: string): Promise<SearchAnswer> {
+  const data = await callOpenRouter(
+    {
+      model,
+      messages: [
+        { role: "system", content: GOOGLE_SEARCH_INSTRUCTION },
+        { role: "user", content: prompt },
+      ],
+      plugins: [{ id: "web", engine: "native" }],
+    },
+    apiKey,
+  );
+  const choice = ((data.choices as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+  const message = (choice.message ?? {}) as Record<string, unknown>;
+  const original = typeof message.content === "string" ? message.content : "";
+
+  const cited: Array<{ redirect: string; title?: string; startByte: number | null; endByte: number | null }> = [];
+  for (const annotation of (message.annotations ?? []) as Array<Record<string, unknown>>) {
+    const cite = annotation.url_citation as Record<string, unknown> | undefined;
+    if (!cite || typeof cite.url !== "string") continue;
+    cited.push({
+      redirect: cite.url,
+      title: typeof cite.title === "string" ? cite.title : undefined,
+      startByte: typeof cite.start_index === "number" ? cite.start_index : null,
+      endByte: typeof cite.end_index === "number" ? cite.end_index : null,
+    });
+  }
+  const resolved = new Map<string, string | null>();
+  await Promise.all(
+    [...new Map(cited.map((c) => [c.redirect, c])).values()].map(async (c) => {
+      resolved.set(c.redirect, await resolveGroundingUrl(c.redirect, c.title));
+    }),
+  );
+
+  // Google counts positions in UTF-8 bytes; the text is handled in characters.
+  const bytes = Buffer.from(original, "utf8");
+  const charAt = (byte: number) => bytes.subarray(0, Math.max(0, Math.min(bytes.length, byte))).toString("utf8").length;
+  const citations: string[] = [];
+  const citationSpans: Array<{ url: string; start: number; end: number }> = [];
+  for (const c of cited) {
+    const url = resolved.get(c.redirect);
+    if (!url) continue;
+    citations.push(url);
+    if (c.startByte !== null && c.endByte !== null) {
+      citationSpans.push({ url, start: charAt(c.startByte), end: charAt(c.endByte) });
+    }
+  }
+
+  const usage = (data.usage ?? {}) as Record<string, unknown>;
+  const tools = (usage.server_tool_use_details ?? usage.server_tool_use ?? {}) as Record<string, unknown>;
+  const searches = Number(tools.web_search_requests ?? 0) || 0;
+  return {
+    text: inlineCitations(original, citationSpans).trim(),
+    model: typeof data.model === "string" ? data.model : model,
+    citations: [...new Set(citations)],
+    usedSearch: searches > 0 || cited.length > 0,
+    webSearches: searches,
+    tokensIn: Number(usage.prompt_tokens ?? 0) || 0,
+    tokensOut: Number(usage.completion_tokens ?? 0) || 0,
+    costUsd: typeof usage.cost === "number" ? usage.cost : undefined,
+    // Offsets into the answer as Google wrote it, before the sources were inlined.
+    citationSpans,
+    citationsInlined: true,
+  };
+}
+
 interface Extraction {
   venues: string[];
   tokensIn: number;
@@ -382,6 +568,14 @@ export interface RunContext {
   engine: MeasurementEngine;
   /** A user client (RLS) from the panel, or the service client from the cron. */
   supabase: SupabaseClient;
+  /** Which assistant answers. ChatGPT (the plan's search model) when not given. */
+  assistant?: Assistant;
+  /**
+   * The report this run belongs to ("2026-W47"). Set by the cron from the
+   * job it is serving, so a report that spills past midnight on Sunday stays
+   * one report; a run from the panel takes the workspace's current period.
+   */
+  reportPeriod?: string;
 }
 
 function failed(error: string): RunOutcome {
@@ -439,9 +633,19 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
   }
 
   const ownPattern = ownNamePattern(ctx.venueName);
+  const assistant: Assistant = ctx.assistant ?? "chatgpt";
+  const reportPeriod = ctx.reportPeriod ?? currentReportPeriod(ctx.tenantId);
 
   try {
-    const answer = await askWithSearch(promptResult.data.text as string, ctx.engine, ctx.planName);
+    let answer: SearchAnswer;
+    if (assistant === "google") {
+      // Google is always asked through OpenRouter, whichever provider answers for ChatGPT.
+      const key = ctx.engine.provider === "openrouter" ? ctx.engine.apiKey : process.env.OPENROUTER_API_KEY?.trim();
+      if (!key) throw new Error("The Google assistant needs OPENROUTER_API_KEY on the server.");
+      answer = await askGoogle(promptResult.data.text as string, key, OPENROUTER_GOOGLE_MODEL());
+    } else {
+      answer = await askWithSearch(promptResult.data.text as string, ctx.engine, ctx.planName);
+    }
     // Mentions are read from the prose only. Link targets and bare domains
     // are sources, kept separately as citations, never as recommendations.
     const prose = stripSources(answer.text);
@@ -476,7 +680,18 @@ export async function executeRunForTenant(ctx: RunContext, promptId: string): Pr
         raw: {
           // How the answer was produced, so a later reader can tell two
           // methods apart without guessing from the model id.
-          engine: ctx.engine.provider === "openrouter" ? "openrouter web plugin" : "openai web_search",
+          engine:
+            assistant === "google"
+              ? "openrouter native search (google search)"
+              : ctx.engine.provider === "openrouter"
+                ? "openrouter web plugin"
+                : "openai web_search",
+          assistant,
+          // The report the run is part of; the panel groups by this before
+          // falling back to the calendar month.
+          ...(reportPeriod ? { report_period: reportPeriod } : {}),
+          ...(answer.citationsInlined ? { citations_inlined: true } : {}),
+          ...(assistant === "google" ? { search_instruction: true } : {}),
           search_model: answer.model,
           extract_model: extractModel,
           cost_reported: answer.costUsd !== undefined,
@@ -559,12 +774,15 @@ function rpcMissing(message: string): string {
 }
 
 /** One execution of one prompt from the panel, under the signed-in user. */
-export async function executeVisibilityRun(promptId: string): Promise<RunOutcome> {
+export async function executeVisibilityRun(promptId: string, assistant: Assistant = "chatgpt"): Promise<RunOutcome> {
   const session = await requireSession();
   if (!canEditSettings(session.role)) return failed("Only admins can run measurements.");
 
   const engine = resolveEngine();
   if (!engine) return failed("No measurement engine key is set (OPENAI_API_KEY or OPENROUTER_API_KEY).");
+  if (assistant === "google" && !googleEngineConfigured()) {
+    return failed("The Google assistant needs OPENROUTER_API_KEY on the server.");
+  }
 
   // Each run is a web_search call, the most expensive request in the app.
   const billing = await getBillingSnapshot();
@@ -591,6 +809,7 @@ export async function executeVisibilityRun(promptId: string): Promise<RunOutcome
       planName: plan.name,
       engine,
       supabase,
+      assistant,
     },
     promptId,
   );

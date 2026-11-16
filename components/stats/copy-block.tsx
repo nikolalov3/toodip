@@ -9,7 +9,7 @@ export function CopyBlock({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div>
-      <pre className="overflow-x-auto rounded-[4px] border border-border bg-muted px-3 py-2.5 font-mono text-[12.5px] leading-relaxed text-foreground">
+      <pre className="overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2.5 font-mono text-[12.5px] leading-relaxed text-foreground">
         {text}
       </pre>
       <Button
