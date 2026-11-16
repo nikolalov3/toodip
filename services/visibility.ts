@@ -246,6 +246,11 @@ export interface IntentChange {
   after: IntentStatus;
   beforeRate: number;
   afterRate: number;
+  /** The counts behind the two rates, so the movement can be tested against chance. */
+  beforeOwn: number;
+  beforeRuns: number;
+  afterOwn: number;
+  afterRuns: number;
 }
 
 export interface BrandChange {
@@ -963,6 +968,10 @@ function compare(
       after: afterStatus,
       beforeRate: prior.own / Math.max(prior.runs, 1),
       afterRate: after.own / Math.max(after.runs, 1),
+      beforeOwn: prior.own,
+      beforeRuns: prior.runs,
+      afterOwn: after.own,
+      afterRuns: after.runs,
     });
   }
   const order: Record<IntentStatus, number> = { none: 0, flicker: 1, present: 2 };
@@ -1152,7 +1161,7 @@ export async function getSettledRuns(): Promise<{
 }> {
   const session = await requireSession();
   const ledger = await getLedger(session.tenantId);
-  const period = ledger.inProgress?.period;
+  const period = process.env.SHOW_REPORTS_IN_PROGRESS === "1" ? undefined : ledger.inProgress?.period;
   const settled = period ? ledger.runs.filter((run) => periodOf(run) !== period) : ledger.runs;
   return {
     runs: settled.length > 0 ? settled : ledger.runs,
@@ -1300,7 +1309,9 @@ async function overviewFromLedger(
   // A report still being measured is left out: a third of its answers would
   // read as a result. Only when nothing else exists yet is the fragment shown.
   const everyMeasurement = measurementsOf(ledger.runs);
-  const settled = ledger.inProgress ? everyMeasurement.filter((m) => m.period !== ledger.inProgress!.period) : everyMeasurement;
+  // SHOW_REPORTS_IN_PROGRESS=1 lifts this on a developer's machine, to look at a report while it is still being measured.
+  const hideOpen = ledger.inProgress && process.env.SHOW_REPORTS_IN_PROGRESS !== "1";
+  const settled = hideOpen ? everyMeasurement.filter((m) => m.period !== ledger.inProgress!.period) : everyMeasurement;
   const measurements = settled.length > 0 ? settled : everyMeasurement;
   const selectedMethod = chooseSeries(measurements, options.series, options.period)!;
   const ownSeries = measurements.filter((m) => m.methodKey === selectedMethod);

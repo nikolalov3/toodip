@@ -91,6 +91,9 @@ const OPENROUTER_GOOGLE_MODEL = () =>
  * is asked once more and, failing that, not counted.
  */
 const GOOGLE_SEARCH_INSTRUCTION = "Search Google before you answer, and base the answer on what the search returns.";
+/** Said on the second try, when the first came back without a search: the same request, without room to skip it. */
+const GOOGLE_SEARCH_INSISTENCE =
+  "You answer with Google Search. For every request, first run a Google Search, then answer only from what the search returns. Never answer from memory alone.";
 
 /** Whether the Google assistant can be measured on this deployment. */
 export function googleEngineConfigured(): boolean {
@@ -426,19 +429,20 @@ export function inlineCitations(text: string, spans: Array<{ url: string; end: n
 
 /** The same question to Gemini with Google Search as its search tool; only a searched answer counts. */
 async function askGoogle(prompt: string, apiKey: string, model: string): Promise<SearchAnswer> {
-  const first = await askGoogleOnce(prompt, apiKey, model);
+  const first = await askGoogleOnce(prompt, apiKey, model, GOOGLE_SEARCH_INSTRUCTION);
   if (first.usedSearch) return first;
-  const second = await askGoogleOnce(prompt, apiKey, model);
+  // Short, generic questions are the ones Gemini answers from memory; it is told more firmly.
+  const second = await askGoogleOnce(prompt, apiKey, model, GOOGLE_SEARCH_INSISTENCE);
   if (second.usedSearch) return second;
   throw new Error("Google answered from memory twice, without searching; the answer is not counted.");
 }
 
-async function askGoogleOnce(prompt: string, apiKey: string, model: string): Promise<SearchAnswer> {
+async function askGoogleOnce(prompt: string, apiKey: string, model: string, instruction: string): Promise<SearchAnswer> {
   const data = await callOpenRouter(
     {
       model,
       messages: [
-        { role: "system", content: GOOGLE_SEARCH_INSTRUCTION },
+        { role: "system", content: instruction },
         { role: "user", content: prompt },
       ],
       plugins: [{ id: "web", engine: "native" }],

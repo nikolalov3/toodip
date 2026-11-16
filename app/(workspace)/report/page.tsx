@@ -339,7 +339,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         <>
           <SectionHead
             title="The website that week"
-            sub={`${day(week!.current.from)} to ${day(week!.current.to)}: ${week!.current.pageviews} page views by ${week!.current.visitors} visitors (${week!.previous.pageviews} by ${week!.previous.visitors} the week before), ${week!.current.conversions} conversions.`}
+            sub={`${day(week!.current.from)} to ${day(week!.current.to)}: ${week!.current.pageviews} page views by ${week!.current.visitors} visitors (${week!.previous.pageviews} by ${week!.previous.visitors} the week before), ${week!.current.conversions} ${week!.current.conversions === 1 ? "conversion" : "conversions"}.`}
             action={
               <Link href="/overview" className="inline-flex items-center gap-1 font-medium text-brand hover:underline">
                 Website module <ArrowRight className="size-3.5" aria-hidden />

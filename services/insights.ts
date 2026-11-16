@@ -15,7 +15,8 @@ import { ASSISTANT_NAME, type IntentStatus, type VisibilityOverview } from "@/se
  * No model is involved: the same data always yields the same sentences.
  *
  * `weight` is the order an analyst would speak in: a real movement first,
- * then gaps between assistants, then what stands still.
+ * then a real gap between assistants, then where the venue stands, then the
+ * leads that one more report has to confirm.
  */
 
 export type InsightTone = "good" | "bad" | "watch" | "neutral";
@@ -32,6 +33,8 @@ export interface Insight {
   detail: string;
   /** Where in the panel the evidence is. */
   href?: string;
+  /** The series the finding is about, when it is about one assistant. */
+  series?: string;
   weight: number;
 }
 
@@ -61,6 +64,8 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   const assistant = ASSISTANT_NAME[cur.platform];
   const who = many ? `${assistant}: ` : "";
   const say = (text: string) => (many ? `${who}${text}` : upperFirst(text));
+  /** Stamps the finding with the series it is about. */
+  const add = (insight: Insight) => out.push({ ...insight, series: cur.seriesId });
   const q = `?series=${cur.seriesId}`;
   const id = (name: string) => `${name}-${cur.seriesId}`;
   const n = o.categoryRuns;
@@ -76,17 +81,17 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
     const verdict = movement(prev.ownMentions, prev.categoryRuns, k, n);
     const delta = c.scoreDelta ?? 0;
     if (verdict === "noise") {
-      out.push({
+      add({
         id: id("score"),
         area: "answers",
         tone: "neutral",
-        weight: 42,
+        weight: 60,
         title: say(`named in ${pct(rate)} of answers, no real change`),
         detail: `${pct(c.scoreBefore)} ${inPrev}, ${pct(rate)} now (${signed(delta)} points). Two measurements of an unchanged venue differ this much by chance; with these samples a change counts from about ${detectablePoints(prev.categoryRuns, n, rate)} points.`,
         href: `/visibility${q}`,
       });
     } else {
-      out.push({
+      add({
         id: id("score"),
         area: "answers",
         tone: verdict === "up" ? "good" : "bad",
@@ -97,41 +102,54 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
       });
     }
 
-    // Question types that changed status.
-    const runsOf = new Map(o.intents.map((i) => [i.name, i.runs]));
+    // Question types that changed status. A type holds few answers, so the
+    // change is tested like everything else: a status can flip by chance.
     for (const move of c.intents.slice(0, 4)) {
       const gained = move.after === "present" || (move.after === "flicker" && move.before === "none");
-      const answers = runsOf.get(move.name) ?? 0;
-      out.push({
-        id: id(`type-${move.name}`),
-        area: "questions",
-        tone: gained ? "good" : "bad",
-        weight: move.after === "none" ? 72 : move.after === "present" ? 70 : 46,
-        title: say(`"${move.name}" questions went from ${STATUS_WORD[move.before]} to ${STATUS_WORD[move.after]}`),
-        detail: `Named in ${pct(move.beforeRate)} of those answers ${inPrev}, ${pct(move.afterRate)} now.${answers > 0 && answers < 10 ? ` Only ${answers} answers stand behind this type, so read it as a lead, not a result.` : ""}`,
-        href: `/visibility/questions${q}`,
-      });
+      const real = movement(move.beforeOwn, move.beforeRuns, move.afterOwn, move.afterRuns) !== "noise";
+      const counts = `${move.beforeOwn} of ${move.beforeRuns} answers ${inPrev}, ${move.afterOwn} of ${move.afterRuns} now`;
+      add(
+        real
+          ? {
+              id: id(`type-${move.name}`),
+              area: "questions",
+              tone: gained ? "good" : "bad",
+              weight: move.after === "none" ? 72 : 70,
+              title: say(`"${move.name}" questions went from ${STATUS_WORD[move.before]} to ${STATUS_WORD[move.after]}`),
+              detail: `Named in ${counts}. More than chance explains, so this is a real ${gained ? "gain" : "loss"} for the type.`,
+              href: `/visibility/questions${q}`,
+            }
+          : {
+              id: id(`type-${move.name}`),
+              area: "questions",
+              tone: "neutral",
+              weight: 32,
+              title: say(`"${move.name}" questions read ${STATUS_WORD[move.after]} now, ${STATUS_WORD[move.before]} before`),
+              detail: `Named in ${counts}. With so few answers the difference is one chance produces; if the next report says the same, it is a finding.`,
+              href: `/visibility/questions${q}`,
+            },
+      );
     }
 
     if (c.questionsLost.length > 0) {
-      out.push({
+      add({
         id: id("lost"),
         area: "questions",
         tone: "bad",
-        weight: 58 + Math.min(c.questionsLost.length, 6),
+        weight: 40 + Math.min(c.questionsLost.length, 6),
         title: say(`${plural(c.questionsLost.length, "question")} you were named for no longer name you`),
-        detail: `${c.questionsLost.slice(0, 3).map((row) => `"${row.text}" (${row.before} of ${row.runs} then, ${row.after} now)`).join("; ")}${c.questionsLost.length > 3 ? `; and ${c.questionsLost.length - 3} more` : ""}.`,
+        detail: `${c.questionsLost.slice(0, 3).map((row) => `"${row.text}" (${row.before} of ${row.runs} then, ${row.after} now)`).join("; ")}${c.questionsLost.length > 3 ? `; and ${c.questionsLost.length - 3} more` : ""}. A question is asked only a few times, so each is a lead until the next report repeats it.`,
         href: `/visibility/questions${q}`,
       });
     }
     if (c.questionsWon.length > 0) {
-      out.push({
+      add({
         id: id("won"),
         area: "questions",
         tone: "good",
-        weight: 55 + Math.min(c.questionsWon.length, 6),
+        weight: 38 + Math.min(c.questionsWon.length, 6),
         title: say(`${plural(c.questionsWon.length, "question")} name you that did not before`),
-        detail: `${c.questionsWon.slice(0, 3).map((row) => `"${row.text}" (${row.after} of ${row.runs} now)`).join("; ")}${c.questionsWon.length > 3 ? `; and ${c.questionsWon.length - 3} more` : ""}.`,
+        detail: `${c.questionsWon.slice(0, 3).map((row) => `"${row.text}" (${row.after} of ${row.runs} now)`).join("; ")}${c.questionsWon.length > 3 ? `; and ${c.questionsWon.length - 3} more` : ""}. A question is asked only a few times, so each is a lead until the next report repeats it.`,
         href: `/visibility/questions${q}`,
       });
     }
@@ -143,7 +161,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
       const verdictRival = movement(Math.round(rival.before * prev.categoryRuns), prev.categoryRuns, Math.round(rival.after * n), n);
       if (verdictRival === "noise") continue;
       rivalInsights += 1;
-      out.push({
+      add({
         id: id(`rival-${rival.name}`),
         area: "rivals",
         tone: verdictRival === "up" ? "watch" : "good",
@@ -161,7 +179,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
     const backedBefore = new Set(c.backingBefore.map((s) => s.domain));
     const newBacking = c.backingAfter.filter((s) => !backedBefore.has(s.domain));
     if (newBacking.length > 0 && c.backingBefore.length + c.backingAfter.length > 0) {
-      out.push({
+      add({
         id: id("backing"),
         area: "sources",
         tone: "good",
@@ -172,11 +190,11 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
       });
     }
   } else {
-    out.push({
+    add({
       id: id("score"),
       area: "answers",
       tone: "neutral",
-      weight: 44,
+      weight: 60,
       title: say(`named in ${pct(rate)} of answers (${k} of ${n})`),
       detail: `The first measurement made this way, so there is nothing to compare it with yet. With ${n} answers the true rate plausibly lies between ${rangeLabel(wilson(k, n))}; the next report shows whether it moves.`,
       href: `/visibility${q}`,
@@ -188,7 +206,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   if (aside) {
     // The finding worth saying: with a search the assistant finds the venue, from memory it does not.
     const onlyWhenSearching = aside.named === 0 && rate >= 0.2;
-    out.push({
+    add({
       id: id("memory"),
       area: "answers",
       tone: onlyWhenSearching ? "watch" : "neutral",
@@ -210,7 +228,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   // ── Position among the venues named ─────────────────────────────────────
   const leader = o.leaderboard.find((row) => !row.isOwn) ?? null;
   if (leader && o.metrics.sovRank === 1 && k > 0) {
-    out.push({
+    add({
       id: id("lead"),
       area: "rivals",
       tone: "good",
@@ -220,7 +238,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
       href: `/visibility/share${q}`,
     });
   } else if (leader && leader.share - rate >= 0.15) {
-    out.push({
+    add({
       id: id("lead"),
       area: "rivals",
       tone: "watch",
@@ -237,7 +255,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   const types = o.intents.filter((i) => !i.isBranded);
   const absent = types.filter((i) => i.status === "none");
   if (absent.length > 0 && types.length > 0) {
-    out.push({
+    add({
       id: id("absent"),
       area: "questions",
       tone: "watch",
@@ -249,7 +267,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   }
   const flickering = types.flatMap((i) => i.questions.filter((row) => row.status === "flicker"));
   if (flickering.length > 0) {
-    out.push({
+    add({
       id: id("flicker"),
       area: "questions",
       tone: "watch",
@@ -262,7 +280,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
 
   // ── What the assistant reads ────────────────────────────────────────────
   if (o.metrics.citationRate === 0) {
-    out.push({
+    add({
       id: id("cited"),
       area: "sources",
       tone: "watch",
@@ -277,7 +295,7 @@ function forAssistant(o: VisibilityOverview, many: boolean): Insight[] {
   }
   const gap = o.gapSources.find((g) => !g.ownerRival);
   if (gap) {
-    out.push({
+    add({
       id: id("gap"),
       area: "sources",
       tone: "watch",
@@ -561,17 +579,23 @@ export function insightsFor(input: InsightInput): Insight[] {
     ...(input.week ? forTraffic(input.week) : []),
     ...(input.week ? measured.flatMap((o) => linkAnswersToVisits(o, input.week!, many)) : []),
   ];
-  return all.sort((x, y) => y.weight - x.weight || x.id.localeCompare(y.id));
+  // A stable sort: findings of equal weight keep the order of the assistants.
+  return all.sort((x, y) => y.weight - x.weight);
 }
 
 /**
  * The report in two sentences: the most important finding, then the most
- * important one from a different area. Built from the same list, so the
- * summary can never say something the findings below it do not.
+ * important one about another assistant or another area. Built from the same
+ * list, so the summary can never say something the findings below it do not.
  */
 export function verdictOf(insights: Insight[]): { headline: string; also: string | null; tone: InsightTone } | null {
   const lead = insights[0];
   if (!lead) return null;
-  const second = insights.find((item) => item !== lead && item.area !== lead.area && item.weight >= 30) ?? null;
+  // The second sentence is about another assistant when there is one, otherwise about another area.
+  const other = (item: Insight) => item !== lead && item.weight >= 30;
+  const second =
+    insights.find((item) => other(item) && Boolean(item.series) && Boolean(lead.series) && item.series !== lead.series) ??
+    insights.find((item) => other(item) && item.area !== lead.area) ??
+    null;
   return { headline: `${lead.title}.`, also: second ? `${second.title}.` : null, tone: lead.tone };
 }

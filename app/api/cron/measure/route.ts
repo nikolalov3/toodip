@@ -108,9 +108,13 @@ function monthStart(): string {
   return `${new Date().toISOString().slice(0, 7)}-01`;
 }
 
-/** Errors that say "not now", not "never": the slice ends, nothing is counted. */
+/**
+ * Errors that say "not now", not "never": the slice ends, nothing is counted.
+ * A provider out of credits (402) is one of them: it is the platform's bill,
+ * not the client's question, and the report resumes when the balance does.
+ */
 function transient(error: string | undefined): boolean {
-  return /429|rate limit|timed? ?out|aborted|5\d\d|ECONNRESET|fetch failed|daily AI budget/i.test(
+  return /\b(?:402|429|5\d\d)\b|rate limit|more credits|insufficient credits|timed? ?out|aborted|ECONNRESET|fetch failed|daily AI budget/i.test(
     error ?? "",
   );
 }
