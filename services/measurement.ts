@@ -202,6 +202,29 @@ async function callOpenAi(
   }
 }
 
+/**
+ * One chat completion through OpenRouter for the modules that are not the
+ * measurement itself (the analyst note, classification jobs). Null when no
+ * OpenRouter key is configured, so callers can degrade instead of throwing.
+ */
+export async function openRouterChat(
+  body: Record<string, unknown>,
+): Promise<{ content: string; model: string; costUsd: number | null; tokensIn: number; tokensOut: number } | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) return null;
+  const data = await callOpenRouter(body, apiKey);
+  const choice = ((data.choices as Array<Record<string, unknown>>) ?? [])[0] ?? {};
+  const message = (choice.message ?? {}) as Record<string, unknown>;
+  const usage = (data.usage ?? {}) as Record<string, unknown>;
+  return {
+    content: typeof message.content === "string" ? message.content : "",
+    model: typeof data.model === "string" ? data.model : String(body.model ?? ""),
+    costUsd: typeof usage.cost === "number" ? usage.cost : null,
+    tokensIn: Number(usage.prompt_tokens ?? 0) || 0,
+    tokensOut: Number(usage.completion_tokens ?? 0) || 0,
+  };
+}
+
 interface SearchAnswer {
   /** Provider-reported cost in USD when available (OpenRouter), else undefined. */
   costUsd?: number;

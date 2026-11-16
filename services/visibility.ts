@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 
 import { requireSession } from "@/lib/auth/session";
@@ -57,8 +58,15 @@ export interface IntentSummary {
   questions: QuestionRow[];
   /** The rival named most often for this type and what the assistants read when naming them. */
   leader: { name: string; share: number; sources: Array<{ domain: string; count: number }> } | null;
-  /** Answers at stake weighted by how winnable the type is; sorts the table. */
+  /** Google demand for the type, when Search Console is connected. */
+  demand: { impressions: number; clicks: number; queries: number; top: string[] } | null;
+  /** Answers at stake weighted by how winnable the type is and by Google demand; sorts the table. */
   priority: number;
+}
+
+/** Google Search Console demand per question type, last 28 days, from services/gsc.ts. */
+export interface DemandByIntent {
+  [intent: string]: { impressions: number; clicks: number; queries: number; top: string[] };
 }
 
 export type ActionKind = "flicker" | "lost" | "guide" | "intent" | "rival_site" | "citation";
@@ -281,7 +289,11 @@ export interface VisibilityOverview {
     runs: number;
     categoryRuns: number;
     method: MethodMeta;
+    /** The assistant most of the period's runs measured. */
+    platform: Platform;
   } | null;
+  /** Whether Search Console demand shaped this overview (only for Google AI measurements). */
+  demandApplied: boolean;
   metrics: MetricsSummary;
   sources: string[];
   dates: string[];
@@ -836,10 +848,40 @@ function compare(
   };
 }
 
-export const getVisibilityOverview = cache(async function getVisibilityOverview(): Promise<VisibilityOverview> {
+export interface OverviewOptions {
+  /**
+   * Search Console demand per question type. Applied only when the latest
+   * measurement is of Google's AI (AI Mode, AI Overviews, Gemini): Google's
+   * search demand and Google's answers describe one ecosystem, ChatGPT's do
+   * not. Never shown as numbers; it shapes priorities and the analyst's facts.
+   */
+  demand?: DemandByIntent;
+}
+
+/** The assistant most runs of a period measured. */
+function platformOf(runs: RunRow[]): Platform {
+  const counts = new Map<Platform, number>();
+  for (const run of runs) counts.set(run.platform, (counts.get(run.platform) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "other";
+}
+
+/** The signed-in workspace's overview, under row level security. */
+export const getVisibilityOverview = cache(async function getVisibilityOverview(options: OverviewOptions = {}): Promise<VisibilityOverview> {
   const session = await requireSession();
   const supabase = await getUserClient();
+  return loadVisibilityOverview(supabase, session.tenantId, options);
+});
 
+/**
+ * The overview for any workspace through any client: the panel passes the
+ * user's client, the cron passes the service client after a report finishes.
+ * Same numbers either way.
+ */
+export async function loadVisibilityOverview(
+  supabase: SupabaseClient,
+  tenantId: string,
+  options: OverviewOptions = {},
+): Promise<VisibilityOverview> {
   const [runsResult, interventionsResult, profileResult] = await Promise.all([
     // Paged past the 1000-row cap, newest first.
     fetchAll<RunRow>(() =>
@@ -851,20 +893,20 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
           "id, platform, executed_on, source, model_version, visibility_prompts(text, language, intents(name, language, is_branded)), visibility_mentions(name, is_own), visibility_citations(url, domain)",
           { count: "exact" },
         )
-        .eq("tenant_id", session.tenantId)
+        .eq("tenant_id", tenantId)
         .order("executed_on", { ascending: false })
         .order("id"),
     ),
     supabase
       .from("interventions")
       .select("id, kind, surface, description, performed_on")
-      .eq("tenant_id", session.tenantId)
+      .eq("tenant_id", tenantId)
       .order("performed_on", { ascending: false })
       .limit(200),
     supabase
       .from("business_profiles")
       .select("name")
-      .eq("tenant_id", session.tenantId)
+      .eq("tenant_id", tenantId)
       .maybeSingle(),
   ]);
 
@@ -889,6 +931,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
   const empty: VisibilityOverview = {
     hasData: false,
     current: null,
+    demandApplied: false,
     metrics: emptyMetrics,
     sources: [],
     dates: [],
@@ -938,6 +981,9 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
 
   const currentPeriod = periods[periods.length - 1];
   const runs = periodRuns.get(currentPeriod)!;
+  const currentPlatform = platformOf(runs);
+  // Google demand pairs with Google's answers only.
+  const demand = currentPlatform === "google_aio" ? options.demand : undefined;
   const ownDisplay = (profileResult.data as { name: string } | null)?.name;
   const now = summarize(runs, ownDisplay);
   const categoryRuns = now.categoryRuns;
@@ -958,7 +1004,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       supabase
         .from("visibility_runs")
         .select("id, response_text", { count: "exact" })
-        .eq("tenant_id", session.tenantId)
+        .eq("tenant_id", tenantId)
         .gte("executed_on", periodStart(period))
         .lte("executed_on", periodEnd.get(period)!)
         .order("id"),
@@ -1051,8 +1097,11 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
     const isBranded = meta?.is_branded ?? false;
     // What is at stake is the answers that do not name the venue yet. A
     // flickering type is the cheapest to win, an absent one the plainest, a
-    // partly won big type the largest pool.
+    // partly won big type the largest pool. Google demand, when known, scales
+    // it: a type people search a thousand times a month weighs double.
     const winnability = status === "flicker" ? 1.3 : status === "none" ? 1 : 0.8;
+    const typeDemand = demand?.[name] ?? null;
+    const demandWeight = typeDemand ? 1 + Math.min(typeDemand.impressions, 5000) / 1000 : 1;
     return {
       name,
       language: meta?.language ?? "pl",
@@ -1063,7 +1112,8 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       owners,
       questions,
       leader,
-      priority: isBranded ? 0 : (intentRuns.length - ownMentions) * winnability,
+      demand: typeDemand,
+      priority: isBranded ? 0 : (intentRuns.length - ownMentions) * winnability * demandWeight,
     };
   });
   intents.sort((a, b) => Number(a.isBranded) - Number(b.isBranded) || b.priority - a.priority || a.name.localeCompare(b.name));
@@ -1345,15 +1395,16 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
     const lead = intent.leader;
     const read = lead?.sources.length ? `, read from ${lead.sources.map((s) => s.domain).join(", ")}` : "";
     const verb = intent.status === "none" ? "Get into" : intent.status === "flicker" ? "Hold on to" : "Grow in";
+    const google = intent.demand ? ` People search Google for this ${intent.demand.impressions.toLocaleString("en-GB")} times a month.` : "";
     candidates.push({
       kind: "intent",
       title: `${verb} "${intent.name}" questions`,
       why: lead
-        ? `${intent.runs} answers; you are named in ${intent.ownMentions}. ${lead.name} is named in ${fmtPct(lead.share)}${read}.`
-        : `${intent.runs} answers; you are named in ${intent.ownMentions} and no rival dominates yet.`,
+        ? `${intent.runs} answers; you are named in ${intent.ownMentions}. ${lead.name} is named in ${fmtPct(lead.share)}${read}.${google}`
+        : `${intent.runs} answers; you are named in ${intent.ownMentions} and no rival dominates yet.${google}`,
       affects: intent.runs - intent.ownMentions,
       href: "#types",
-      weight: intent.status === "flicker" ? 1.3 : intent.status === "none" ? 1 : 0.8,
+      weight: (intent.status === "flicker" ? 1.3 : intent.status === "none" ? 1 : 0.8) * (intent.demand ? 1 + Math.min(intent.demand.impressions, 5000) / 1000 : 1),
     });
   }
   const flickering = intents
@@ -1448,7 +1499,9 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
       runs: runs.length,
       categoryRuns: categoryRuns.length,
       method: currentMethod,
+      platform: currentPlatform,
     },
+    demandApplied: Boolean(demand),
     metrics,
     sources: [...new Set(runs.map((run) => run.source))],
     dates: periods.map(periodStart),
@@ -1475,7 +1528,7 @@ export const getVisibilityOverview = cache(async function getVisibilityOverview(
     recentRunsTotal: runs.length,
     interventions,
   };
-});
+}
 
 /**
  * Appends to the interventions ledger. Failures are logged, never thrown: an

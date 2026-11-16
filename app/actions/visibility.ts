@@ -17,7 +17,74 @@ import {
   type PromptProposal,
   type RunOutcome,
 } from "@/services/measurement";
+import { gscConfigured } from "@/lib/google/search-console";
+import { getServiceClient } from "@/lib/supabase/server";
+import { writeAnalystNote, type AnalystNote } from "@/services/analyst";
+import { syncSearchConsole } from "@/services/gsc";
+import { getStatsSnapshot } from "@/services/stats";
 import { logIntervention } from "@/services/visibility";
+
+const propertySchema = z
+  .string()
+  .trim()
+  .regex(/^(sc-domain:[a-z0-9.-]+|https?:\/\/[a-z0-9.-]+(?::\d+)?\/[^\s]*)$/i, "Use the property exactly as Search Console names it.");
+
+/**
+ * Connects a Search Console property: stores it for the workspace and pulls
+ * the first 90 days right away when the service account already has access.
+ */
+export async function connectSearchConsoleAction(input: unknown): Promise<{ ok: boolean; message: string }> {
+  const session = await requireSession();
+  if (!canEditSettings(session.role)) return { ok: false, message: "Only an admin can connect Search Console." };
+  const parsed = propertySchema.safeParse(typeof input === "object" && input ? (input as { siteUrl?: unknown }).siteUrl : input);
+  if (!parsed.success) return { ok: false, message: "Use the property exactly as Search Console names it: sc-domain:example.com or https://example.com/." };
+  const siteUrl = parsed.data;
+  const supabase = await getUserClient();
+  const saved = await supabase
+    .from("gsc_properties")
+    .upsert({ tenant_id: session.tenantId, site_url: siteUrl, last_synced_on: null, last_error: null }, { onConflict: "tenant_id" });
+  if (saved.error) {
+    const missing = /does not exist|schema cache/i.test(saved.error.message);
+    return {
+      ok: false,
+      message: missing ? "Search Console tables are missing: apply supabase/migrations/20261109120000_analyst_and_gsc.sql." : saved.error.message,
+    };
+  }
+  if (!gscConfigured()) {
+    revalidatePath("/visibility");
+    return { ok: true, message: "Property saved. The daily sync starts once the server has a Search Console service account." };
+  }
+  try {
+    const synced = await syncSearchConsole(getServiceClient(), session.tenantId, siteUrl, null);
+    revalidatePath("/visibility");
+    return { ok: true, message: `Connected. ${synced.rows} rows loaded for ${synced.from} to ${synced.to}.` };
+  } catch (error) {
+    revalidatePath("/visibility");
+    return {
+      ok: true,
+      message: `Property saved, but the first sync failed: ${(error as Error).message.slice(0, 200)}. Check that the service account was added as a user of the property; the daily sync retries.`,
+    };
+  }
+}
+
+/**
+ * Writes the analyst note for the latest measurement on request. Admins only:
+ * each note is a model call paid by the platform.
+ */
+export async function writeAnalystNoteAction(): Promise<{ ok: boolean; message: string; note?: AnalystNote }> {
+  const session = await requireSession();
+  if (!canEditSettings(session.role)) return { ok: false, message: "Only an admin can write the note." };
+  const supabase = await getUserClient();
+  const allowed = await checkSharedRateLimit(supabase, rateLimitKey("analyst", session.tenantId), 6, 60 * 60);
+  if (!allowed) return { ok: false, message: "Six notes an hour is the limit for one workspace. Try later." };
+  const traffic = await getStatsSnapshot().catch(() => null);
+  const result = await writeAnalystNote(supabase, session.tenantId, {
+    createdBy: "panel",
+    traffic: traffic?.site ? { days: traffic.days, pageviews: traffic.pageviews, fromAi: traffic.fromAi } : null,
+  });
+  if (result.ok) revalidatePath("/visibility");
+  return { ok: result.ok, message: result.ok ? "Note written." : (result.message ?? "Could not write the note."), note: result.note };
+}
 
 const interventionSchema = z.object({
   kind: z.enum(["record_update", "review_reply", "site_change", "guide_entry", "social_post", "other"]),

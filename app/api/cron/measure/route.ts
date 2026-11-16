@@ -4,6 +4,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 
 import { PLANS, type BillingPlan } from "@/lib/billing";
 import { getServiceClient } from "@/lib/supabase/server";
+import { writeAnalystNote } from "@/services/analyst";
 import { effectivePlanFrom } from "@/services/billing";
 import { executeRunForTenant, resolveEngine } from "@/services/measurement";
 
@@ -334,6 +335,18 @@ export async function GET(request: NextRequest) {
         ? { status: "done", finished_at: new Date().toISOString() }
         : { status: "running" },
     );
+    if (finished) {
+      // The report is complete: the analyst reads it once, after the response
+      // is sent, so the tick's time budget stays for measurements.
+      after(async () => {
+        try {
+          const result = await writeAnalystNote(service, tenant.id, { createdBy: "cron" });
+          if (!result.ok) console.warn("[analyst]", tenant.name, result.message);
+        } catch (error) {
+          console.warn("[analyst]", tenant.name, (error as Error).message);
+        }
+      });
+    }
     return {
       tenant: tenant.name,
       status: finished ? "done" : paused ? "paused" : "running",

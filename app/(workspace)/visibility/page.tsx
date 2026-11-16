@@ -6,7 +6,9 @@ import { EmptyState, PageHeader, Panel } from "@/components/common/surfaces";
 import { Bars, Card, Hint, Kpi, Kpis, QHead } from "@/components/stats/blocks";
 import { Donut } from "@/components/stats/donut";
 import { buttonVariants } from "@/components/ui/button";
+import { AnalystNoteCard } from "@/components/visibility/analyst-note";
 import { ChangesCard } from "@/components/visibility/changes-card";
+import { GscConnect } from "@/components/visibility/gsc-connect";
 import { IntentRows } from "@/components/visibility/intent-rows";
 import { LogChangeForm } from "@/components/visibility/log-change-form";
 import { MeasurePanel, type BatteryPrompt } from "@/components/visibility/measure-panel";
@@ -18,9 +20,12 @@ import { canEditSettings, requireSession } from "@/lib/auth/session";
 import { requireBusinessProfile } from "@/lib/auth/workspace";
 import { PLANS } from "@/lib/billing";
 import { formatDate } from "@/lib/format";
+import { gscConfigured, gscServiceEmail } from "@/lib/google/search-console";
 import { getUserClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { latestAnalystNote } from "@/services/analyst";
 import { getBillingSnapshot } from "@/services/billing";
+import { loadGscSnapshot } from "@/services/gsc";
 import {
   batteryGenerationConfigured,
   measurementConfigured,
@@ -164,10 +169,10 @@ export default async function VisibilityPage() {
   // One wave of queries: plan, measurements, traffic and the saved battery
   // all at once, instead of one after another.
   const supabase = await getUserClient();
-  const [profile, billing, overview, traffic, promptRows, used] = await Promise.all([
+  const [profile, billing, gsc, traffic, promptRows, used] = await Promise.all([
     profilePromise,
     getBillingSnapshot(),
-    getVisibilityOverview(),
+    loadGscSnapshot(supabase, session.tenantId, gscConfigured()),
     getStatsSnapshot(),
     supabase
       .from("visibility_prompts")
@@ -176,6 +181,8 @@ export default async function VisibilityPage() {
       .eq("active", true),
     supabase.rpc("visibility_runs_used", { p_tenant: session.tenantId }),
   ]);
+  // Google demand, when connected, weighs into the order of question types and the plan.
+  const overview = await getVisibilityOverview({ demand: gsc.connected ? gsc.demand : undefined });
   const planDef = PLANS[billing.effectivePlan];
   const canRead = planDef.monthlyRuns > 0 || billing.effectivePlan === "pro";
   const canMeasure = planDef.monthlyRuns > 0;
@@ -287,6 +294,7 @@ export default async function VisibilityPage() {
 
   // ── Headline numbers: latest measurement, delta vs the previous one made the same way ──
   const current = overview.current!;
+  const note = await latestAnalystNote(supabase, session.tenantId, current.period, current.method.key);
   const score = Math.round(overview.metrics.brandMentionRate * 100);
   const changes = overview.changes;
   const comparable = changes?.comparable ? changes : null;
@@ -298,6 +306,10 @@ export default async function VisibilityPage() {
   for (const d of domains) byCategory.set(d.category, (byCategory.get(d.category) ?? 0) + d.total);
   const ownRank = overview.metrics.sovRank;
   const attributed = overview.attributable > 0;
+  const isAdminRole = canEditSettings(session.role);
+  // Section numbers; the per-assistant section only exists with two or more assistants.
+  const hasPlatforms = platformsUsed.length > 1;
+  const STEP = { types: 1, says: 2, spot: 3, sources: 4, platforms: 5, traffic: hasPlatforms ? 6 : 5, changes: hasPlatforms ? 7 : 6 };
   const ownSourceSet = new Set(attributed ? overview.ownSources.map((s) => s.domain) : overview.metrics.ownCitedSources);
   const gapAction = (g: (typeof overview.gapSources)[number]) =>
     g.ownerRival
@@ -365,6 +377,10 @@ export default async function VisibilityPage() {
         />
       </Kpis>
 
+      <div className="mt-3">
+        <AnalystNoteCard note={note} canWrite={isAdminRole} periodLabel={current.label} />
+      </div>
+
       {changes && (
         <div className="mt-3">
           <ChangesCard changes={changes} currentLabel={current.label} currentRuns={current.categoryRuns} method={current.method} />
@@ -393,11 +409,33 @@ export default async function VisibilityPage() {
 
       {measurePanel && <div className="mt-10">{measurePanel}</div>}
 
+      {/* Platform-side configuration: the owner never sees Search Console numbers, the analyst does. */}
+      {session.isPlatformAdmin && (
+        <details className="mt-3 rounded-[4px] border border-dashed border-border px-4 py-3">
+          <summary className="cursor-pointer text-[12.5px] text-muted-foreground hover:text-foreground">
+            Data sources for the analyst (platform only)
+            {gsc.connected ? ` · Search Console: ${gsc.siteUrl}${gsc.lastSyncedOn ? `, synced to ${gsc.lastSyncedOn}` : ", first sync pending"}${gsc.lastError ? `, last sync failed` : ""}` : " · Search Console: not connected"}
+          </summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="text-[12.5px] text-muted-foreground">
+              Search Console rows are never shown on this page. They enter the analyst note and the ordering of question types only when the latest
+              measurement is of Google&apos;s AI (AI Mode, AI Overviews, Gemini), where Google&apos;s search demand and Google&apos;s answers describe one ecosystem.
+              {gsc.error ? ` Reading them failed: ${gsc.error}.` : ""}
+            </p>
+            <GscConnect serviceEmail={gscServiceEmail()} currentSiteUrl={gsc.siteUrl} />
+          </div>
+        </details>
+      )}
+
       <section id="types" className="scroll-mt-6">
         <QHead
-          step={1}
+          step={STEP.types}
           title="Where do I stand, question type by question type?"
-          sub="Most worth winning first. Open a row for the customers' actual questions, who owns the type and what the assistants read when they name the leader."
+          sub={
+            overview.demandApplied
+              ? "Most worth winning first, weighted by how often people ask Google the same things. Open a row for the customers' actual questions, who owns the type and what the assistants read when they name the leader."
+              : "Most worth winning first. Open a row for the customers' actual questions, who owns the type and what the assistants read when they name the leader."
+          }
           hint="Absent = never named for this type. Flickering = named in fewer than a quarter of the answers (every question is asked more than once for exactly this reason). Present = named in at least a quarter. Bars compare your share with the leading rival's."
         />
         <Card className="p-0">
@@ -407,7 +445,7 @@ export default async function VisibilityPage() {
 
       <section id="says" className="scroll-mt-6">
         <QHead
-          step={2}
+          step={STEP.says}
           title="What do the assistants say about me?"
           sub="The sentences that name you, and the words that travel with your name against the words that travel with your strongest rival's."
           hint="Quotes come from the latest answers with everything but the assistant's own words removed. Word counts are per answer, across every sentence naming the venue; five letters or more, common words dropped."
@@ -416,7 +454,7 @@ export default async function VisibilityPage() {
       </section>
 
       <QHead
-        step={3}
+        step={STEP.spot}
         title="Who is taking my spot?"
         sub="Share of voice: each venue's slice of all mentions in the latest measurement. Your slice highlighted."
         hint="Every venue the assistants name for the same customer questions, one count per answer. The percentage is that venue's share of all mentions, so the slices add up to 100%. This is your real competition in AI, not necessarily the one on Google."
@@ -443,7 +481,7 @@ export default async function VisibilityPage() {
 
       <section id="sources" className="scroll-mt-6">
         <QHead
-          step={4}
+          step={STEP.sources}
           title="What are the AIs reading?"
           sub="The sources behind the answers, which of them back your mentions, and which only ever back your rivals."
           hint={
@@ -577,7 +615,7 @@ export default async function VisibilityPage() {
 
       {platformsUsed.length > 1 && (
         <>
-          <QHead step={5} title="How does each assistant see me?" sub="Named rate per platform and what that platform reads." />
+          <QHead step={STEP.platforms} title="How does each assistant see me?" sub="Named rate per platform and what that platform reads." />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {platformsUsed.map((p) => (
               <Card key={p.platform}>
@@ -595,7 +633,7 @@ export default async function VisibilityPage() {
       )}
 
       <QHead
-        step={platformsUsed.length > 1 ? 6 : 5}
+        step={STEP.traffic}
         title="Is AI sending people to the site?"
         sub="Visits from assistants, from the traffic module."
         hint="Needs the tracker on the venue's website (Install). Counts visits whose referrer is an AI assistant."
@@ -620,7 +658,7 @@ export default async function VisibilityPage() {
 
       <section id="changes" className="scroll-mt-6">
         <QHead
-          step={platformsUsed.length > 1 ? 7 : 6}
+          step={STEP.changes}
           title="What have I changed, and did it work?"
           sub="Every fix logged with its date, next to the score before and after it, measured the same way."
           hint="Before = the last measurement finished before the change. After = the first measurement started after it. Only measurements made with the current method count, so the two numbers are comparable."
