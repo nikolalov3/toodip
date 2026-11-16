@@ -1,11 +1,11 @@
 /**
  * Plans, prices and limits, in one place and in code.
  *
- * "Replies" counts reviews that had a reply generated this calendar month, not
- * draft variants: one review, one unit, however many drafts it took. The free
- * plan runs on the offline engine, which both caps the API bill at zero for
- * anonymous sign-ups and makes the upgrade pitch honest: paying is what turns
- * on the model.
+ * The product is measurement: every workspace gets traffic analytics for its
+ * site, and the paid plans add AI visibility reports, metered in measurement
+ * runs (one question asked once of one assistant). `monthlyReplies` and
+ * `aiEngine` belong to the retired review-reply module; the columns and the
+ * Starter and Pro plans stay only so existing rows keep resolving.
  */
 
 export type BillingPlan =
@@ -53,12 +53,12 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     monthlyReplies: 3,
     aiEngine: false,
     monthlyRuns: 0,
-    blurb: "Try the workflow on your own reviews.",
+    blurb: "Traffic analytics for your site: who visits, and whether AI sends them.",
     features: [
-      "3 replies a month",
-      "Draft engine, no AI model",
-      "Classification and risk flags",
-      "Brand voice settings",
+      "Visits, sources and landing pages",
+      "Visits from ChatGPT, Perplexity, Gemini, Claude and Copilot",
+      "AI crawler activity on your site",
+      "Calls, directions and booking clicks as conversions",
     ],
   },
   starter: {
@@ -68,13 +68,8 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     monthlyReplies: 15,
     aiEngine: true,
     monthlyRuns: 0,
-    blurb: "For a venue answering a steady trickle of reviews.",
-    features: [
-      "15 AI replies a month",
-      "Replies written by the AI model",
-      "Approval workflow and audit trail",
-      "Everything in Free",
-    ],
+    blurb: "Legacy plan from the retired review-reply product.",
+    features: ["Same access as Free"],
     stripePriceEnv: "STRIPE_PRICE_STARTER",
   },
   pro: {
@@ -84,13 +79,8 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     monthlyReplies: null,
     aiEngine: true,
     monthlyRuns: 0,
-    blurb: "For a busy venue or one that cares about every reply.",
-    features: [
-      "First 7 days free",
-      "Unlimited AI replies, fair use",
-      "Visibility dashboard, read only",
-      "Everything in Starter",
-    ],
+    blurb: "Legacy plan from the retired review-reply product.",
+    features: ["Same access as Free"],
     stripePriceEnv: "STRIPE_PRICE_PRO",
   },
   visibility: {
@@ -102,13 +92,13 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     // One full monthly report: 50 prompts × 2 repetitions. Failed executions
     // never insert a run, so they do not consume the allowance.
     monthlyRuns: 100,
-    blurb: "Know whether AI recommends you, and fix why not.",
+    blurb: "Know whether AI recommends you, and what to do about it this month.",
     features: [
-      "First 7 days free",
-      "Monthly AI visibility report: 50 questions, asked twice each",
-      "Prompt agent that writes the questions for your business",
-      "Score trend, source map, intervention log",
-      "Everything in Pro",
+      "Monthly AI visibility report: up to 50 questions, asked twice each",
+      "Question battery written for your business, editable",
+      "Change since the last report, rivals, the sources behind every mention",
+      "This month's plan, computed from the answers",
+      "Everything in Free",
     ],
     stripePriceEnv: "STRIPE_PRICE_VISIBILITY",
   },
@@ -119,10 +109,10 @@ export const PLANS: Record<BillingPlan, PlanDefinition> = {
     monthlyReplies: null,
     aiEngine: true,
     monthlyRuns: 1000,
-    blurb: "For venues and agencies that monitor weekly.",
+    blurb: "For venues and agencies that measure weekly or on several assistants.",
     features: [
       "1000 measurements a month, fair use",
-      "Room for weekly batteries per platform",
+      "Room for weekly reports and a second assistant",
       "Priority support",
       "Everything in Visibility",
     ],

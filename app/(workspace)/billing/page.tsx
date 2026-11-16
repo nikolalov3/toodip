@@ -24,13 +24,9 @@ import {
 
 export const metadata: Metadata = { title: "Billing" };
 
-const SELF_SERVE_PLANS = [
-  PLANS.free,
-  PLANS.starter,
-  PLANS.pro,
-  PLANS.visibility,
-  PLANS.unlimited,
-];
+/** What a workspace can pick today. Starter and Pro are legacy: shown only to a workspace still on one. */
+const SELF_SERVE_PLANS = [PLANS.free, PLANS.visibility, PLANS.unlimited];
+const LEGACY_PLANS: string[] = [PLANS.starter.id, PLANS.pro.id];
 
 export default async function BillingPage({
   searchParams,
@@ -115,8 +111,16 @@ export default async function BillingPage({
                 : "Payments are not connected on this deployment yet, so the buttons are disabled."
             }
           />
-          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
-            {SELF_SERVE_PLANS.map((plan) => {
+          <div
+            className={cn(
+              "grid gap-px bg-border sm:grid-cols-2",
+              LEGACY_PLANS.includes(snapshot.plan) ? "lg:grid-cols-4" : "lg:grid-cols-3",
+            )}
+          >
+            {(LEGACY_PLANS.includes(snapshot.plan)
+              ? [PLANS[snapshot.plan], ...SELF_SERVE_PLANS]
+              : SELF_SERVE_PLANS
+            ).map((plan) => {
               const current = snapshot.plan === plan.id;
               return (
                 <div
