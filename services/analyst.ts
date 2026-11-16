@@ -26,8 +26,14 @@ import { ASSISTANT_NAME, loadVisibilityOverview, type VisibilityOverview } from 
  * The facts are stored with the note, so every sentence can be checked.
  */
 
+/**
+ * DeepSeek v3.2 first: on the first live summary (17 Nov 2026) it returned a
+ * clean note, while the two v4 models spent the token budget thinking and
+ * returned nothing or half a JSON object. They stay as fallbacks, with room
+ * to think (see max_tokens below).
+ */
 const ANALYST_MODELS = () =>
-  (process.env.OPENROUTER_ANALYST_MODEL?.trim() || "deepseek/deepseek-v4-pro,deepseek/deepseek-v4.1-flash,deepseek/deepseek-v3.2")
+  (process.env.OPENROUTER_ANALYST_MODEL?.trim() || "deepseek/deepseek-v3.2,deepseek/deepseek-v4.1-flash,deepseek/deepseek-v4-pro")
     .split(",")
     .map((model) => model.trim())
     .filter(Boolean);
@@ -273,7 +279,7 @@ Rules:
 - When two facts suggest a cause, say "likely" or "this suggests": it is a hypothesis, not a finding.
 - Lead with the biggest real movement and what explains it; if nothing really moved, say so plainly and lead with where the venue stands. Then what matters most now; then the single first thing to do and why that one. When another assistant or the site's traffic is in the facts, give each one point.
 - Plain English, sentence case, short sentences, no marketing words, no exclamation marks, no em dashes.
-- 4 to 6 points, each one or two sentences. A headline under 90 characters that states the main movement or state in numbers.
+- 4 to 6 points, each one or two sentences. A headline under 90 characters that states the main movement or state in numbers, and nothing else: no cause, no advice.
 
 Answer with JSON only, exactly this shape:
 {"headline": "string", "points": [{"text": "string", "facts": ["f1", "f2"]}]}`;
@@ -409,9 +415,11 @@ async function wordNote(
       const completion = await openRouterChat({
         model,
         temperature: 0.2,
-        // Six points with citations run to about 600 tokens; the ceiling leaves
-        // room so a longer answer is never cut mid-JSON.
-        max_tokens: 1800,
+        // Six points with citations run to about 600 tokens. The ceiling is far
+        // above that because a model that reasons first spends tokens before it
+        // writes, and a note cut mid-JSON is a note thrown away.
+        max_tokens: 5000,
+        reasoning: { effort: "low" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: `Venue: ${venueName}.\n\nFacts:\n${facts.map((f) => `${f.id}. ${f.text}`).join("\n")}` },

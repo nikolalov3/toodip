@@ -72,7 +72,7 @@ Team, Account, Billing, Clients (tylko platforma). Publiczna rejestracja jest za
 ## Co czeka na Ciebie
 
 0. **Doładować OpenRouter.** 17 XI na koncie zostało 0,04 USD (kupione 87,00, zużyte 86,96). Bez środków nie działa żaden pomiar ani podsumowanie. Raport tygodniowy Belmont stoi na 125 z 136 odpowiedzi i sam się dokończy w ciągu kilkunastu minut od doładowania. Tydzień Belmont to około 3 USD, miesiąc wszystkich klientów dziś około 15 USD.
-1. **Uruchomić SQL** `docs/ANALYST_GSC_MIGRATION_TO_RUN.sql` w Supabase SQL Editor. Bez tego nie zapisuje się podsumowanie słowne i nie działa Search Console. Reszta panelu działa.
+1. ~~Uruchomić SQL~~ Zrobione 17 XI: tabele `analyses`, `gsc_properties`, `gsc_daily` są w bazie, pierwsze podsumowanie słowne zapisane (DeepSeek v3.2, 6 punktów, wszystkie przeszły kontrolę liczb).
 2. **Stripe**: prawdziwy `STRIPE_SECRET_KEY` (obecny jest nieprawidłowy), `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` na produkcji, VAT w Stripe. Do tego czasu przyciski zakupu są wyłączone.
 3. **Search Console**: konto serwisowe Google (`GSC_SERVICE_ACCOUNT_JSON`) i dodanie go jako użytkownika w Search Console belmont.cafe. Wtedy popyt z Google wchodzi do analizy Google AI.
 4. **Dwa spamowe workspace'y** z sierpnia ("Gulrxujp LLC", "Sssiquv LLC"): czekają na Twoje potwierdzenie usunięcia.
