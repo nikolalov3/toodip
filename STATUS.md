@@ -69,9 +69,22 @@ Team, Account, Billing, Clients (tylko platforma). Publiczna rejestracja jest za
 
 ---
 
+## Pierwszy raport tygodniowy (Belmont, tydzień od 16 XI)
+
+Zamknięty na 125 ze 136 odpowiedzi decyzją właściciela: ChatGPT 68 z 68, Google AI 57 z 68 (11 odpowiedzi Google zabrakło, gdy skończyły się środki; 22 odpowiedzi "z pamięci" leżą w bazie poza liczbami).
+
+| | Wynik | Zmiana |
+| --- | --- | --- |
+| ChatGPT | 47% (32 z 68), przedział 36-59% | 40% w listopadzie, w granicach szumu |
+| Google AI | 47% (27 z 57), przedział 35-60% | pierwszy pomiar |
+| Wizyty z AI, 9-15 XI | 4 (wszystkie z ChatGPT) | 3 tydzień wcześniej, szum |
+| Pobrania przez boty AI | 31 | 46 tydzień wcześniej, szum |
+
+Belmont jest najczęściej wymienianym lokalem u obu asystentów. Wynik niesie typ "Matcha spots" (22 z 24 i 23 z 23); w pięciu z dziewięciu typów pytań nie pada ani razu. Podsumowania słowne dla obu asystentów są zapisane.
+
 ## Co czeka na Ciebie
 
-0. **Doładować OpenRouter.** 17 XI na koncie zostało 0,04 USD (kupione 87,00, zużyte 86,96). Bez środków nie działa żaden pomiar ani podsumowanie. Raport tygodniowy Belmont stoi na 125 z 136 odpowiedzi i sam się dokończy w ciągu kilkunastu minut od doładowania. Tydzień Belmont to około 3 USD, miesiąc wszystkich klientów dziś około 15 USD.
+0. **Doładować OpenRouter.** 17 XI na koncie zostało 0,01 USD (kupione 87,00, zużyte 86,99). Bez środków nie działa żaden pomiar ani podsumowanie. Tydzień Belmont to około 3 USD, miesiąc wszystkich klientów dziś około 15 USD. Następny raport Belmont startuje w poniedziałek 23 XI.
 1. ~~Uruchomić SQL~~ Zrobione 17 XI: tabele `analyses`, `gsc_properties`, `gsc_daily` są w bazie, pierwsze podsumowanie słowne zapisane (DeepSeek v3.2, 6 punktów, wszystkie przeszły kontrolę liczb).
 2. **Stripe**: prawdziwy `STRIPE_SECRET_KEY` (obecny jest nieprawidłowy), `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL` na produkcji, VAT w Stripe. Do tego czasu przyciski zakupu są wyłączone.
 3. **Search Console**: konto serwisowe Google (`GSC_SERVICE_ACCOUNT_JSON`) i dodanie go jako użytkownika w Search Console belmont.cafe. Wtedy popyt z Google wchodzi do analizy Google AI.

@@ -248,7 +248,12 @@ export function factsFrom(
     const w = week.current;
     const p = week.previous;
     const span = `${dayLabel(w.from)} to ${dayLabel(w.to)}`;
-    add("traffic", `Website traffic, ${span}: ${w.pageviews} page views by ${w.visitors} visitors; the week before: ${p.pageviews} page views by ${p.visitors} visitors.`);
+    const viewsVerdict = countMovement(p.pageviews, w.pageviews);
+    add(
+      "traffic",
+      `Website traffic, ${span}: ${w.pageviews} page views by ${w.visitors} visitors; the week before: ${p.pageviews} page views by ${p.visitors} visitors. ` +
+        (viewsVerdict === "noise" ? "A difference this size is ordinary week to week wobble, not a change." : `This is a real ${viewsVerdict === "up" ? "rise" : "fall"} in page views.`),
+    );
     const aiVerdict = countMovement(p.aiVisits, w.aiVisits);
     add(
       "traffic_ai",
